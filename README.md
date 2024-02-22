@@ -1,2 +1,2 @@
-# zap
-Differentiable electricity dispatch
+# zap ⚡
+
