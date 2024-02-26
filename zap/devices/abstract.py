@@ -1,11 +1,17 @@
+import cvxpy as cp
+import numpy as np
+import scipy.sparse as sp
+
+
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Optional
+from functools import cached_property
 from numpy.typing import NDArray
 
 
 class AbstractDevice(ABC):
     # Pre-defined methods
+
+    num_nodes: int
 
     @property
     def num_terminals_per_device(self) -> int:
@@ -18,8 +24,41 @@ class AbstractDevice(ABC):
             return terminals.shape[1]
 
     @property
-    def num_devices(self):
+    def num_devices(self) -> int:
         return self.get_terminals.shape[0]
+
+    @cached_property
+    def incidence_matrix(self):
+        dimensions = (self.num_nodes, self.num_devices)
+
+        matrices = []
+        for terminal_index in range(self.num_terminals_per_device):
+            vals = np.ones(self.num_devices)
+
+            if len(self.get_terminals.shape) == 1:
+                rows = self.get_terminals
+            else:
+                rows = self.get_terminals[:, terminal_index]
+
+            cols = np.arange(self.num_devices)
+
+            matrices.append(sp.csc_matrix((vals, (rows, cols)), shape=dimensions))
+
+        return matrices
+
+    def initialize_power(self):
+        return [
+            cp.Variable(self.num_devices) for _ in range(self.num_terminals_per_device)
+        ]
+
+    def initialize_angle(self):
+        if self.is_ac:
+            return [
+                cp.Variable(self.num_devices)
+                for _ in range(self.num_terminals_per_device)
+            ]
+        else:
+            return None
 
     # Optionally defined methods
 
@@ -31,12 +70,12 @@ class AbstractDevice(ABC):
     def is_convex(self):
         return True
 
+    def model_local_variables(self):
+        return None
+
     @property
     def data(self):
         pass
-
-    def model_local_variables(self):
-        return None
 
     # Sub classes must define these methods
 
@@ -47,25 +86,8 @@ class AbstractDevice(ABC):
 
     @abstractmethod
     def model_cost(self, power, angle, local_variable):
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def model_local_constraints(self, power, angle, local_variable):
-        raise NotImplementedError
-
-
-@dataclass(kw_only=True)
-class Transporter(AbstractDevice):
-    """A Transport is a two-node device that carries power between nodes. The net power
-    of a transporter is always zero."""
-
-    source_terminal: NDArray
-    sink_terminal: NDArray
-    power_min: NDArray
-    power_max: NDArray
-    linear_cost: NDArray
-    quadratic_cost: Optional[NDArray] = None
-
-    def __post_init__(self):
-        # TODO - Add dimension checks
         pass

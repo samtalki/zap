@@ -10,9 +10,9 @@ from .abstract import AbstractDevice
 
 @dataclass(kw_only=True)
 class Injector(AbstractDevice):
-    """An Injector is a single-node device that may deposit or withdraw power from the
-    network."""
+    """A single-node device that may deposit or withdraw power from the network."""
 
+    num_nodes: int
     terminal: NDArray
     min_power: NDArray
     max_power: NDArray
@@ -36,7 +36,7 @@ class Injector(AbstractDevice):
         ]
 
     def model_cost(self, power, angle, local_variable):
-        power = power[0]
+        power = power[0] - self.min_power
 
         cost = self.linear_cost.T @ power
         if self.quadratic_cost is not None:
@@ -46,9 +46,10 @@ class Injector(AbstractDevice):
 
 
 class Generator(Injector):
-    """A Generator is an Injector that can only deposit power."""
+    """An Injector that can only deposit power."""
 
-    def __init__(self, *, terminal, capacity, linear_cost, quadratic_cost=None):
+    def __init__(self, *, num_nodes, terminal, capacity, linear_cost, quadratic_cost=None):
+        self.num_nodes = num_nodes
         self.terminal = terminal
         self.capacity = capacity
         self.linear_cost = linear_cost
@@ -64,9 +65,10 @@ class Generator(Injector):
 
 
 class Load(Injector):
-    """A Load is an Injector that can only withdraw power."""
+    """An Injector that can only withdraw power."""
 
-    def __init__(self, *, terminal, load, linear_cost, quadratic_cost=None):
+    def __init__(self, *, num_nodes, terminal, load, linear_cost, quadratic_cost=None):
+        self.num_nodes = num_nodes
         self.terminal = terminal
         self.load = load
         self.linear_cost = linear_cost
