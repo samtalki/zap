@@ -7,6 +7,12 @@ from numpy.typing import NDArray
 
 
 class AbstractDevice:
+    # Fields
+
+    terminals: NDArray
+    num_nodes: int
+    time_horizon: int
+
     # Pre-defined methods
 
     @property
@@ -73,18 +79,6 @@ class AbstractDevice:
 
     @property
     def data(self):  # Optional
-        raise NotImplementedError
-
-    @property
-    def terminals(self) -> NDArray:
-        raise NotImplementedError
-
-    @property
-    def num_nodes(self) -> int:
-        raise NotImplementedError
-
-    @property
-    def time_horizon(self) -> int:
         raise NotImplementedError
 
     def model_cost(self, power, angle, local_variable):
