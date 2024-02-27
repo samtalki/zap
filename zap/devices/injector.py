@@ -22,7 +22,6 @@ class Injector(AbstractDevice):
     nominal_capacity: Optional[NDArray] = None
 
     def __post_init__(self):
-
         if self.nominal_capacity is None:
             self.nominal_capacity = np.ones(self.num_devices)
 
@@ -44,7 +43,9 @@ class Injector(AbstractDevice):
     def time_horizon(self):
         return get_time_horizon(self.min_power)
 
-    def model_local_constraints(self, power, angle, local_variable, nominal_capacity=None):
+    def model_local_constraints(
+        self, power, angle, local_variable, nominal_capacity=None
+    ):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
         power = power[0]
 
@@ -68,9 +69,15 @@ class Generator(Injector):
     """An Injector that can only deposit power."""
 
     def __init__(
-        self, *, num_nodes, terminal, dynamic_capacity, linear_cost, quadratic_cost=None, nominal_capacity=None,
+        self,
+        *,
+        num_nodes,
+        terminal,
+        dynamic_capacity,
+        linear_cost,
+        quadratic_cost=None,
+        nominal_capacity=None,
     ):
-
         self.num_nodes = num_nodes
         self.terminal = terminal
 

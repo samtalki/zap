@@ -25,7 +25,7 @@ def nested_evaluate(variable):
     return [[xi.value for xi in x] if (x is not None) else None for x in variable]
 
 
-def get_net_power(device: AbstractDevice, p):
+def get_net_power(device: AbstractDevice, p: list[cp.Variable]) -> cp.Expression:
     return cp.sum([Ai @ pi for Ai, pi in zip(device.incidence_matrix, p)])
 
 
