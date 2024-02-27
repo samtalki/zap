@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice
+from .abstract import AbstractDevice, get_time_horizon
 
 
 @dataclass(kw_only=True)
@@ -31,6 +31,10 @@ class Transporter(AbstractDevice):
     @cached_property
     def terminals(self):
         return np.column_stack((self.source_terminal, self.sink_terminal))
+
+    @property
+    def time_horizon(self):
+        return 0  # Static device
 
     def model_local_constraints(self, power, angle, local_variable):
         return [

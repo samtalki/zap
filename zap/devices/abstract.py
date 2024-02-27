@@ -6,6 +6,13 @@ from functools import cached_property
 from numpy.typing import NDArray
 
 
+def get_time_horizon(array: NDArray) -> int:
+    if len(array.shape) < 2:
+        return 1
+    else:
+        return array.shape[1]
+
+
 class AbstractDevice:
     # Fields
 

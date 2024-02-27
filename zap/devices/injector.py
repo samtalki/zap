@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice
+from .abstract import AbstractDevice, get_time_horizon
 
 
 @dataclass(kw_only=True)
@@ -26,6 +26,10 @@ class Injector(AbstractDevice):
     @property
     def terminals(self):
         return self.terminal
+
+    @property
+    def time_horizon(self):
+        return get_time_horizon(self.min_power)
 
     def model_local_constraints(self, power, angle, local_variable):
         power = power[0]
