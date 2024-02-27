@@ -43,17 +43,29 @@ class PowerNetwork:
     num_nodes: int
 
     def dispatch(
-        self, devices: list[AbstractDevice], time_horizon=1, solver=cp.ECOS
+        self,
+        devices: list[AbstractDevice],
+        time_horizon=1,
+        *,
+        solver=cp.ECOS,
+        parameters=None,
     ) -> DispatchOutcome:
+        # Type checks
         assert all([d.num_nodes == self.num_nodes for d in devices])
         assert time_horizon > 0
         assert all([d.time_horizon in [0, time_horizon] for d in devices])
+
+        if parameters is None:
+            parameters = [{} for _ in devices]
 
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))
         power = [d.initialize_power(time_horizon) for d in devices]
         angle = [d.initialize_angle(time_horizon) for d in devices]
-        local_variables = [d.model_local_variables(time_horizon) for d in devices]
+        local_variables = [
+            d.model_local_variables(time_horizon, **param)
+            for d, param in zip(devices, parameters)
+        ]
 
         # Model constraints
         net_power = cp.sum([get_net_power(d, p) for d, p in zip(devices, power)])
@@ -63,14 +75,18 @@ class PowerNetwork:
             match_phases(d, v, global_angle) for d, v in zip(devices, angle)
         ]
         local_constraints = [
-            d.model_local_constraints(p, v, u)
-            for d, p, v, u in zip(devices, power, angle, local_variables)
+            d.model_local_constraints(p, v, u, **param)
+            for d, p, v, u, param in zip(
+                devices, power, angle, local_variables, parameters
+            )
         ]
 
         # Model objective
         costs = [
-            d.model_cost(p, v, u)
-            for d, p, v, u in zip(devices, power, angle, local_variables)
+            d.model_cost(p, v, u, **param)
+            for d, p, v, u, param in zip(
+                devices, power, angle, local_variables, parameters
+            )
         ]
 
         # Formulate cvxpy problem
