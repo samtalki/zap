@@ -46,7 +46,7 @@ class AbstractDevice:
         raise NotImplementedError
 
     # Optional
-    def model_local_variables(self, time_horizon: int, **kwargs) -> list[cp.Variable]:
+    def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return None
 
     def model_cost(self, power, angle, local_variable, **kwargs):

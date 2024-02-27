@@ -62,10 +62,7 @@ class PowerNetwork:
         global_angle = cp.Variable((self.num_nodes, time_horizon))
         power = [d.initialize_power(time_horizon) for d in devices]
         angle = [d.initialize_angle(time_horizon) for d in devices]
-        local_variables = [
-            d.model_local_variables(time_horizon, **param)
-            for d, param in zip(devices, parameters)
-        ]
+        local_variables = [d.model_local_variables(time_horizon) for d in devices]
 
         # Model constraints
         net_power = cp.sum([get_net_power(d, p) for d, p in zip(devices, power)])

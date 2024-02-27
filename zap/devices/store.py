@@ -5,7 +5,8 @@ from typing import Optional
 from collections import namedtuple
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice, make_dynamic
+from zap.devices.abstract import AbstractDevice, make_dynamic
+from zap.util import replace_none
 
 BatteryVariable = namedtuple(
     "BatteryVariable",
@@ -73,8 +74,9 @@ class Battery(AbstractDevice):
             cp.Variable((self.num_devices, time_horizon)),
         )
 
-    def model_local_constraints(self, power, angle, state):
-        energy_capacity = np.multiply(self.power_capacity, self.duration)
+    def model_local_constraints(self, power, angle, state, power_capacity=None):
+        power_capacity = make_dynamic(replace_none(power_capacity, self.power_capacity))
+        energy_capacity = np.multiply(power_capacity, self.duration)
 
         soc_evolution = (
             state.energy[:, :-1]
@@ -90,12 +92,12 @@ class Battery(AbstractDevice):
             state.energy >= 0,
             state.energy <= energy_capacity,
             state.charge >= 0,
-            state.charge <= self.power_capacity,
+            state.charge <= power_capacity,
             state.discharge >= 0,
-            state.discharge <= self.power_capacity,
+            state.discharge <= power_capacity,
         ]
 
-    def model_cost(self, power, angle, state):
+    def model_cost(self, power, angle, state, power_capacity=None):
         cost = cp.sum(cp.multiply(self.linear_cost, state.discharge))
         if self.quadratic_cost is not None:
             cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(state.discharge)))

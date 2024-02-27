@@ -6,7 +6,8 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice, make_dynamic
+from zap.devices.abstract import AbstractDevice, make_dynamic
+from zap.util import replace_none
 
 
 @dataclass(kw_only=True)
@@ -23,6 +24,7 @@ class Transporter(AbstractDevice):
     max_power: NDArray
     linear_cost: NDArray
     quadratic_cost: Optional[NDArray] = None
+    nominal_capacity: Optional[NDArray] = None
 
     def __post_init__(self):
         # Reshape arrays
@@ -30,6 +32,9 @@ class Transporter(AbstractDevice):
         self.max_power = make_dynamic(self.max_power)
         self.linear_cost = make_dynamic(self.linear_cost)
         self.quadratic_cost = make_dynamic(self.quadratic_cost)
+        self.nominal_capacity = make_dynamic(
+            replace_none(self.nominal_capacity, np.ones(self.num_devices))
+        )
 
         # TODO - Add dimension checks
         pass
@@ -42,14 +47,16 @@ class Transporter(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def model_local_constraints(self, power, angle, local_variable):
+    def model_local_constraints(self, power, angle, _, nominal_capacity=None):
+        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
+
         return [
             power[1] == -power[0],
-            self.min_power <= power[1],
-            power[1] <= self.max_power,
+            np.multiply(self.min_power, pnom) <= power[1],
+            power[1] <= np.multiply(self.max_power, pnom),
         ]
 
-    def model_cost(self, power, angle, local_variable):
+    def model_cost(self, power, angle, _, nominal_capacity=None):
         cost = cp.sum(cp.multiply(self.linear_cost, cp.abs(power[1])))
         if self.quadratic_cost is not None:
             cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(power[1])))
@@ -69,6 +76,7 @@ class PowerLine(Transporter):
         capacity,
         linear_cost=None,
         quadratic_cost=None,
+        nominal_capacity=None,
     ):
         if linear_cost is None:
             linear_cost = np.zeros(capacity.shape)
@@ -79,6 +87,9 @@ class PowerLine(Transporter):
         self.capacity = make_dynamic(capacity)
         self.linear_cost = make_dynamic(linear_cost)
         self.quadratic_cost = make_dynamic(quadratic_cost)
+        self.nominal_capacity = make_dynamic(
+            replace_none(nominal_capacity, np.ones(self.num_devices))
+        )
 
     @property
     def min_power(self):
@@ -108,6 +119,7 @@ class ACLine(PowerLine):
         susceptance,
         linear_cost=None,
         quadratic_cost=None,
+        nominal_capacity=None,
     ):
         self.susceptance = make_dynamic(susceptance)
 
@@ -118,13 +130,21 @@ class ACLine(PowerLine):
             capacity=capacity,
             linear_cost=linear_cost,
             quadratic_cost=quadratic_cost,
+            nominal_capacity=nominal_capacity,
         )
 
     @property
     def is_ac(self):
         return True
 
-    def model_local_constraints(self, power, angle, local_variable):
-        constraints = [power[1] == cp.multiply(self.susceptance, (angle[0] - angle[1]))]
-        constraints += super().model_local_constraints(power, angle, local_variable)
+    def model_local_constraints(self, power, angle, local, nominal_capacity=None):
+        nominal_capacity = make_dynamic(
+            replace_none(nominal_capacity, self.nominal_capacity)
+        )
+        susceptance = np.multiply(self.susceptance, nominal_capacity)
+
+        constraints = [power[1] == cp.multiply(susceptance, (angle[0] - angle[1]))]
+        constraints += super().model_local_constraints(
+            power, angle, local, nominal_capacity=nominal_capacity
+        )
         return constraints
