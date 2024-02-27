@@ -43,15 +43,15 @@ class PowerNetwork:
     num_nodes: int
 
     def dispatch(
-        self, devices: list[AbstractDevice], solver=cp.ECOS
+        self, devices: list[AbstractDevice], time_horizon=1, solver=cp.ECOS
     ) -> DispatchOutcome:
         assert all([d.num_nodes == self.num_nodes for d in devices])
 
         # Initialize variables
-        global_angle = cp.Variable(self.num_nodes)
-        power = [d.initialize_power() for d in devices]
-        angle = [d.initialize_angle() for d in devices]
-        local_variables = [d.model_local_variables() for d in devices]
+        global_angle = cp.Variable((self.num_nodes, time_horizon))
+        power = [d.initialize_power(time_horizon) for d in devices]
+        angle = [d.initialize_angle(time_horizon) for d in devices]
+        local_variables = [d.model_local_variables(time_horizon) for d in devices]
 
         # Model constraints
         net_power = cp.sum([get_net_power(d, p) for d, p in zip(devices, power)])

@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice, get_time_horizon
+from .abstract import AbstractDevice
 
 
 @dataclass(kw_only=True)

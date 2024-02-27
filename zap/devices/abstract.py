@@ -20,6 +20,33 @@ class AbstractDevice:
     num_nodes: int
     time_horizon: int
 
+    # Overwriteable methods
+
+    # Optional
+    @property
+    def is_ac(self):
+        return False
+
+    # Optional
+    @property
+    def is_convex(self):
+        return True
+
+    # Optional
+    @property
+    def data(self):
+        raise NotImplementedError
+
+    # Optional
+    def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
+        return None
+
+    def model_cost(self, power, angle, local_variable):
+        raise NotImplementedError
+
+    def model_local_constraints(self, power, angle, local_variable):
+        raise NotImplementedError
+
     # Pre-defined methods
 
     @property
@@ -55,41 +82,17 @@ class AbstractDevice:
 
         return matrices
 
-    def initialize_power(self):
+    def initialize_power(self, time_horizon: int) -> list[cp.Variable]:
         return [
-            cp.Variable(self.num_devices) for _ in range(self.num_terminals_per_device)
+            cp.Variable((self.num_devices, time_horizon))
+            for _ in range(self.num_terminals_per_device)
         ]
 
-    def initialize_angle(self):
+    def initialize_angle(self, time_horizon: int) -> list[cp.Variable]:
         if self.is_ac:
             return [
-                cp.Variable(self.num_devices)
+                cp.Variable((self.num_devices, time_horizon))
                 for _ in range(self.num_terminals_per_device)
             ]
         else:
             return None
-
-    # Optionally overwrite these methods
-
-    @property
-    def is_ac(self):
-        return False
-
-    @property
-    def is_convex(self):
-        return True
-
-    def model_local_variables(self):
-        return None
-
-    # Subclasses define these methods
-
-    @property
-    def data(self):  # Optional
-        raise NotImplementedError
-
-    def model_cost(self, power, angle, local_variable):
-        raise NotImplementedError
-
-    def model_local_constraints(self, power, angle, local_variable):
-        raise NotImplementedError
