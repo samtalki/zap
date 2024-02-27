@@ -115,6 +115,6 @@ class ACLine(PowerLine):
         return True
 
     def model_local_constraints(self, power, angle, local_variable):
-        constraints = super().model_local_constraints(power, angle, local_variable)
-        constraints.append(power[1] == cp.multiply(self.susceptance, (angle[0] - angle[1])))
+        constraints = [power[1] == cp.multiply(self.susceptance, (angle[0] - angle[1]))]
+        constraints += super().model_local_constraints(power, angle, local_variable)
         return constraints
