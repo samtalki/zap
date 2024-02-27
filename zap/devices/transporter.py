@@ -29,7 +29,7 @@ class Transporter(AbstractDevice):
         pass
 
     @cached_property
-    def get_terminals(self):
+    def terminals(self):
         return np.column_stack((self.source_terminal, self.sink_terminal))
 
     def model_local_constraints(self, power, angle, local_variable):

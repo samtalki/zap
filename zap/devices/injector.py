@@ -24,7 +24,7 @@ class Injector(AbstractDevice):
         pass
 
     @property
-    def get_terminals(self):
+    def terminals(self):
         return self.terminal
 
     def model_local_constraints(self, power, angle, local_variable):

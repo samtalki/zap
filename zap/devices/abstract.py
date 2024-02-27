@@ -2,20 +2,16 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
-
-from abc import ABC, abstractmethod
 from functools import cached_property
 from numpy.typing import NDArray
 
 
-class AbstractDevice(ABC):
+class AbstractDevice:
     # Pre-defined methods
-
-    num_nodes: int
 
     @property
     def num_terminals_per_device(self) -> int:
-        terminals = self.get_terminals
+        terminals = self.terminals
         assert len(terminals.shape) <= 2
 
         if len(terminals.shape) == 1:
@@ -25,7 +21,7 @@ class AbstractDevice(ABC):
 
     @property
     def num_devices(self) -> int:
-        return self.get_terminals.shape[0]
+        return self.terminals.shape[0]
 
     @cached_property
     def incidence_matrix(self):
@@ -35,10 +31,10 @@ class AbstractDevice(ABC):
         for terminal_index in range(self.num_terminals_per_device):
             vals = np.ones(self.num_devices)
 
-            if len(self.get_terminals.shape) == 1:
-                rows = self.get_terminals
+            if len(self.terminals.shape) == 1:
+                rows = self.terminals
             else:
-                rows = self.get_terminals[:, terminal_index]
+                rows = self.terminals[:, terminal_index]
 
             cols = np.arange(self.num_devices)
 
@@ -60,7 +56,7 @@ class AbstractDevice(ABC):
         else:
             return None
 
-    # Optionally defined methods
+    # Optionally overwrite these methods
 
     @property
     def is_ac(self):
@@ -73,21 +69,26 @@ class AbstractDevice(ABC):
     def model_local_variables(self):
         return None
 
-    @property
-    def data(self):
-        pass
-
-    # Sub classes must define these methods
+    # Subclasses define these methods
 
     @property
-    @abstractmethod
-    def get_terminals(self) -> NDArray:
-        pass
+    def data(self):  # Optional
+        raise NotImplementedError
 
-    @abstractmethod
+    @property
+    def terminals(self) -> NDArray:
+        raise NotImplementedError
+
+    @property
+    def num_nodes(self) -> int:
+        raise NotImplementedError
+
+    @property
+    def time_horizon(self) -> int:
+        raise NotImplementedError
+
     def model_cost(self, power, angle, local_variable):
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def model_local_constraints(self, power, angle, local_variable):
-        pass
+        raise NotImplementedError
