@@ -20,7 +20,6 @@ class Injector(AbstractDevice):
     quadratic_cost: Optional[NDArray] = None
 
     def __post_init__(self):
-        print("Fooba")
         # Reshape arrays
         self.min_power = make_dynamic(self.min_power)
         self.max_power = make_dynamic(self.max_power)
