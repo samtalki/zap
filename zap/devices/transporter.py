@@ -6,7 +6,7 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice
+from .abstract import AbstractDevice, make_dynamic
 
 
 @dataclass(kw_only=True)
@@ -25,6 +25,12 @@ class Transporter(AbstractDevice):
     quadratic_cost: Optional[NDArray] = None
 
     def __post_init__(self):
+        # Reshape arrays
+        self.min_power = make_dynamic(self.min_power)
+        self.max_power = make_dynamic(self.max_power)
+        self.linear_cost = make_dynamic(self.linear_cost)
+        self.quadratic_cost = make_dynamic(self.quadratic_cost)
+
         # TODO - Add dimension checks
         pass
 
@@ -44,7 +50,7 @@ class Transporter(AbstractDevice):
         ]
 
     def model_cost(self, power, angle, local_variable):
-        cost = self.linear_cost.T @ power[1]
+        cost = cp.sum(cp.multiply(self.linear_cost, cp.abs(power[1])))
         if self.quadratic_cost is not None:
             cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(power[1])))
 
@@ -70,9 +76,9 @@ class PowerLine(Transporter):
         self.num_nodes = num_nodes
         self.source_terminal = source_terminal
         self.sink_terminal = sink_terminal
-        self.capacity = capacity
-        self.linear_cost = linear_cost
-        self.quadratic_cost = quadratic_cost
+        self.capacity = make_dynamic(capacity)
+        self.linear_cost = make_dynamic(linear_cost)
+        self.quadratic_cost = make_dynamic(quadratic_cost)
 
     @property
     def min_power(self):
@@ -103,7 +109,7 @@ class ACLine(PowerLine):
         linear_cost=None,
         quadratic_cost=None,
     ):
-        self.susceptance = susceptance
+        self.susceptance = make_dynamic(susceptance)
 
         super().__init__(
             num_nodes=num_nodes,

@@ -3,6 +3,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from functools import cached_property
+from typing import Optional
 from numpy.typing import NDArray
 
 
@@ -11,6 +12,13 @@ def get_time_horizon(array: NDArray) -> int:
         return 1
     else:
         return array.shape[1]
+
+
+def make_dynamic(array: Optional[NDArray]) -> NDArray:
+    if (array is not None) and (len(array.shape)) == 1:
+        return np.expand_dims(array, axis=1)
+    else:
+        return array
 
 
 class AbstractDevice:

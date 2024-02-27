@@ -46,6 +46,8 @@ class PowerNetwork:
         self, devices: list[AbstractDevice], time_horizon=1, solver=cp.ECOS
     ) -> DispatchOutcome:
         assert all([d.num_nodes == self.num_nodes for d in devices])
+        assert time_horizon > 0
+        assert all([d.time_horizon in [0, time_horizon] for d in devices])
 
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))

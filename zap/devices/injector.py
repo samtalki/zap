@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
-from .abstract import AbstractDevice, get_time_horizon
+from .abstract import AbstractDevice, get_time_horizon, make_dynamic
 
 
 @dataclass(kw_only=True)
@@ -20,6 +20,13 @@ class Injector(AbstractDevice):
     quadratic_cost: Optional[NDArray] = None
 
     def __post_init__(self):
+        print("Fooba")
+        # Reshape arrays
+        self.min_power = make_dynamic(self.min_power)
+        self.max_power = make_dynamic(self.max_power)
+        self.linear_cost = make_dynamic(self.linear_cost)
+        self.quadratic_cost = make_dynamic(self.quadratic_cost)
+
         # TODO - Add dimension checks
         pass
 
@@ -42,7 +49,7 @@ class Injector(AbstractDevice):
     def model_cost(self, power, angle, local_variable):
         power = power[0] - self.min_power
 
-        cost = self.linear_cost.T @ power
+        cost = cp.sum(cp.multiply(self.linear_cost, power))
         if self.quadratic_cost is not None:
             cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(power)))
 
@@ -52,12 +59,14 @@ class Injector(AbstractDevice):
 class Generator(Injector):
     """An Injector that can only deposit power."""
 
-    def __init__(self, *, num_nodes, terminal, capacity, linear_cost, quadratic_cost=None):
+    def __init__(
+        self, *, num_nodes, terminal, capacity, linear_cost, quadratic_cost=None
+    ):
         self.num_nodes = num_nodes
         self.terminal = terminal
-        self.capacity = capacity
-        self.linear_cost = linear_cost
-        self.quadratic_cost = quadratic_cost
+        self.capacity = make_dynamic(capacity)
+        self.linear_cost = make_dynamic(linear_cost)
+        self.quadratic_cost = make_dynamic(quadratic_cost)
 
     @property
     def min_power(self):
@@ -74,9 +83,9 @@ class Load(Injector):
     def __init__(self, *, num_nodes, terminal, load, linear_cost, quadratic_cost=None):
         self.num_nodes = num_nodes
         self.terminal = terminal
-        self.load = load
-        self.linear_cost = linear_cost
-        self.quadratic_cost = quadratic_cost
+        self.load = make_dynamic(load)
+        self.linear_cost = make_dynamic(linear_cost)
+        self.quadratic_cost = make_dynamic(quadratic_cost)
 
     @property
     def min_power(self):
