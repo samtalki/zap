@@ -84,11 +84,14 @@ class Battery(AbstractDevice):
             - state.discharge
         )
 
+        T = power[0].shape[1]
+
         return [
             power[0] == state.charge - state.discharge,
             state.energy[:, 1:] == soc_evolution,
-            state.energy[:, 0] == np.multiply(self.initial_soc, energy_capacity),
-            state.energy[:, -1] == np.multiply(self.final_soc, energy_capacity),
+            state.energy[:, 0:1] == np.multiply(self.initial_soc, energy_capacity),
+            state.energy[:, T : (T + 1)]
+            == np.multiply(self.final_soc, energy_capacity),
             state.energy >= 0,
             state.energy <= energy_capacity,
             state.charge >= 0,
