@@ -27,6 +27,9 @@ class DispatchLayer:
         pass
 
     def __call__(self, **kwargs) -> Any:
+        return self.forward(**kwargs)
+
+    def forward(self, **kwargs):
         # Check that arguments match parameters
         assert kwargs.keys() == self.parameter_names.keys()
 
