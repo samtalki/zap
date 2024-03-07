@@ -64,6 +64,20 @@ class Injector(AbstractDevice):
 
         return cost
 
+    def equality_constraints(self, power, angle, local_variable, nominal_capacity=None):
+        return []
+
+    def inequality_constraints(
+        self, power, angle, local_variable, nominal_capacity=None
+    ):
+        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
+        power = power[0]
+
+        return [
+            np.multiply(self.min_power, pnom) - power,
+            power - np.multiply(self.max_power, pnom),
+        ]
+
 
 class Generator(Injector):
     """An Injector that can only deposit power."""

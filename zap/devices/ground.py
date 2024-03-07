@@ -39,5 +39,14 @@ class Ground(AbstractDevice):
             angle[0] == self.voltage,
         ]
 
+    def equality_constraints(self, power, angle, local_variable, **kwargs):
+        return [
+            power[0],
+            angle[0] - self.voltage,
+        ]
+
+    def inequality_constraints(self, power, angle, local_variable, **kwargs):
+        return []
+
     def model_cost(self, power, angle, local_variable):
         return 0.0

@@ -149,32 +149,26 @@ class PowerNetwork:
         if dispatch_outcome.ground is not None:
             devices = devices + [dispatch_outcome.ground]
 
-        # Step 1: Local terms
-        # Phase consistency constraint - primal feasibility condition
-        kkt_phase_consistency = self._kkt_phase_consistency(devices, dispatch_outcome)
-
         # Local constraints - primal feasibility
-        kkt_local_equalities = None
-        kkt_local_inequalities = None
+        # kkt_local_equalities = None
+        # kkt_local_inequalities = None
 
         # Local variables - dual feasibility
-        kkt_local_variables = None
-        kkt_local_angles = None
-        kkt_local_powers = None
+        # kkt_local_variables = None
+        # kkt_local_angles = None
+        # kkt_local_powers = None
 
-        # Step 2: Global terms
-        # Power balance constraint - primal feasibility condition
-        kkt_power_balance = self._kkt_power_balance(devices, dispatch_outcome)
-
-        # Global angle variable - dual feasibility condition
-        kkt_global_angle = self._kkt_global_angle(devices, dispatch_outcome)
-
-        kkt_conditions = [
-            kkt_phase_consistency,
-            kkt_power_balance.reshape(-1),
-            kkt_global_angle.reshape(-1),
-        ]
-        return np.concatenate(kkt_conditions)
+        return DispatchOutcome(
+            global_angle=self._kkt_global_angle(devices, dispatch_outcome),
+            power=None,
+            angle=None,
+            local_variables=None,
+            prices=self._kkt_power_balance(devices, dispatch_outcome),
+            phase_duals=self._kkt_phase_consistency(devices, dispatch_outcome),
+            local_duals=None,
+            problem="KKT",
+            ground=dispatch_outcome.ground,
+        )
 
     def _kkt_power_balance(self, devices, dispatch_outcome):
         net_powers = [
@@ -191,26 +185,21 @@ class PowerNetwork:
         return np.sum(angle_duals, axis=0)
 
     def _kkt_phase_consistency(self, devices, dispatch_outcome):
-        angle, global_angle = dispatch_outcome.angle, dispatch_outcome.global_angle
-
         # Compute observed global angles
         theta_terminals = [
             apply_incidence_transpose(
-                d, repeat(global_angle, d.num_terminals_per_device)
+                d, repeat(dispatch_outcome.global_angle, d.num_terminals_per_device)
             )
             for d in devices
-            if d.is_ac
         ]
 
         # Compute phase differences
         phase_diffs = [
-            np.reshape(np.array(theta) - np.array(a), -1)
-            for theta, a in zip(theta_terminals, angle)
-            if a is not None
+            np.array(theta) - np.array(a) if a is not None else None
+            for theta, a in zip(theta_terminals, dispatch_outcome.angle)
         ]
 
-        # Concatenate
-        return np.concatenate([phase_diffs for d, a in zip(devices, angle)])
+        return phase_diffs
 
     # def kkt_jacobian_variables(self, devices, dispatch_outcome):
     #     pass
