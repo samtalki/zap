@@ -63,6 +63,18 @@ class Transporter(AbstractDevice):
 
         return cost
 
+    def equality_constraints(self, power, angle, local_variable, nominal_capacity=None):
+        return [power[1] + power[0] == 0]
+
+    def inequality_constraints(
+        self, power, angle, local_variable, nominal_capacity=None
+    ):
+        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
+        return [
+            np.multiply(self.min_power, pnom) - power[1],
+            power[1] - np.multiply(self.max_power, pnom),
+        ]
+
 
 class PowerLine(Transporter):
     """A simple symmetric transporter."""
@@ -148,3 +160,15 @@ class ACLine(PowerLine):
             power, angle, local, nominal_capacity=nominal_capacity
         )
         return constraints
+
+    def equality_constraints(self, power, angle, local_variable, nominal_capacity=None):
+        nominal_capacity = make_dynamic(
+            replace_none(nominal_capacity, self.nominal_capacity)
+        )
+        susceptance = np.multiply(self.susceptance, nominal_capacity)
+
+        eq_constraints = super().equality_constraints(
+            power, angle, local_variable, nominal_capacity
+        )
+        eq_constraints += [power[1] - cp.multiply(susceptance, (angle[0] - angle[1]))]
+        return eq_constraints
