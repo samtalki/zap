@@ -47,15 +47,6 @@ class Transporter(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def model_local_constraints(self, power, angle, _, nominal_capacity=None):
-        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
-
-        return [
-            power[1] == -power[0],
-            np.multiply(self.min_power, pnom) <= power[1],
-            power[1] <= np.multiply(self.max_power, pnom),
-        ]
-
     def model_cost(self, power, angle, _, nominal_capacity=None):
         cost = cp.sum(cp.multiply(self.linear_cost, cp.abs(power[1])))
         if self.quadratic_cost is not None:
@@ -63,11 +54,13 @@ class Transporter(AbstractDevice):
 
         return cost
 
-    def equality_constraints(self, power, angle, local_variable, nominal_capacity=None):
-        return [power[1] + power[0] == 0]
+    def equality_constraints(
+        self, power, angle, local_variable, nominal_capacity=None, la=np
+    ):
+        return [power[1] + power[0]]
 
     def inequality_constraints(
-        self, power, angle, local_variable, nominal_capacity=None
+        self, power, angle, local_variable, nominal_capacity=None, la=np
     ):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
         return [
@@ -149,26 +142,12 @@ class ACLine(PowerLine):
     def is_ac(self):
         return True
 
-    def model_local_constraints(self, power, angle, local, nominal_capacity=None):
+    def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):
         nominal_capacity = make_dynamic(
             replace_none(nominal_capacity, self.nominal_capacity)
         )
         susceptance = np.multiply(self.susceptance, nominal_capacity)
 
-        constraints = [power[1] == cp.multiply(susceptance, (angle[0] - angle[1]))]
-        constraints += super().model_local_constraints(
-            power, angle, local, nominal_capacity=nominal_capacity
-        )
-        return constraints
-
-    def equality_constraints(self, power, angle, local_variable, nominal_capacity=None):
-        nominal_capacity = make_dynamic(
-            replace_none(nominal_capacity, self.nominal_capacity)
-        )
-        susceptance = np.multiply(self.susceptance, nominal_capacity)
-
-        eq_constraints = super().equality_constraints(
-            power, angle, local_variable, nominal_capacity
-        )
-        eq_constraints += [power[1] - cp.multiply(susceptance, (angle[0] - angle[1]))]
+        eq_constraints = super().equality_constraints(power, angle, u, nominal_capacity)
+        eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
         return eq_constraints

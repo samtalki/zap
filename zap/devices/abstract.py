@@ -52,9 +52,6 @@ class AbstractDevice:
     def model_cost(self, power, angle, local_variable, **kwargs):
         raise NotImplementedError
 
-    def model_local_constraints(self, power, angle, local_variable, **kwargs):
-        raise NotImplementedError
-
     def equality_constraints(self, power, angle, local_variable, **kwargs):
         return NotImplementedError
 

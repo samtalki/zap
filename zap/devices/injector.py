@@ -43,17 +43,6 @@ class Injector(AbstractDevice):
     def time_horizon(self):
         return get_time_horizon(self.min_power)
 
-    def model_local_constraints(
-        self, power, angle, local_variable, nominal_capacity=None
-    ):
-        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
-        power = power[0]
-
-        return [
-            np.multiply(self.min_power, pnom) <= power,
-            power <= np.multiply(self.max_power, pnom),
-        ]
-
     def model_cost(self, power, angle, local_variable, nominal_capacity=None):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
         power = power[0] - np.multiply(self.min_power, pnom)
@@ -64,12 +53,10 @@ class Injector(AbstractDevice):
 
         return cost
 
-    def equality_constraints(self, power, angle, local_variable, nominal_capacity=None):
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         return []
 
-    def inequality_constraints(
-        self, power, angle, local_variable, nominal_capacity=None
-    ):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
         power = power[0]
 

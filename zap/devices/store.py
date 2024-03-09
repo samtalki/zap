@@ -74,39 +74,16 @@ class Battery(AbstractDevice):
             cp.Variable((self.num_devices, time_horizon)),
         )
 
-    def model_local_constraints(self, power, angle, state, power_capacity=None):
+    def equality_constraints(self, power, angle, state, power_capacity=None, la=np):
+        if not isinstance(state, BatteryVariable):
+            state = BatteryVariable(*state)
+
         power_capacity = make_dynamic(replace_none(power_capacity, self.power_capacity))
         energy_capacity = np.multiply(power_capacity, self.duration)
 
         soc_evolution = (
             state.energy[:, :-1]
-            + cp.multiply(state.charge, self.charge_efficiency)
-            - state.discharge
-        )
-
-        T = power[0].shape[1]
-
-        return [
-            power[0] == state.charge - state.discharge,
-            state.energy[:, 1:] == soc_evolution,
-            state.energy[:, 0:1] == np.multiply(self.initial_soc, energy_capacity),
-            state.energy[:, T : (T + 1)]
-            == np.multiply(self.final_soc, energy_capacity),
-            state.energy >= 0,
-            state.energy <= energy_capacity,
-            state.charge >= 0,
-            state.charge <= power_capacity,
-            state.discharge >= 0,
-            state.discharge <= power_capacity,
-        ]
-
-    def equality_constraints(self, power, angle, state, power_capacity=None):
-        power_capacity = make_dynamic(replace_none(power_capacity, self.power_capacity))
-        energy_capacity = np.multiply(power_capacity, self.duration)
-
-        soc_evolution = (
-            state.energy[:, :-1]
-            + cp.multiply(state.charge, self.charge_efficiency)
+            + la.multiply(state.charge, self.charge_efficiency)
             - state.discharge
         )
 
@@ -119,7 +96,10 @@ class Battery(AbstractDevice):
             state.energy[:, T : (T + 1)] - np.multiply(self.final_soc, energy_capacity),
         ]
 
-    def inequality_constraints(self, power, angle, state, power_capacity=None):
+    def inequality_constraints(self, power, angle, state, power_capacity=None, la=np):
+        if not isinstance(state, BatteryVariable):
+            state = BatteryVariable(*state)
+
         power_capacity = make_dynamic(replace_none(power_capacity, self.power_capacity))
         energy_capacity = np.multiply(power_capacity, self.duration)
         return [
@@ -132,6 +112,9 @@ class Battery(AbstractDevice):
         ]
 
     def model_cost(self, power, angle, state, power_capacity=None):
+        if not isinstance(state, BatteryVariable):
+            state = BatteryVariable(*state)
+
         cost = cp.sum(cp.multiply(self.linear_cost, state.discharge))
         if self.quadratic_cost is not None:
             cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(state.discharge)))

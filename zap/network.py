@@ -18,7 +18,8 @@ DispatchOutcome = namedtuple(
         "local_variables",
         "prices",
         "phase_duals",
-        "local_duals",
+        "local_equality_duals",
+        "local_inequality_duals",
         "problem",
         "ground",
     ],
@@ -96,9 +97,15 @@ class PowerNetwork:
             match_phases(d, v, global_angle) for d, v in zip(devices, angle)
         ]
 
-        # Add local constraints
-        local_constraints = [
-            d.model_local_constraints(p, v, u, **param)
+        local_equalities = [
+            [hi == 0 for hi in d.equality_constraints(p, v, u, **param, la=cp)]
+            for d, p, v, u, param in zip(
+                devices, power, angle, local_variables, parameters
+            )
+        ]
+
+        local_inequalities = [
+            [gi <= 0 for gi in d.inequality_constraints(p, v, u, **param, la=cp)]
             for d, p, v, u, param in zip(
                 devices, power, angle, local_variables, parameters
             )
@@ -119,7 +126,8 @@ class PowerNetwork:
             itertools.chain(
                 [power_balance],
                 *phase_consistency,
-                *local_constraints,
+                *local_equalities,
+                *local_inequalities,
             ),
         )
         problem.solve(solver=solver)
@@ -140,17 +148,45 @@ class PowerNetwork:
                 [pci.dual_value for pci in pc] if pc is not None else None
                 for pc in phase_consistency
             ],
-            local_duals=[[lci.dual_value for lci in lc] for lc in local_constraints],
+            local_equality_duals=[
+                [lci.dual_value for lci in lc] for lc in local_equalities
+            ],
+            local_inequality_duals=[
+                [lci.dual_value for lci in lc] for lc in local_inequalities
+            ],
             problem=problem,
             ground=ground,
         )
 
-    def kkt(self, devices, dispatch_outcome):
+    def kkt(self, devices, dispatch_outcome, parameters=None):
         if dispatch_outcome.ground is not None:
             devices = devices + [dispatch_outcome.ground]
 
+        if parameters is None:
+            parameters = [{} for _ in devices]
+        else:
+            parameters += [{}]
+
         # Local constraints - primal feasibility
-        # kkt_local_equalities = None
+        power = dispatch_outcome.power
+        angle = dispatch_outcome.angle
+        local_vars = dispatch_outcome.local_variables
+        lambda_ineq = dispatch_outcome.local_inequality_duals
+
+        kkt_local_equalities = [
+            d.equality_constraints(p, a, u, **param)
+            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
+        ]
+
+        kkt_local_inequalities = [
+            [
+                np.multiply(hi, lamb_i)
+                for hi, lamb_i in zip(d.inequality_constraints(p, a, u, **param), lamb)
+            ]
+            for d, p, a, u, param, lamb in zip(
+                devices, power, angle, local_vars, parameters, lambda_ineq
+            )
+        ]
         # kkt_local_inequalities = None
 
         # Local variables - dual feasibility
@@ -165,7 +201,8 @@ class PowerNetwork:
             local_variables=None,
             prices=self._kkt_power_balance(devices, dispatch_outcome),
             phase_duals=self._kkt_phase_consistency(devices, dispatch_outcome),
-            local_duals=None,
+            local_equality_duals=kkt_local_equalities,
+            local_inequality_duals=kkt_local_inequalities,
             problem="KKT",
             ground=dispatch_outcome.ground,
         )

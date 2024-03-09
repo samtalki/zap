@@ -33,19 +33,13 @@ class Ground(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def model_local_constraints(self, power, angle, local_variable):
-        return [
-            power[0] == 0,
-            angle[0] == self.voltage,
-        ]
-
-    def equality_constraints(self, power, angle, local_variable, **kwargs):
+    def equality_constraints(self, power, angle, local_variable, la=np):
         return [
             power[0],
             angle[0] - self.voltage,
         ]
 
-    def inequality_constraints(self, power, angle, local_variable, **kwargs):
+    def inequality_constraints(self, power, angle, local_variable, la=np):
         return []
 
     def model_cost(self, power, angle, local_variable):
