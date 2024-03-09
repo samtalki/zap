@@ -65,6 +65,16 @@ class Injector(AbstractDevice):
             power - np.multiply(self.max_power, pnom),
         ]
 
+    def cost_grad_power(self, power, angle, local_variable, nominal_capacity=None):
+        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
+        power = power[0] - np.multiply(self.min_power, pnom)
+
+        grad = np.multiply(self.linear_cost, np.ones_like(power))
+        if self.quadratic_cost is not None:
+            grad += np.multiply(2 * self.quadratic_cost, power)
+
+        return [grad]
+
 
 class Generator(Injector):
     """An Injector that can only deposit power."""

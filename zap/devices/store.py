@@ -120,3 +120,13 @@ class Battery(AbstractDevice):
             cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(state.discharge)))
 
         return cost
+
+    def cost_grad_u(self, power, angle, state, power_capacity=None):
+        state = super().cost_grad_u(power, angle, state, power_capacity)
+        state = BatteryVariable(*state)
+
+        state.discharge = np.multiply(self.linear_cost, np.ones_like(state.discharge))
+        if self.quadratic_cost is not None:
+            state.discharge += np.multiply(2 * self.quadratic_cost, state.discharge)
+
+        return state

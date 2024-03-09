@@ -68,6 +68,13 @@ class Transporter(AbstractDevice):
             power[1] - np.multiply(self.max_power, pnom),
         ]
 
+    def cost_grad_power(self, power, angle, local_variable, nominal_capacity=None):
+        grad = np.multiply(self.linear_cost, np.sign(power))
+        if self.quadratic_cost is not None:
+            grad += np.multiply(2 * self.quadratic_cost, power)
+
+        return [grad]
+
 
 class PowerLine(Transporter):
     """A simple symmetric transporter."""

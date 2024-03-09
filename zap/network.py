@@ -167,12 +167,12 @@ class PowerNetwork:
         else:
             parameters += [{}]
 
-        # Local constraints - primal feasibility
         power = dispatch_outcome.power
         angle = dispatch_outcome.angle
         local_vars = dispatch_outcome.local_variables
         lambda_ineq = dispatch_outcome.local_inequality_duals
 
+        # Local constraints - primal feasibility
         kkt_local_equalities = [
             d.equality_constraints(p, a, u, **param)
             for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
@@ -187,16 +187,19 @@ class PowerNetwork:
                 devices, power, angle, local_vars, parameters, lambda_ineq
             )
         ]
-        # kkt_local_inequalities = None
 
         # Local variables - dual feasibility
+        kkt_power = [
+            d.cost_grad_power(p, a, u, **param)
+            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
+        ]
         # kkt_local_variables = None
         # kkt_local_angles = None
-        # kkt_local_powers = None
+        # TODO - Add dual variables times constraints to the KKT conditions
 
         return DispatchOutcome(
             global_angle=self._kkt_global_angle(devices, dispatch_outcome),
-            power=None,
+            power=kkt_power,
             angle=None,
             local_variables=None,
             prices=self._kkt_power_balance(devices, dispatch_outcome),

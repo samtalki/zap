@@ -58,6 +58,18 @@ class AbstractDevice:
     def inequality_constraints(self, power, angle, local_variable, **kwargs):
         return NotImplementedError
 
+    def cost_grad_power(self, power, angle, local_variable, **kwargs):
+        return [np.zeros_like(p) for p in power]
+
+    def cost_grad_angle(self, power, angle, local_variable, **kwargs):
+        return [np.zeros_like(a) for a in angle]
+
+    def cost_grad_u(self, power, angle, local_variable, **kwargs):
+        if local_variable is not None:
+            return [np.zeros_like(u) for u in local_variable]
+        else:
+            return None
+
     # Pre-defined methods
 
     @property
