@@ -122,11 +122,16 @@ class Battery(AbstractDevice):
         return cost
 
     def cost_grad_u(self, power, angle, state, power_capacity=None):
-        state = super().cost_grad_u(power, angle, state, power_capacity)
+        state = super().cost_grad_u(power, angle, state, power_capacity=power_capacity)
         state = BatteryVariable(*state)
 
-        state.discharge = np.multiply(self.linear_cost, np.ones_like(state.discharge))
+        # We have to modify the accessed property directly because
+        # state.discharge += x   actually runs  state.discharge = state.discharge + x
+        # which technically mutates the tuple, which is not allowed
+        discharge = state.discharge
+
+        discharge += np.multiply(self.linear_cost, np.ones_like(discharge))
         if self.quadratic_cost is not None:
-            state.discharge += np.multiply(2 * self.quadratic_cost, state.discharge)
+            discharge += np.multiply(2 * self.quadratic_cost, discharge)
 
         return state

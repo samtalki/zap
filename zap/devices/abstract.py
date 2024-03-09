@@ -7,20 +7,6 @@ from typing import Optional
 from numpy.typing import NDArray
 
 
-def get_time_horizon(array: NDArray) -> int:
-    if len(array.shape) < 2:
-        return 1
-    else:
-        return array.shape[1]
-
-
-def make_dynamic(array: Optional[NDArray]) -> NDArray:
-    if (array is not None) and (len(array.shape)) == 1:
-        return np.expand_dims(array, axis=1)
-    else:
-        return array
-
-
 class AbstractDevice:
     # Fields
 
@@ -59,16 +45,13 @@ class AbstractDevice:
         return NotImplementedError
 
     def cost_grad_power(self, power, angle, local_variable, **kwargs):
-        return [np.zeros_like(p) for p in power]
+        return _zero_like(power)
 
     def cost_grad_angle(self, power, angle, local_variable, **kwargs):
-        return [np.zeros_like(a) for a in angle]
+        return _zero_like(angle)
 
     def cost_grad_u(self, power, angle, local_variable, **kwargs):
-        if local_variable is not None:
-            return [np.zeros_like(u) for u in local_variable]
-        else:
-            return None
+        return _zero_like(local_variable)
 
     # Pre-defined methods
 
@@ -119,3 +102,24 @@ class AbstractDevice:
             ]
         else:
             return None
+
+
+def get_time_horizon(array: NDArray) -> int:
+    if len(array.shape) < 2:
+        return 1
+    else:
+        return array.shape[1]
+
+
+def make_dynamic(array: Optional[NDArray]) -> NDArray:
+    if (array is not None) and (len(array.shape)) == 1:
+        return np.expand_dims(array, axis=1)
+    else:
+        return array
+
+
+def _zero_like(data: Optional[list[NDArray]]) -> Optional[list[NDArray]]:
+    if data is not None:
+        return [np.zeros_like(d) for d in data]
+    else:
+        return None
