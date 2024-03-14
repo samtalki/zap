@@ -9,7 +9,7 @@ from itertools import repeat
 from zap.devices.abstract import AbstractDevice
 from zap.devices.ground import Ground
 
-DispatchOutcome = namedtuple(
+DispatchOutcomeBase = namedtuple(
     "DispatchOutcome",
     [
         "global_angle",
@@ -24,6 +24,53 @@ DispatchOutcome = namedtuple(
         "ground",
     ],
 )
+
+
+class DispatchOutcome(DispatchOutcomeBase):
+    def _safe_cat(self, x):
+        if len(x) > 0:
+            return np.concatenate(x)
+        else:
+            return []
+
+    def vectorize(self):
+        p = self._safe_cat([np.array(p).flatten() for p in self.power])
+        a = self._safe_cat([np.array(a).flatten() for a in self.angle if a is not None])
+        u = self._safe_cat(
+            [
+                np.concatenate([ui.flatten() for ui in u])
+                for u in self.local_variables
+                if u is not None
+            ]
+        )
+        mu = self._safe_cat(
+            [np.array(mu).flatten() for mu in self.phase_duals if mu is not None]
+        )
+        lambda_eq = self._safe_cat(
+            [
+                self._safe_cat([lam.flatten() for lam in lambda_eq])
+                for lambda_eq in self.local_equality_duals
+            ]
+        )
+        lambda_ineq = self._safe_cat(
+            [
+                self._safe_cat([lam.flatten() for lam in lambda_ineq])
+                for lambda_ineq in self.local_inequality_duals
+            ]
+        )
+
+        return self._safe_cat(
+            [
+                self.global_angle.flatten(),
+                p,
+                a,
+                u,
+                self.prices.flatten(),
+                mu,
+                lambda_eq,
+                lambda_ineq,
+            ]
+        )
 
 
 def nested_evaluate(variable):
@@ -119,7 +166,7 @@ class PowerNetwork:
             )
         ]
 
-        # Formulate cvxpy problem
+        # Formulate and solve cvxpy problem
         objective = cp.Minimize(cp.sum(costs))
         problem = cp.Problem(
             objective,
@@ -158,19 +205,20 @@ class PowerNetwork:
             ground=ground,
         )
 
-    def kkt(self, devices, dispatch_outcome, parameters=None):
-        if dispatch_outcome.ground is not None:
-            devices = devices + [dispatch_outcome.ground]
+    def kkt(self, devices, result, parameters=None):
+        if result.ground is not None:
+            devices = devices + [result.ground]
 
         if parameters is None:
             parameters = [{} for _ in devices]
         else:
             parameters += [{}]
 
-        power = dispatch_outcome.power
-        angle = dispatch_outcome.angle
-        local_vars = dispatch_outcome.local_variables
-        lambda_ineq = dispatch_outcome.local_inequality_duals
+        power = result.power
+        angle = result.angle
+        local_vars = result.local_variables
+        lambda_eq = result.local_equality_duals
+        lambda_ineq = result.local_inequality_duals
 
         # Local constraints - primal feasibility
         kkt_local_equalities = [
@@ -189,30 +237,40 @@ class PowerNetwork:
         ]
 
         # Local variables - dual feasibility
-        cost_grads = [
-            d.operation_cost_grad(p, a, u, **param)
-            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
+        local_grads = [
+            d.lagrangian_gradients(p, a, u, lam_eq, lam_ineq, **param)
+            for d, p, a, u, param, lam_eq, lam_ineq in zip(
+                devices, power, angle, local_vars, parameters, lambda_eq, lambda_ineq
+            )
         ]
-        # TODO - Add dual variables times constraint matrices to the KKT conditions
-        # TODO - Langragian function
-        # TODO - torchify constraints
-        # TODO - function `get_device_data` with torch option
 
-        kkt_power = [grad[0] for grad in cost_grads]
-        kkt_local_angles = [grad[1] for grad in cost_grads]
-        kkt_local_variables = [grad[2] for grad in cost_grads]
+        kkt_power = [grad[0] for grad in local_grads]
+        for kp, d in zip(kkt_power, devices):
+            nu_local = apply_incidence_transpose(
+                d, repeat(result.prices, d.num_terminals_per_device)
+            )
+            for kpi, nu_local_i in zip(kp, nu_local):
+                kpi -= nu_local_i
+
+        kkt_local_angles = [grad[1] for grad in local_grads]
+        for kp, d, mu in zip(kkt_local_angles, devices, result.phase_duals):
+            if d.is_ac:
+                for kpi, mui in zip(kp, mu):
+                    kpi -= mui
+
+        kkt_local_variables = [grad[2] for grad in local_grads]
 
         return DispatchOutcome(
-            global_angle=self._kkt_global_angle(devices, dispatch_outcome),
+            global_angle=self._kkt_global_angle(devices, result),
             power=kkt_power,
             angle=kkt_local_angles,
             local_variables=kkt_local_variables,
-            prices=self._kkt_power_balance(devices, dispatch_outcome),
-            phase_duals=self._kkt_phase_consistency(devices, dispatch_outcome),
+            prices=self._kkt_power_balance(devices, result),
+            phase_duals=self._kkt_phase_consistency(devices, result),
             local_equality_duals=kkt_local_equalities,
             local_inequality_duals=kkt_local_inequalities,
             problem="KKT",
-            ground=dispatch_outcome.ground,
+            ground=result.ground,
         )
 
     def _kkt_power_balance(self, devices, dispatch_outcome):
