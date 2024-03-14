@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+import cvxpy as cp
 
 
 def replace_none(x, replacement):
@@ -28,3 +30,12 @@ def torchify(x, requires_grad=False):
         return [torchify(xi, requires_grad=requires_grad) for xi in x]
     else:
         return torch.tensor(x, requires_grad=requires_grad)
+
+
+def choose_base_modeler(la):
+    if la == torch:
+        return torch
+    elif la in [np, cp]:
+        return np
+    else:
+        raise ValueError(f"Unknown la: {la}")

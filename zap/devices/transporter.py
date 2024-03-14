@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 
 from collections import namedtuple
@@ -8,7 +7,7 @@ from typing import Optional
 from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
-from zap.util import replace_none
+from zap.util import replace_none, choose_base_modeler
 
 
 TransporterData = namedtuple(
@@ -86,10 +85,11 @@ class Transporter(AbstractDevice):
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        base = choose_base_modeler(la)
 
         return [
-            np.multiply(self.min_power, data.nominal_capacity) - power[1],
-            power[1] - np.multiply(self.max_power, data.nominal_capacity),
+            base.multiply(data.min_power, data.nominal_capacity) - power[1],
+            power[1] - base.multiply(data.max_power, data.nominal_capacity),
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
@@ -187,10 +187,11 @@ class ACLine(PowerLine):
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
-        susceptance = np.multiply(data.susceptance, data.nominal_capacity)
+        base = choose_base_modeler(la)
 
-        eq_constraints = super().equality_constraints(
-            power, angle, u, data.nominal_capacity
-        )
+        pnom = data.nominal_capacity
+        susceptance = base.multiply(data.susceptance, pnom)
+
+        eq_constraints = super().equality_constraints(power, angle, u, pnom)
         eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
         return eq_constraints

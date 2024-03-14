@@ -10,6 +10,20 @@ from numpy.typing import NDArray
 from zap.util import grad_or_zero, torchify
 
 
+def get_time_horizon(array: NDArray) -> int:
+    if len(array.shape) < 2:
+        return 1
+    else:
+        return array.shape[1]
+
+
+def make_dynamic(array: Optional[NDArray]) -> NDArray:
+    if (array is not None) and (len(array.shape)) == 1:
+        return np.expand_dims(array, axis=1)
+    else:
+        return array
+
+
 class AbstractDevice:
     # Fields
 
@@ -45,7 +59,7 @@ class AbstractDevice:
     def _device_data(self, **kwargs):
         return NotImplementedError
 
-    # Pre-defined methods
+    # Properties
 
     @property
     def num_terminals_per_device(self) -> int:
@@ -80,6 +94,8 @@ class AbstractDevice:
 
         return matrices
 
+    # Modeling Tools
+
     def device_data(self, la=np, **kwargs):
         data = self._device_data(**kwargs)
         if la == torch:
@@ -102,6 +118,8 @@ class AbstractDevice:
         else:
             return None
 
+    # Differentiation Tools
+
     def operation_cost_gradients(self, power, angle, local_variables, **kwargs):
         power = torchify(power, requires_grad=True)
         angle = torchify(angle, requires_grad=True)
@@ -117,23 +135,68 @@ class AbstractDevice:
             grad_or_zero(local_variables, to_numpy=True),
         )
 
+    def lagrangian(
+        self,
+        power,
+        angle,
+        local_vars,
+        equality_duals,
+        inequality_duals,
+        la=np,
+        **kwargs,
+    ):
+        # Cost term
+        L = self.operation_cost(power, angle, local_vars, **kwargs, la=la)
 
-def get_time_horizon(array: NDArray) -> int:
-    if len(array.shape) < 2:
-        return 1
-    else:
-        return array.shape[1]
+        # Constraint terms
+        eqs = self.equality_constraints(power, angle, local_vars, **kwargs, la=la)
+        eq_terms = [
+            la.sum(la.multiply(constraint, dual))
+            for constraint, dual in zip(eqs, equality_duals)
+        ]
 
+        ineqs = self.inequality_constraints(power, angle, local_vars, **kwargs, la=la)
+        ineq_terms = [
+            la.sum(la.multiply(constraint, dual))
+            for constraint, dual in zip(ineqs, inequality_duals)
+        ]
 
-def make_dynamic(array: Optional[NDArray]) -> NDArray:
-    if (array is not None) and (len(array.shape)) == 1:
-        return np.expand_dims(array, axis=1)
-    else:
-        return array
+        for term in eq_terms + ineq_terms:
+            L += term
 
+        return L
 
-def _zero_like(data: Optional[list[NDArray]]) -> Optional[list[NDArray]]:
-    if data is not None:
-        return [np.zeros_like(d) for d in data]
-    else:
-        return None
+    def lagrangian_gradients(
+        self,
+        power,
+        angle,
+        local_vars,
+        equality_duals,
+        inequality_duals,
+        **kwargs,
+    ):
+        power = torchify(power, requires_grad=True)
+        angle = torchify(angle, requires_grad=True)
+        local_vars = torchify(local_vars, requires_grad=True)
+
+        equality_duals = torchify(equality_duals)
+        inequality_duals = torchify(inequality_duals)
+
+        L = self.lagrangian(
+            power,
+            angle,
+            local_vars,
+            equality_duals,
+            inequality_duals,
+            la=torch,
+            **kwargs,
+        )
+
+        if L.requires_grad:
+            L.backward()
+
+        return (
+            grad_or_zero(power, to_numpy=True),
+            grad_or_zero(angle, to_numpy=True),
+            grad_or_zero(local_vars, to_numpy=True),
+        )

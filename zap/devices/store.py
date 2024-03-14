@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 import cvxpy as cp
 
@@ -7,7 +6,7 @@ from collections import namedtuple
 from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
-from zap.util import replace_none
+from zap.util import replace_none, choose_base_modeler
 
 BatteryVariable = namedtuple(
     "BatteryVariable",
@@ -101,12 +100,13 @@ class Battery(AbstractDevice):
 
     def equality_constraints(self, power, angle, state, power_capacity=None, la=np):
         data = self.device_data(power_capacity=power_capacity, la=la)
+        base = choose_base_modeler(la)
 
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
         T = power[0].shape[1]
-        energy_capacity = np.multiply(data.power_capacity, data.duration)
+        energy_capacity = base.multiply(data.power_capacity, data.duration)
 
         soc_evolution = (
             state.energy[:, :-1]
@@ -116,25 +116,27 @@ class Battery(AbstractDevice):
         return [
             power[0] - (state.charge - state.discharge),
             state.energy[:, 1:] - soc_evolution,
-            state.energy[:, 0:1] - np.multiply(data.initial_soc, energy_capacity),
-            state.energy[:, T : (T + 1)] - np.multiply(data.final_soc, energy_capacity),
+            state.energy[:, 0:1] - base.multiply(data.initial_soc, energy_capacity),
+            state.energy[:, T : (T + 1)]
+            - base.multiply(data.final_soc, energy_capacity),
         ]
 
     def inequality_constraints(self, power, angle, state, power_capacity=None, la=np):
         data = self.device_data(power_capacity=power_capacity, la=la)
+        base = choose_base_modeler(la)
 
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
-        energy_capacity = np.multiply(data.power_capacity, data.duration)
+        energy_capacity = base.multiply(data.power_capacity, data.duration)
 
         return [
             -state.energy,
             state.energy - energy_capacity,
             -state.charge,
-            state.charge - power_capacity,
+            state.charge - data.power_capacity,
             -state.discharge,
-            state.discharge - power_capacity,
+            state.discharge - data.power_capacity,
         ]
 
     def operation_cost(self, power, angle, state, power_capacity=None, la=np):
