@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 
 from dataclasses import dataclass
@@ -56,11 +57,26 @@ class Injector(AbstractDevice):
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
-        power = power[0] - np.multiply(self.min_power, pnom)
+        min_power = self.min_power
+        linear_cost = self.linear_cost
+        quadratic_cost = self.quadratic_cost
 
-        cost = la.sum(la.multiply(self.linear_cost, power))
-        if self.quadratic_cost is not None:
-            cost += la.sum(la.multiply(self.quadratic_cost, la.square(power)))
+        if la == torch:
+            pnom = torch.tensor(pnom)
+            min_power = torch.tensor(min_power)
+            linear_cost = torch.tensor(linear_cost)
+            quadratic_cost = (
+                torch.tensor(quadratic_cost) if quadratic_cost is not None else None
+            )
+            la_base = torch
+        else:
+            la_base = np
+
+        power = power[0] - la_base.multiply(min_power, pnom)
+
+        cost = la.sum(la.multiply(linear_cost, power))
+        if quadratic_cost is not None:
+            cost += la.sum(la.multiply(quadratic_cost, la.square(power)))
 
         return cost
 

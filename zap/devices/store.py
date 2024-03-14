@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import cvxpy as cp
 
@@ -112,11 +113,20 @@ class Battery(AbstractDevice):
         ]
 
     def operation_cost(self, power, angle, state, power_capacity=None, la=np):
+        linear_cost = self.linear_cost
+        quadratic_cost = self.quadratic_cost
+
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
-        cost = la.sum(la.multiply(self.linear_cost, state.discharge))
-        if self.quadratic_cost is not None:
-            cost += la.sum(la.multiply(self.quadratic_cost, la.square(state.discharge)))
+        if la == torch:
+            linear_cost = torch.tensor(linear_cost)
+            quadratic_cost = (
+                torch.tensor(quadratic_cost) if quadratic_cost is not None else None
+            )
+
+        cost = la.sum(la.multiply(linear_cost, state.discharge))
+        if quadratic_cost is not None:
+            cost += la.sum(la.multiply(quadratic_cost, la.square(state.discharge)))
 
         return cost

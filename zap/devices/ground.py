@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 
 from dataclasses import dataclass
@@ -43,4 +44,7 @@ class Ground(AbstractDevice):
         return []
 
     def operation_cost(self, power, angle, local_variable, la=np):
-        return 0.0
+        if la == torch:
+            return la.zeros(1)
+        else:
+            return 0.0

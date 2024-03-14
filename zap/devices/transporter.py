@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 
 from dataclasses import dataclass
@@ -57,9 +58,18 @@ class Transporter(AbstractDevice):
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
-        cost = la.sum(la.multiply(self.linear_cost, la.abs(power[1])))
-        if self.quadratic_cost is not None:
-            cost += la.sum(la.multiply(self.quadratic_cost, la.square(power[1])))
+        linear_cost = self.linear_cost
+        quadratic_cost = self.quadratic_cost
+
+        if la == torch:
+            linear_cost = torch.tensor(linear_cost)
+            quadratic_cost = (
+                torch.tensor(quadratic_cost) if quadratic_cost is not None else None
+            )
+
+        cost = la.sum(la.multiply(linear_cost, la.abs(power[1])))
+        if quadratic_cost is not None:
+            cost += la.sum(la.multiply(quadratic_cost, la.square(power[1])))
 
         return cost
 
