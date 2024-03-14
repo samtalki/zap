@@ -46,9 +46,10 @@ class Ground(AbstractDevice):
         return GroundData(self.voltage)
 
     def equality_constraints(self, power, angle, local_variable, la=np):
+        data = self.device_data(la=la)
         return [
             power[0],
-            angle[0] - self.voltage,
+            angle[0] - data.voltage,
         ]
 
     def inequality_constraints(self, power, angle, local_variable, la=np):

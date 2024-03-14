@@ -68,36 +68,27 @@ class Injector(AbstractDevice):
         return []
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
-        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         power = power[0]
 
         return [
-            np.multiply(self.min_power, pnom) - power,
-            power - np.multiply(self.max_power, pnom),
+            np.multiply(data.min_power, data.nominal_capacity) - power,
+            power - np.multiply(data.max_power, data.nominal_capacity),
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
-        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
-        min_power = self.min_power
-        linear_cost = self.linear_cost
-        quadratic_cost = self.quadratic_cost
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
         if la == torch:
-            pnom = torch.tensor(pnom)
-            min_power = torch.tensor(min_power)
-            linear_cost = torch.tensor(linear_cost)
-            quadratic_cost = (
-                torch.tensor(quadratic_cost) if quadratic_cost is not None else None
-            )
             la_base = torch
         else:
             la_base = np
 
-        power = power[0] - la_base.multiply(min_power, pnom)
+        power = power[0] - la_base.multiply(data.min_power, data.nominal_capacity)
 
-        cost = la.sum(la.multiply(linear_cost, power))
-        if quadratic_cost is not None:
-            cost += la.sum(la.multiply(quadratic_cost, la.square(power)))
+        cost = la.sum(la.multiply(data.linear_cost, power))
+        if data.quadratic_cost is not None:
+            cost += la.sum(la.multiply(data.quadratic_cost, la.square(power)))
 
         return cost
 

@@ -85,25 +85,19 @@ class Transporter(AbstractDevice):
         return [power[1] + power[0]]
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
-        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+
         return [
-            np.multiply(self.min_power, pnom) - power[1],
-            power[1] - np.multiply(self.max_power, pnom),
+            np.multiply(self.min_power, data.nominal_capacity) - power[1],
+            power[1] - np.multiply(self.max_power, data.nominal_capacity),
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
-        linear_cost = self.linear_cost
-        quadratic_cost = self.quadratic_cost
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
-        if la == torch:
-            linear_cost = torch.tensor(linear_cost)
-            quadratic_cost = (
-                torch.tensor(quadratic_cost) if quadratic_cost is not None else None
-            )
-
-        cost = la.sum(la.multiply(linear_cost, la.abs(power[1])))
-        if quadratic_cost is not None:
-            cost += la.sum(la.multiply(quadratic_cost, la.square(power[1])))
+        cost = la.sum(la.multiply(data.linear_cost, la.abs(power[1])))
+        if data.quadratic_cost is not None:
+            cost += la.sum(la.multiply(data.quadratic_cost, la.square(power[1])))
 
         return cost
 
@@ -192,11 +186,11 @@ class ACLine(PowerLine):
         )
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):
-        nominal_capacity = make_dynamic(
-            replace_none(nominal_capacity, self.nominal_capacity)
-        )
-        susceptance = np.multiply(self.susceptance, nominal_capacity)
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        susceptance = np.multiply(data.susceptance, data.nominal_capacity)
 
-        eq_constraints = super().equality_constraints(power, angle, u, nominal_capacity)
+        eq_constraints = super().equality_constraints(
+            power, angle, u, data.nominal_capacity
+        )
         eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
         return eq_constraints
