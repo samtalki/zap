@@ -1,3 +1,4 @@
+import torch
 import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
@@ -5,6 +6,8 @@ import scipy.sparse as sp
 from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
+
+from zap.util import grad_or_zero
 
 
 class AbstractDevice:
@@ -93,6 +96,31 @@ class AbstractDevice:
             ]
         else:
             return None
+
+    def operation_cost_gradients(self, power, angle, local_variable, **kwargs):
+        power = [torch.tensor(p, requires_grad=True) for p in power]
+        angle = (
+            [torch.tensor(a, requires_grad=True) for a in angle]
+            if angle is not None
+            else None
+        )
+        local_vars = (
+            [torch.tensor(lv, requires_grad=True) for lv in local_variable]
+            if local_variable is not None
+            else None
+        )
+
+        C = self.operation_cost(power, angle, local_vars, **kwargs, la=torch)
+        if C.requires_grad:
+            C.backward()
+
+        return (
+            [grad_or_zero(p).numpy() for p in power],
+            [grad_or_zero(a).numpy() for a in angle] if angle is not None else None,
+            [grad_or_zero(lv).numpy() for lv in local_vars]
+            if local_vars is not None
+            else None,
+        )
 
 
 def get_time_horizon(array: NDArray) -> int:
