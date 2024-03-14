@@ -189,24 +189,18 @@ class PowerNetwork:
         ]
 
         # Local variables - dual feasibility
-        # TODO - Add dual variables times constraints to the KKT conditions
-        # TODO - Functionalize cost
+        cost_grads = [
+            d.operation_cost_grad(p, a, u, **param)
+            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
+        ]
+        # TODO - Add dual variables times constraint matrices to the KKT conditions
         # TODO - Langragian function
-        # TODO - Compute gradients via autodiff
-        kkt_power = [
-            d.cost_grad_power(p, a, u, **param)
-            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
-        ]
+        # TODO - torchify constraints
+        # TODO - function `get_device_data` with torch option
 
-        kkt_local_angles = [
-            d.cost_grad_angle(p, a, u, **param)
-            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
-        ]
-
-        kkt_local_variables = [
-            d.cost_grad_u(p, a, u, **param)
-            for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
-        ]
+        kkt_power = [grad[0] for grad in cost_grads]
+        kkt_local_angles = [grad[1] for grad in cost_grads]
+        kkt_local_variables = [grad[2] for grad in cost_grads]
 
         return DispatchOutcome(
             global_angle=self._kkt_global_angle(devices, dispatch_outcome),

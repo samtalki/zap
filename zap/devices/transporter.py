@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 
+from collections import namedtuple
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
@@ -8,6 +9,30 @@ from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
 from zap.util import replace_none
+
+
+TransporterData = namedtuple(
+    "TransporterData",
+    [
+        "min_power",
+        "max_power",
+        "linear_cost",
+        "quadratic_cost",
+        "nominal_capacity",
+    ],
+)
+
+ACLineData = namedtuple(
+    "ACLineData",
+    [
+        "min_power",
+        "max_power",
+        "linear_cost",
+        "quadratic_cost",
+        "nominal_capacity",
+        "susceptance",
+    ],
+)
 
 
 @dataclass(kw_only=True)
@@ -46,6 +71,15 @@ class Transporter(AbstractDevice):
     @property
     def time_horizon(self):
         return 0  # Static device
+
+    def _device_data(self, nominal_capacity=None):
+        return TransporterData(
+            self.min_power,
+            self.max_power,
+            self.linear_cost,
+            self.quadratic_cost,
+            make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
+        )
 
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         return [power[1] + power[0]]
@@ -146,6 +180,16 @@ class ACLine(PowerLine):
     @property
     def is_ac(self):
         return True
+
+    def _device_data(self, nominal_capacity=None):
+        return ACLineData(
+            self.min_power,
+            self.max_power,
+            self.linear_cost,
+            self.quadratic_cost,
+            make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
+            self.susceptance,
+        )
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):
         nominal_capacity = make_dynamic(

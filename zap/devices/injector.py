@@ -1,12 +1,24 @@
 import torch
 import numpy as np
 
+from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
 from zap.util import replace_none
 from .abstract import AbstractDevice, get_time_horizon, make_dynamic
+
+InjectorData = namedtuple(
+    "InjectorData",
+    [
+        "min_power",
+        "max_power",
+        "linear_cost",
+        "quadratic_cost",
+        "nominal_capacity",
+    ],
+)
 
 
 @dataclass(kw_only=True)
@@ -42,6 +54,15 @@ class Injector(AbstractDevice):
     @property
     def time_horizon(self):
         return get_time_horizon(self.min_power)
+
+    def _device_data(self, nominal_capacity=None):
+        return InjectorData(
+            self.min_power,
+            self.max_power,
+            self.linear_cost,
+            self.quadratic_cost,
+            make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
+        )
 
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         return []

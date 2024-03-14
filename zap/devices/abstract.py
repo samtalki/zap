@@ -7,7 +7,7 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import grad_or_zero
+from zap.util import grad_or_zero, torchify
 
 
 class AbstractDevice:
@@ -30,11 +30,6 @@ class AbstractDevice:
         return True
 
     # Optional
-    @property
-    def data(self):
-        raise NotImplementedError
-
-    # Optional
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return None
 
@@ -45,6 +40,9 @@ class AbstractDevice:
         return NotImplementedError
 
     def inequality_constraints(self, power, angle, local_variable, **kwargs):
+        return NotImplementedError
+
+    def _device_data(self, **kwargs):
         return NotImplementedError
 
     # Pre-defined methods
@@ -82,6 +80,13 @@ class AbstractDevice:
 
         return matrices
 
+    def device_data(self, la=np, **kwargs):
+        data = self._device_data(**kwargs)
+        if la == torch:
+            data = type(data)(*[torchify(x) for x in data])
+
+        return data
+
     def initialize_power(self, time_horizon: int) -> list[cp.Variable]:
         return [
             cp.Variable((self.num_devices, time_horizon))
@@ -97,29 +102,19 @@ class AbstractDevice:
         else:
             return None
 
-    def operation_cost_gradients(self, power, angle, local_variable, **kwargs):
-        power = [torch.tensor(p, requires_grad=True) for p in power]
-        angle = (
-            [torch.tensor(a, requires_grad=True) for a in angle]
-            if angle is not None
-            else None
-        )
-        local_vars = (
-            [torch.tensor(lv, requires_grad=True) for lv in local_variable]
-            if local_variable is not None
-            else None
-        )
+    def operation_cost_gradients(self, power, angle, local_variables, **kwargs):
+        power = torchify(power, requires_grad=True)
+        angle = torchify(angle, requires_grad=True)
+        local_variables = torchify(local_variables, requires_grad=True)
 
-        C = self.operation_cost(power, angle, local_vars, **kwargs, la=torch)
+        C = self.operation_cost(power, angle, local_variables, **kwargs, la=torch)
         if C.requires_grad:
             C.backward()
 
         return (
-            [grad_or_zero(p).numpy() for p in power],
-            [grad_or_zero(a).numpy() for a in angle] if angle is not None else None,
-            [grad_or_zero(lv).numpy() for lv in local_vars]
-            if local_vars is not None
-            else None,
+            grad_or_zero(power, to_numpy=True),
+            grad_or_zero(angle, to_numpy=True),
+            grad_or_zero(local_variables, to_numpy=True),
         )
 
 

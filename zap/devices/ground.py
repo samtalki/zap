@@ -1,12 +1,20 @@
 import torch
 import numpy as np
 
+from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
 from zap.util import replace_none
 from .abstract import AbstractDevice, make_dynamic
+
+GroundData = namedtuple(
+    "GroundData",
+    [
+        "voltage",
+    ],
+)
 
 
 @dataclass(kw_only=True)
@@ -33,6 +41,9 @@ class Ground(AbstractDevice):
     @property
     def time_horizon(self):
         return 0  # Static device
+
+    def _device_data(self):
+        return GroundData(self.voltage)
 
     def equality_constraints(self, power, angle, local_variable, la=np):
         return [

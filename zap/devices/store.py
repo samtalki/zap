@@ -18,6 +18,19 @@ BatteryVariable = namedtuple(
     ],
 )
 
+BatteryData = namedtuple(
+    "BatteryData",
+    [
+        "power_capacity",
+        "duration",
+        "charge_efficiency",
+        "initial_soc",
+        "final_soc",
+        "linear_cost",
+        "quadratic_cost",
+    ],
+)
+
 
 class Battery(AbstractDevice):
     """An Injector that stores power between time steps.
@@ -67,6 +80,17 @@ class Battery(AbstractDevice):
     @property
     def time_horizon(self):
         return 0  # Static device
+
+    def _device_data(self, power_capacity=None):
+        return BatteryData(
+            make_dynamic(replace_none(power_capacity, self.power_capacity)),
+            self.duration,
+            self.charge_efficiency,
+            self.initial_soc,
+            self.final_soc,
+            self.linear_cost,
+            self.quadratic_cost,
+        )
 
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return BatteryVariable(
