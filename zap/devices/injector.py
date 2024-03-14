@@ -1,4 +1,3 @@
-import cvxpy as cp
 import numpy as np
 
 from dataclasses import dataclass
@@ -43,16 +42,6 @@ class Injector(AbstractDevice):
     def time_horizon(self):
         return get_time_horizon(self.min_power)
 
-    def model_cost(self, power, angle, local_variable, nominal_capacity=None):
-        pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
-        power = power[0] - np.multiply(self.min_power, pnom)
-
-        cost = cp.sum(cp.multiply(self.linear_cost, power))
-        if self.quadratic_cost is not None:
-            cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(power)))
-
-        return cost
-
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         return []
 
@@ -65,15 +54,15 @@ class Injector(AbstractDevice):
             power - np.multiply(self.max_power, pnom),
         ]
 
-    def cost_grad_power(self, power, angle, local_variable, nominal_capacity=None):
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
         power = power[0] - np.multiply(self.min_power, pnom)
 
-        grad = np.multiply(self.linear_cost, np.ones_like(power))
+        cost = la.sum(la.multiply(self.linear_cost, power))
         if self.quadratic_cost is not None:
-            grad += np.multiply(2 * self.quadratic_cost, power)
+            cost += la.sum(la.multiply(self.quadratic_cost, la.square(power)))
 
-        return [grad]
+        return cost
 
 
 class Generator(Injector):

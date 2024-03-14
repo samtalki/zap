@@ -1,5 +1,4 @@
 import numpy as np
-import cvxpy as cp
 
 from dataclasses import dataclass
 from functools import cached_property
@@ -47,33 +46,22 @@ class Transporter(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def model_cost(self, power, angle, _, nominal_capacity=None):
-        cost = cp.sum(cp.multiply(self.linear_cost, cp.abs(power[1])))
-        if self.quadratic_cost is not None:
-            cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(power[1])))
-
-        return cost
-
-    def equality_constraints(
-        self, power, angle, local_variable, nominal_capacity=None, la=np
-    ):
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         return [power[1] + power[0]]
 
-    def inequality_constraints(
-        self, power, angle, local_variable, nominal_capacity=None, la=np
-    ):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
         pnom = make_dynamic(replace_none(nominal_capacity, self.nominal_capacity))
         return [
             np.multiply(self.min_power, pnom) - power[1],
             power[1] - np.multiply(self.max_power, pnom),
         ]
 
-    def cost_grad_power(self, power, angle, local_variable, nominal_capacity=None):
-        grad = np.multiply(self.linear_cost, np.sign(power))
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
+        cost = la.sum(la.multiply(self.linear_cost, la.abs(power[1])))
         if self.quadratic_cost is not None:
-            grad += np.multiply(2 * self.quadratic_cost, power)
+            cost += la.sum(la.multiply(self.quadratic_cost, la.square(power[1])))
 
-        return [grad]
+        return cost
 
 
 class PowerLine(Transporter):

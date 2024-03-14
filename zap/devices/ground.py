@@ -42,5 +42,5 @@ class Ground(AbstractDevice):
     def inequality_constraints(self, power, angle, local_variable, la=np):
         return []
 
-    def model_cost(self, power, angle, local_variable):
+    def operation_cost(self, power, angle, local_variable, la=np):
         return 0.0

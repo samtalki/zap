@@ -35,23 +35,14 @@ class AbstractDevice:
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return None
 
-    def model_cost(self, power, angle, local_variable, **kwargs):
-        raise NotImplementedError
+    def operation_cost(self, power, angle, local_variable, **kwargs):
+        return NotImplementedError
 
     def equality_constraints(self, power, angle, local_variable, **kwargs):
         return NotImplementedError
 
     def inequality_constraints(self, power, angle, local_variable, **kwargs):
         return NotImplementedError
-
-    def cost_grad_power(self, power, angle, local_variable, **kwargs):
-        return _zero_like(power)
-
-    def cost_grad_angle(self, power, angle, local_variable, **kwargs):
-        return _zero_like(angle)
-
-    def cost_grad_u(self, power, angle, local_variable, **kwargs):
-        return _zero_like(local_variable)
 
     # Pre-defined methods
 

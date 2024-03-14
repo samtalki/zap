@@ -111,27 +111,12 @@ class Battery(AbstractDevice):
             state.discharge - power_capacity,
         ]
 
-    def model_cost(self, power, angle, state, power_capacity=None):
+    def operation_cost(self, power, angle, state, power_capacity=None, la=np):
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
-        cost = cp.sum(cp.multiply(self.linear_cost, state.discharge))
+        cost = la.sum(la.multiply(self.linear_cost, state.discharge))
         if self.quadratic_cost is not None:
-            cost += cp.sum(cp.multiply(self.quadratic_cost, cp.square(state.discharge)))
+            cost += la.sum(la.multiply(self.quadratic_cost, la.square(state.discharge)))
 
         return cost
-
-    def cost_grad_u(self, power, angle, state, power_capacity=None):
-        state = super().cost_grad_u(power, angle, state, power_capacity=power_capacity)
-        state = BatteryVariable(*state)
-
-        # We have to modify the accessed property directly because
-        # state.discharge += x   actually runs  state.discharge = state.discharge + x
-        # which technically mutates the tuple, which is not allowed
-        discharge = state.discharge
-
-        discharge += np.multiply(self.linear_cost, np.ones_like(discharge))
-        if self.quadratic_cost is not None:
-            discharge += np.multiply(2 * self.quadratic_cost, discharge)
-
-        return state

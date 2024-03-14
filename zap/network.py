@@ -113,7 +113,7 @@ class PowerNetwork:
 
         # Model objective
         costs = [
-            d.model_cost(p, v, u, **param)
+            d.operation_cost(p, v, u, **param, la=cp)
             for d, p, v, u, param in zip(
                 devices, power, angle, local_variables, parameters
             )
