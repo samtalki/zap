@@ -27,11 +27,33 @@ DispatchOutcomeBase = namedtuple(
 
 
 class DispatchOutcome(DispatchOutcomeBase):
+    @property
+    def time_horizon(self):
+        return self.global_angle.shape[1]
+
     def _safe_cat(self, x):
         if len(x) > 0:
             return np.concatenate(x)
         else:
             return []
+
+    def _total_len(self, variable):
+        return sum([0 if x is None else sum([xi.size for xi in x]) for x in variable])
+
+    def power_indices(self):
+        return 0, self._total_len(self.power)
+
+    def angle_indices(self):
+        start = self.power_indices()[1]
+        return start, start + self._total_len(self.angle)
+
+    def local_variable_indices(self):
+        start = self.angle_indices()[1]
+        return start, start + self._total_len(self.local_variables)
+
+    def torchify(self):
+        # TODO
+        raise NotImplementedError
 
     def vectorize(self):
         p = self._safe_cat([np.array(p).flatten() for p in self.power])
@@ -94,10 +116,6 @@ def match_phases(device: AbstractDevice, v, global_v):
         return [Ai.T @ global_v == vi for Ai, vi in zip(device.incidence_matrix, v)]
     else:
         return []
-
-
-def get_time_horizon(dispatch_outcome):
-    return dispatch_outcome.global_angle.shape[1]
 
 
 @dataclass
@@ -304,11 +322,13 @@ class PowerNetwork:
 
         return phase_diffs
 
-    # def kkt_jacobian_variables(self, devices, dispatch_outcome):
-    #     pass
+    def kkt_jacobian_variables(self, devices, dispatch_outcome, parameters=None):
+        # TODO
+        raise NotImplementedError
 
-    # def kkt_jacobian_parameters(self, devices, dispatch_outcome):
-    #     pass
+    def kkt_jacobian_parameters(self, devices, dispatch_outcome, parameters=None):
+        # TODO
+        raise NotImplementedError
 
     # def vector_jacobian_product(self, devices, dispatch_outcome, y):
     #     pass
