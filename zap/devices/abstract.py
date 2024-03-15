@@ -136,14 +136,7 @@ class AbstractDevice:
         )
 
     def lagrangian(
-        self,
-        power,
-        angle,
-        local_vars,
-        equality_duals,
-        inequality_duals,
-        la=np,
-        **kwargs,
+        self, power, angle, local_vars, equality_duals, inequality_duals, la=np, **kwargs
     ):
         # Cost term
         L = self.operation_cost(power, angle, local_vars, **kwargs, la=la)
@@ -151,8 +144,7 @@ class AbstractDevice:
         # Constraint terms
         eqs = self.equality_constraints(power, angle, local_vars, **kwargs, la=la)
         eq_terms = [
-            la.sum(la.multiply(constraint, dual))
-            for constraint, dual in zip(eqs, equality_duals)
+            la.sum(la.multiply(constraint, dual)) for constraint, dual in zip(eqs, equality_duals)
         ]
 
         ineqs = self.inequality_constraints(power, angle, local_vars, **kwargs, la=la)
@@ -167,13 +159,7 @@ class AbstractDevice:
         return L
 
     def lagrangian_gradients(
-        self,
-        power,
-        angle,
-        local_vars,
-        equality_duals,
-        inequality_duals,
-        **kwargs,
+        self, power, angle, local_vars, equality_duals, inequality_duals, **kwargs
     ):
         power = torchify(power, requires_grad=True)
         angle = torchify(angle, requires_grad=True)
@@ -183,13 +169,7 @@ class AbstractDevice:
         inequality_duals = torchify(inequality_duals)
 
         L = self.lagrangian(
-            power,
-            angle,
-            local_vars,
-            equality_duals,
-            inequality_duals,
-            la=torch,
-            **kwargs,
+            power, angle, local_vars, equality_duals, inequality_duals, la=torch, **kwargs
         )
 
         if L.requires_grad:

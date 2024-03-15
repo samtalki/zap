@@ -39,8 +39,5 @@ class DispatchLayer:
             parameters[i][name] = kwargs[k]
 
         return self.network.dispatch(
-            self.devices,
-            time_horizon=self.time_horizon,
-            parameters=parameters,
-            solver=self.solver,
+            self.devices, time_horizon=self.time_horizon, parameters=parameters, solver=self.solver
         )

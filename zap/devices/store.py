@@ -117,8 +117,7 @@ class Battery(AbstractDevice):
             power[0] - (state.charge - state.discharge),
             state.energy[:, 1:] - soc_evolution,
             state.energy[:, 0:1] - base.multiply(data.initial_soc, energy_capacity),
-            state.energy[:, T : (T + 1)]
-            - base.multiply(data.final_soc, energy_capacity),
+            state.energy[:, T : (T + 1)] - base.multiply(data.final_soc, energy_capacity),
         ]
 
     def inequality_constraints(self, power, angle, state, power_capacity=None, la=np):

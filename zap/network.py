@@ -65,9 +65,7 @@ class DispatchOutcome(DispatchOutcomeBase):
                 if u is not None
             ]
         )
-        mu = self._safe_cat(
-            [np.array(mu).flatten() for mu in self.phase_duals if mu is not None]
-        )
+        mu = self._safe_cat([np.array(mu).flatten() for mu in self.phase_duals if mu is not None])
         lambda_eq = self._safe_cat(
             [
                 self._safe_cat([lam.flatten() for lam in lambda_eq])
@@ -158,30 +156,22 @@ class PowerNetwork:
         # Model constraints
         net_power = cp.sum([get_net_power(d, p) for d, p in zip(devices, power)])
         power_balance = net_power == 0
-        phase_consistency = [
-            match_phases(d, v, global_angle) for d, v in zip(devices, angle)
-        ]
+        phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, angle)]
 
         local_equalities = [
             [hi == 0 for hi in d.equality_constraints(p, v, u, **param, la=cp)]
-            for d, p, v, u, param in zip(
-                devices, power, angle, local_variables, parameters
-            )
+            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
         ]
 
         local_inequalities = [
             [gi <= 0 for gi in d.inequality_constraints(p, v, u, **param, la=cp)]
-            for d, p, v, u, param in zip(
-                devices, power, angle, local_variables, parameters
-            )
+            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
         ]
 
         # Model objective
         costs = [
             d.operation_cost(p, v, u, **param, la=cp)
-            for d, p, v, u, param in zip(
-                devices, power, angle, local_variables, parameters
-            )
+            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
         ]
 
         # Formulate and solve cvxpy problem
@@ -213,12 +203,8 @@ class PowerNetwork:
                 [pci.dual_value for pci in pc] if pc is not None else None
                 for pc in phase_consistency
             ],
-            local_equality_duals=[
-                [lci.dual_value for lci in lc] for lc in local_equalities
-            ],
-            local_inequality_duals=[
-                [lci.dual_value for lci in lc] for lc in local_inequalities
-            ],
+            local_equality_duals=[[lci.dual_value for lci in lc] for lc in local_equalities],
+            local_inequality_duals=[[lci.dual_value for lci in lc] for lc in local_inequalities],
             problem=problem,
             ground=ground,
         )
@@ -292,9 +278,7 @@ class PowerNetwork:
         )
 
     def _kkt_power_balance(self, devices, dispatch_outcome):
-        net_powers = [
-            get_net_power(d, p) for d, p in zip(devices, dispatch_outcome.power)
-        ]
+        net_powers = [get_net_power(d, p) for d, p in zip(devices, dispatch_outcome.power)]
         return np.sum(net_powers, axis=0)
 
     def _kkt_global_angle(self, devices, dispatch_outcome):

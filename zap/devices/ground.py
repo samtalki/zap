@@ -26,9 +26,7 @@ class Ground(AbstractDevice):
     voltage: Optional[NDArray] = None
 
     def __post_init__(self):
-        self.voltage = make_dynamic(
-            replace_none(self.voltage, np.zeros(self.num_devices))
-        )
+        self.voltage = make_dynamic(replace_none(self.voltage, np.zeros(self.num_devices)))
 
     @property
     def terminals(self):
