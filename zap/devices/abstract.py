@@ -3,11 +3,22 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
+from collections import namedtuple
 from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
 from zap.util import grad_or_zero, torchify
+
+
+ConstraintMatrix = namedtuple(
+    "ConstraintMatrix",
+    [
+        "power",
+        "angle",
+        "local_variable",
+    ],
+)
 
 
 def get_time_horizon(array: NDArray) -> int:
@@ -57,6 +68,12 @@ class AbstractDevice:
         return NotImplementedError
 
     def _device_data(self, **kwargs):
+        return NotImplementedError
+
+    def _equality_matrices(self, equalities, **kwargs):
+        return NotImplementedError
+
+    def _inequality_matrices(self, inequalities, **kwargs):
         return NotImplementedError
 
     # Properties
@@ -120,6 +137,28 @@ class AbstractDevice:
 
     # Differentiation Tools
 
+    def equality_matrices(self, equalities, power, angle, local_vars, **kwargs):
+        equalities = self.get_empty_constraint_matrix(equalities, power, angle, local_vars)
+        return self._equality_matrices(equalities, **kwargs)
+
+    def inequality_matrices(self, inequalities, power, angle, local_vars, **kwargs):
+        inequalities = self.get_empty_constraint_matrix(inequalities, power, angle, local_vars)
+        return self._inequality_matrices(inequalities, **kwargs)
+
+    def _get_empty_constraint_matrix(self, constr, power, angle, local_vars):
+        num_constr = constr.size
+
+        return ConstraintMatrix(
+            power=[sp.coo_matrix((num_constr, p.size)) for p in power],
+            angle=None if angle is None else [sp.coo_matrix((num_constr, a.size)) for a in angle],
+            local_variable=None
+            if local_vars is None
+            else [sp.coo_matrix((num_constr, u.size)) for u in local_vars],
+        )
+
+    def get_empty_constraint_matrix(self, constraints, power, angle, local_vars):
+        return [self._get_empty_constraint_matrix(c, power, angle, local_vars) for c in constraints]
+
     def operation_cost_gradients(self, power, angle, local_variables, **kwargs):
         power = torchify(power, requires_grad=True)
         angle = torchify(angle, requires_grad=True)
@@ -159,7 +198,7 @@ class AbstractDevice:
         return L
 
     def lagrangian_gradients(
-        self, power, angle, local_vars, equality_duals, inequality_duals, **kwargs
+        self, power, angle, local_vars, equality_duals, inequality_duals, la=np, **kwargs
     ):
         power = torchify(power, requires_grad=True)
         angle = torchify(angle, requires_grad=True)
@@ -175,8 +214,13 @@ class AbstractDevice:
         if L.requires_grad:
             L.backward()
 
+        if la == np:
+            to_numpy = True
+        else:
+            to_numpy = False
+
         return (
-            grad_or_zero(power, to_numpy=True),
-            grad_or_zero(angle, to_numpy=True),
-            grad_or_zero(local_vars, to_numpy=True),
+            grad_or_zero(power, to_numpy=to_numpy),
+            grad_or_zero(angle, to_numpy=to_numpy),
+            grad_or_zero(local_vars, to_numpy=to_numpy),
         )

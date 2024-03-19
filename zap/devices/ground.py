@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import scipy.sparse as sp
 
 from collections import namedtuple
 from dataclasses import dataclass
@@ -58,3 +59,13 @@ class Ground(AbstractDevice):
             return la.zeros(1)
         else:
             return 0.0
+
+    def _equality_matrices(self, equalities, la=np):
+        size = equalities[0].power[0].shape[1]
+
+        equalities[0].power[0] = sp.eye(size)
+        equalities[1].angle[0] = sp.eye(size)
+        return equalities
+
+    def _inequality_matrices(self, inequalities, la=np):
+        return inequalities

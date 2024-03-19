@@ -24,12 +24,28 @@ def grad_or_zero(x: torch.Tensor, to_numpy=False):
 
 
 def torchify(x, requires_grad=False):
-    if x is None:
+    if isinstance(x, torch.Tensor):
+        return x
+    elif x is None:
         return None
-    if isinstance(x, list):
+    elif isinstance(x, list):
         return [torchify(xi, requires_grad=requires_grad) for xi in x]
     else:
         return torch.tensor(x, requires_grad=requires_grad)
+
+
+def torch_sparse(A):
+    if isinstance(A, list):
+        return [torch_sparse(Ai) for Ai in A]
+
+    A = A.tocoo()
+    values = A.data
+    indices = np.vstack((A.row, A.col))
+
+    i = torch.LongTensor(indices)
+    v = torch.FloatTensor(values)
+
+    return torch.sparse_coo_tensor(i, v, torch.Size(A.shape), dtype=torch.float64)
 
 
 def choose_base_modeler(la):

@@ -1,7 +1,8 @@
 import itertools
+import torch
 import cvxpy as cp
 import numpy as np
-import scipy.sparse as sps
+import scipy.sparse as sp
 
 from dataclasses import dataclass
 from itertools import repeat
@@ -10,6 +11,7 @@ from collections.abc import Sequence
 
 from zap.devices.abstract import AbstractDevice
 from zap.devices.ground import Ground
+from zap.util import torchify, torch_sparse
 
 
 @dataclass
@@ -91,6 +93,40 @@ class DispatchOutcome(Sequence):
         blocks, _ = self._build_blocks_recursively(self.shape, [], 0)
         return DispatchOutcome(*blocks)
 
+    @cached_property
+    def big_blocks(self):
+        return DispatchOutcome(
+            *[
+                self._big_block(prop_name)
+                for prop_name in [
+                    "phase_duals",
+                    "local_equality_duals",
+                    "local_inequality_duals",
+                    "local_variables",
+                    "power",
+                    "angle",
+                    "prices",
+                    "global_angle",
+                ]
+            ]
+        )
+
+    @property
+    def big_dims(self):
+        return DispatchOutcome(*[b[1] - b[0] for b in self.big_blocks])
+
+    def _big_block(self, prop_name):
+        block = getattr(self.blocks, prop_name)
+        first_index = self._extremal_index(block, reducer=np.min)
+        last_index = self._extremal_index(block, reducer=np.max)
+        return first_index, last_index
+
+    def _extremal_index(self, block, reducer):
+        if isinstance(block, tuple):
+            return reducer(block)
+        else:
+            return reducer([self._extremal_index(b, reducer=reducer) for b in block])
+
     def _build_blocks_recursively(self, shape, blocks, offset):
         # Recursive case
         if len(shape) > 0 and isinstance(shape[0], (list, tuple)):
@@ -105,7 +141,6 @@ class DispatchOutcome(Sequence):
         if len(shape) == 0:
             delta = 0
         else:  # isinstance(shape[0], int)
-            print(shape)
             delta = np.prod(shape)
 
         return (offset, offset + delta), offset + delta
@@ -119,12 +154,21 @@ class DispatchOutcome(Sequence):
     def _total_len(self, variable):
         return sum([0 if x is None else sum([xi.size for xi in x]) for x in variable])
 
-    def torchify(self):
-        # TODO
-        raise NotImplementedError
+    def torchify(self, requires_grad=False):
+        return DispatchOutcome(
+            phase_duals=torchify(self.phase_duals, requires_grad=requires_grad),
+            local_equality_duals=torchify(self.local_equality_duals, requires_grad=requires_grad),
+            local_inequality_duals=torchify(
+                self.local_inequality_duals, requires_grad=requires_grad
+            ),
+            local_variables=torchify(self.local_variables, requires_grad=requires_grad),
+            power=torchify(self.power, requires_grad=requires_grad),
+            angle=torchify(self.angle, requires_grad=requires_grad),
+            prices=torchify(self.prices, requires_grad=requires_grad),
+            global_angle=torchify(self.global_angle, requires_grad=requires_grad),
+        )
 
     def vectorize(self):
-
         # Duals
         mu = self._safe_cat([np.array(mu).ravel() for mu in self.phase_duals if mu is not None])
         lambda_eq = [
@@ -161,16 +205,26 @@ def nested_evaluate(variable):
     return [[xi.value for xi in x] if (x is not None) else None for x in variable]
 
 
-def apply_incidence(device: AbstractDevice, x):
-    return [Ai @ xi for Ai, xi in zip(device.incidence_matrix, x)]
+def apply_incidence(device: AbstractDevice, x, la=np):
+    if la == torch:
+        incidence = torch_sparse(device.incidence_matrix)
+    else:
+        incidence = device.incidence_matrix
+
+    return [Ai @ xi for Ai, xi in zip(incidence, x)]
 
 
-def apply_incidence_transpose(device: AbstractDevice, x):
-    return [Ai.T @ xi for Ai, xi in zip(device.incidence_matrix, x)]
+def apply_incidence_transpose(device: AbstractDevice, x, la=np):
+    if la == torch:
+        incidence = torch_sparse(device.incidence_matrix)
+    else:
+        incidence = device.incidence_matrix
+
+    return [Ai.T @ xi for Ai, xi in zip(incidence, x)]
 
 
-def get_net_power(device: AbstractDevice, p: list[cp.Variable]) -> cp.Expression:
-    return cp.sum(apply_incidence(device, p))
+def get_net_power(device: AbstractDevice, p: list[cp.Variable], la=np):
+    return sum(apply_incidence(device, p, la=la))
 
 
 def match_phases(device: AbstractDevice, v, global_v):
@@ -218,7 +272,7 @@ class PowerNetwork:
         local_variables = [d.model_local_variables(time_horizon) for d in devices]
 
         # Model constraints
-        net_power = cp.sum([get_net_power(d, p) for d, p in zip(devices, power)])
+        net_power = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, power)])
         power_balance = net_power == 0
         phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, angle)]
 
@@ -272,7 +326,7 @@ class PowerNetwork:
             ground=ground,
         )
 
-    def kkt(self, devices, result, parameters=None):
+    def kkt(self, devices, result, parameters=None, la=np):
         if parameters is None:
             parameters = [{} for _ in devices]
 
@@ -288,14 +342,14 @@ class PowerNetwork:
 
         # Local constraints - primal feasibility
         kkt_local_equalities = [
-            d.equality_constraints(p, a, u, **param)
+            d.equality_constraints(p, a, u, la=la, **param)
             for d, p, a, u, param in zip(devices, power, angle, local_vars, parameters)
         ]
 
         kkt_local_inequalities = [
             [
-                np.multiply(hi, lamb_i)
-                for hi, lamb_i in zip(d.inequality_constraints(p, a, u, **param), lamb)
+                la.multiply(hi, lamb_i)
+                for hi, lamb_i in zip(d.inequality_constraints(p, a, u, la=la, **param), lamb)
             ]
             for d, p, a, u, param, lamb in zip(
                 devices, power, angle, local_vars, parameters, lambda_ineq
@@ -304,7 +358,7 @@ class PowerNetwork:
 
         # Local variables - dual feasibility
         local_grads = [
-            d.lagrangian_gradients(p, a, u, lam_eq, lam_ineq, **param)
+            d.lagrangian_gradients(p, a, u, lam_eq, lam_ineq, la=la, **param)
             for d, p, a, u, param, lam_eq, lam_ineq in zip(
                 devices, power, angle, local_vars, parameters, lambda_eq, lambda_ineq
             )
@@ -313,7 +367,7 @@ class PowerNetwork:
         kkt_power = [grad[0] for grad in local_grads]
         for kp, d in zip(kkt_power, devices):
             nu_local = apply_incidence_transpose(
-                d, repeat(result.prices, d.num_terminals_per_device)
+                d, repeat(result.prices, d.num_terminals_per_device), la=la
             )
             for kpi, nu_local_i in zip(kp, nu_local):
                 kpi -= nu_local_i
@@ -327,84 +381,121 @@ class PowerNetwork:
         kkt_local_variables = [grad[2] for grad in local_grads]
 
         return DispatchOutcome(
-            global_angle=self._kkt_global_angle(devices, result),
+            global_angle=self._kkt_global_angle(devices, result, la=la),
             power=kkt_power,
             angle=kkt_local_angles,
             local_variables=kkt_local_variables,
-            prices=self._kkt_power_balance(devices, result),
-            phase_duals=self._kkt_phase_consistency(devices, result),
+            prices=self._kkt_power_balance(devices, result, la=la),
+            phase_duals=self._kkt_phase_consistency(devices, result, la=la),
             local_equality_duals=kkt_local_equalities,
             local_inequality_duals=kkt_local_inequalities,
             problem="KKT",
             ground=result.ground,
         )
 
-    def _kkt_power_balance(self, devices, dispatch_outcome):
-        net_powers = [get_net_power(d, p) for d, p in zip(devices, dispatch_outcome.power)]
-        return np.sum(net_powers, axis=0)
+    def _kkt_power_balance(self, devices, dispatch_outcome, la=np):
+        net_powers = [get_net_power(d, p, la=la) for d, p in zip(devices, dispatch_outcome.power)]
+        return sum(net_powers)  # , axis=0) (No axis because we use built-in sum)
 
-    def _kkt_global_angle(self, devices, dispatch_outcome):
+    def _kkt_global_angle(self, devices, dispatch_outcome, la=np):
         angle_duals = [
-            np.sum(apply_incidence(d, mu), axis=0)
+            sum(apply_incidence(d, mu, la=la))
             for d, mu in zip(devices, dispatch_outcome.phase_duals)
             if d.is_ac
         ]
-        return np.sum(angle_duals, axis=0)
+        return sum(angle_duals)  # , axis=0)
 
-    def _kkt_phase_consistency(self, devices, dispatch_outcome):
+    def _kkt_phase_consistency(self, devices, dispatch_outcome, la=np):
         # Compute observed global angles
         theta_terminals = [
             apply_incidence_transpose(
-                d, repeat(dispatch_outcome.global_angle, d.num_terminals_per_device)
+                d, repeat(dispatch_outcome.global_angle, d.num_terminals_per_device), la=la
             )
             for d in devices
         ]
 
         # Compute phase differences
         phase_diffs = [
-            np.array(theta) - np.array(a) if a is not None else None
+            [thetai - ai for thetai, ai in zip(theta, a)] if a is not None else None
             for theta, a in zip(theta_terminals, dispatch_outcome.angle)
         ]
 
         return phase_diffs
 
-    def kkt_jacobian_variables(self, devices, result, parameters=None):
+    def kkt_jacobian_variables(self, devices, x: DispatchOutcome, parameters=None, vectorize=True):
         if parameters is None:
             parameters = [{} for _ in devices]
 
-        if result.ground is not None:
-            devices = devices + [result.ground]
+        if x.ground is not None:
+            devices = devices + [x.ground]
             parameters += [{}]
 
         # Build incidence matrix for angle-related variables
         # For multiple time periods, we first build the incidence matrix for a single
         # time period, then apply the Kron product with the identity matrix
         angle_incidence = sum([d.incidence_matrix for d in devices if d.is_ac], [])
-        angle_incidence = sps.hstack(angle_incidence)
-        angle_incidence = sps.kron(sps.eye(result.time_horizon), angle_incidence)
+        angle_incidence = sp.hstack(angle_incidence)
+        angle_incidence = sp.kron(angle_incidence, sp.eye(x.time_horizon))
 
+        power_incidence = sum([d.incidence_matrix for d in devices], [])
+        power_incidence = sp.hstack(power_incidence)
+        power_incidence = sp.kron(power_incidence, sp.eye(x.time_horizon))
+
+        # Build Jacobian in blocks
+        # Outer block is the rows, inner block is the columns
+        dims = x.big_dims
+        blocks = x.big_blocks
+        x_vec = x.vectorize()
+
+        jac = DispatchOutcome(
+            *[
+                DispatchOutcome(*[sp.coo_matrix((dims[row], dims[col])) for col in range(8)])
+                for row in range(8)
+            ]
+        )
+
+        # Construct block row by block row
         # Part 1 - Phase duals (interface)
         # Jacobian is just the matrices of the equality constraint: A[d][t].T @ theta - phi[d][t]
+        jac.phase_duals.angle = -sp.eye(dims.phase_duals)
+        jac.phase_duals.global_angle = angle_incidence.T
 
         # Part 2 - Local equality duals (local)
+        # TODO - A_power, A_angle, A_local
 
         # Part 3 - Local inequality duals (local)
+        # TODO - diag(lamb) * C
+        i_lieq = blocks.local_inequality_duals
+        jac.local_inequality_duals.local_inequality_duals = sp.diags(x_vec[i_lieq[0] : i_lieq[1]])
 
         # Part 4 - Local variables (local)
+        # TODO
 
         # Part 5 - Power (interface)
+        jac.power.price = power_incidence.T
+        # TODO - Local Part
 
         # Part 6 - Angle (interface)
+        jac.angle.phase_duals = -sp.eye(dims.angle)
+        # TODO - Local Part
 
-        # Part 7 - Prices (global)
+        # Part 7 - Prices, nu (global)
+        # Only participates in the power balance constraint, just a single constraint
+        # per node and time period
+        # Constraint:      sum(A[d][t] @ p[d][t]) == 0      (dual variable nu)
+        # Jacobian:        A[d][t]                          (in row of p[d][t])
+        jac.prices.power = power_incidence
 
-        # Part 8 - Global angle (global)
+        # Part 8 - Global angle, theta (global)
         # Only participates in the phase consistency constraints (d = device, t = terminal)
         # Constraint:       A[d][t].T @ theta == phi[d][t]      (dual variable mu[d][t])
-        # KKT:              A[d][t] @ mu[d][t]
         # Jacobian:         A[d][t]                             (in column of mu[d][t])
+        jac.global_angle.phase_duals = angle_incidence
 
-        return angle_incidence
+        if vectorize:
+            return sp.vstack([sp.hstack([Jij for Jij in Ji]) for Ji in jac], format="csc")
+        else:
+            return jac
 
     def kkt_jacobian_parameters(self, devices, result, parameters=None):
         # TODO
