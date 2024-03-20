@@ -228,47 +228,6 @@ class DispatchOutcome(Sequence):
         return [self._package(vec, blk, shp) for blk, shp in zip(blocks, shapes)]
 
 
-def nested_evaluate(variable):
-    return [[xi.value for xi in x] if (x is not None) else None for x in variable]
-
-
-def apply_incidence(device: AbstractDevice, x, la=np):
-    if la == torch:
-        incidence = torch_sparse(device.incidence_matrix)
-    else:
-        incidence = device.incidence_matrix
-
-    return [Ai @ xi for Ai, xi in zip(incidence, x)]
-
-
-def apply_incidence_transpose(device: AbstractDevice, x, la=np):
-    if la == torch:
-        incidence = torch_sparse(device.incidence_matrix)
-    else:
-        incidence = device.incidence_matrix
-
-    return [Ai.T @ xi for Ai, xi in zip(incidence, x)]
-
-
-def get_net_power(device: AbstractDevice, p: list[cp.Variable], la=np):
-    return sum(apply_incidence(device, p, la=la))
-
-
-def match_phases(device: AbstractDevice, v, global_v):
-    if v is not None:
-        return [Ai.T @ global_v == vi for Ai, vi in zip(device.incidence_matrix, v)]
-    else:
-        return []
-
-
-def _blockify(eqm, power, prop_name):
-    if len(eqm) >= 1:
-        return sp.vstack([sp.hstack(getattr(eqmi, prop_name)) for eqmi in eqm])
-    else:
-        p_size = sum([p.size for p in power]) if power is not None else 0
-        return sp.coo_matrix((0, p_size))
-
-
 @dataclass
 class PowerNetwork:
     """Defines the domain (nodes and settlement points) of the electrical system."""
@@ -298,7 +257,7 @@ class PowerNetwork:
         if parameters is None:
             parameters = [{} for _ in devices]
         else:
-            parameters += [{}]  # For the ground
+            parameters = parameters + [{}]  # For the ground
 
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))
@@ -367,7 +326,7 @@ class PowerNetwork:
 
         if result.ground is not None:
             devices = devices + [result.ground]
-            parameters += [{}]
+            parameters = parameters + [{}]
 
         power = result.power
         angle = result.angle
@@ -463,7 +422,7 @@ class PowerNetwork:
 
         if x.ground is not None:
             devices = devices + [x.ground]
-            parameters += [{}]
+            parameters = parameters + [{}]
 
         assert len(devices) == len(parameters) == len(x.power)
 
@@ -595,13 +554,42 @@ class PowerNetwork:
     #     pass
 
 
-# [
-#     mu,  # Interface
-#     self._safe_cat(lambda_eq),  # Local
-#     self._safe_cat(lambda_ineq),  # Local
-#     self._safe_cat(u),  # Local
-#     p,  # Interface
-#     a,  # Interface
-#     self.prices.flatten(),  # Global
-#     self.global_angle.flatten(),  # Global
-# ]
+def nested_evaluate(variable):
+    return [[xi.value for xi in x] if (x is not None) else None for x in variable]
+
+
+def apply_incidence(device: AbstractDevice, x, la=np):
+    if la == torch:
+        incidence = torch_sparse(device.incidence_matrix)
+    else:
+        incidence = device.incidence_matrix
+
+    return [Ai @ xi for Ai, xi in zip(incidence, x)]
+
+
+def apply_incidence_transpose(device: AbstractDevice, x, la=np):
+    if la == torch:
+        incidence = torch_sparse(device.incidence_matrix)
+    else:
+        incidence = device.incidence_matrix
+
+    return [Ai.T @ xi for Ai, xi in zip(incidence, x)]
+
+
+def get_net_power(device: AbstractDevice, p: list[cp.Variable], la=np):
+    return sum(apply_incidence(device, p, la=la))
+
+
+def match_phases(device: AbstractDevice, v, global_v):
+    if v is not None:
+        return [Ai.T @ global_v == vi for Ai, vi in zip(device.incidence_matrix, v)]
+    else:
+        return []
+
+
+def _blockify(eqm, power, prop_name):
+    if len(eqm) >= 1:
+        return sp.vstack([sp.hstack(getattr(eqmi, prop_name)) for eqmi in eqm])
+    else:
+        p_size = sum([p.size for p in power]) if power is not None else 0
+        return sp.coo_matrix((0, p_size))
