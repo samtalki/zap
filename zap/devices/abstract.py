@@ -16,7 +16,7 @@ ConstraintMatrix = namedtuple(
     [
         "power",
         "angle",
-        "local_variable",
+        "local_variables",
     ],
 )
 
@@ -58,23 +58,23 @@ class AbstractDevice:
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return None
 
-    def operation_cost(self, power, angle, local_variable, **kwargs):
-        return NotImplementedError
+    def operation_cost(self, power, angle, local_variables, **kwargs):
+        raise NotImplementedError
 
-    def equality_constraints(self, power, angle, local_variable, **kwargs):
-        return NotImplementedError
+    def equality_constraints(self, power, angle, local_variables, **kwargs):
+        raise NotImplementedError
 
-    def inequality_constraints(self, power, angle, local_variable, **kwargs):
-        return NotImplementedError
+    def inequality_constraints(self, power, angle, local_variables, **kwargs):
+        raise NotImplementedError
 
     def _device_data(self, **kwargs):
-        return NotImplementedError
+        raise NotImplementedError
 
     def _equality_matrices(self, equalities, **kwargs):
-        return NotImplementedError
+        raise NotImplementedError
 
     def _inequality_matrices(self, inequalities, **kwargs):
-        return NotImplementedError
+        raise NotImplementedError
 
     # Properties
 
@@ -148,12 +148,20 @@ class AbstractDevice:
     def _get_empty_constraint_matrix(self, constr, power, angle, local_vars):
         num_constr = constr.size
 
+        if angle is None:
+            angle_mats = [sp.coo_matrix((num_constr, 0))]
+        else:
+            angle_mats = [sp.coo_matrix((num_constr, a.size)) for a in angle]
+
+        if local_vars is None:
+            local_mats = [sp.coo_matrix((num_constr, 0))]
+        else:
+            local_mats = [sp.coo_matrix((num_constr, u.size)) for u in local_vars]
+
         return ConstraintMatrix(
             power=[sp.coo_matrix((num_constr, p.size)) for p in power],
-            angle=None if angle is None else [sp.coo_matrix((num_constr, a.size)) for a in angle],
-            local_variable=None
-            if local_vars is None
-            else [sp.coo_matrix((num_constr, u.size)) for u in local_vars],
+            angle=angle_mats,
+            local_variables=local_mats,
         )
 
     def get_empty_constraint_matrix(self, constraints, power, angle, local_vars):

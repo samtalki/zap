@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 
 from collections import namedtuple
 from dataclasses import dataclass
@@ -101,6 +102,22 @@ class Transporter(AbstractDevice):
 
         return cost
 
+    def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
+        size = equalities[0].power[0].shape[1]
+
+        equalities[0].power[0] += sp.eye(size)
+        equalities[0].power[1] += sp.eye(size)
+
+        return equalities
+
+    def _inequality_matrices(self, inequalities, nominal_capacity=None, la=np):
+        size = inequalities[0].power[0].shape[1]
+
+        inequalities[0].power[1] += -sp.eye(size)
+        inequalities[0].power[1] += sp.eye(size)
+
+        return inequalities
+
 
 class PowerLine(Transporter):
     """A simple symmetric transporter."""
@@ -195,3 +212,20 @@ class ACLine(PowerLine):
         eq_constraints = super().equality_constraints(power, angle, u, pnom)
         eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
         return eq_constraints
+
+    def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        size = equalities[0].power[0].shape[1]
+
+        time_horizon = int(size / self.num_devices)
+        shaped_zeros = np.zeros((self.num_devices, time_horizon))
+        b_mat = shaped_zeros + data.susceptance
+
+        print(b_mat.shape)
+        print(equalities[1].angle[0].shape)
+
+        equalities[1].power[1] += sp.eye(size)
+        equalities[1].angle[0] += -sp.diags(b_mat.ravel())
+        equalities[1].angle[1] += sp.diags(b_mat.ravel())
+
+        return super()._equality_matrices(equalities, nominal_capacity=nominal_capacity, la=la)

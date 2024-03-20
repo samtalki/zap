@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 
 from collections import namedtuple
 from dataclasses import dataclass
@@ -87,6 +88,15 @@ class Injector(AbstractDevice):
             cost += la.sum(la.multiply(data.quadratic_cost, la.square(power)))
 
         return cost
+
+    def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
+        return equalities
+
+    def _inequality_matrices(self, inequalities, nominal_capacity=None, la=np):
+        size = inequalities[0].power[0].shape[1]
+        inequalities[0].power[0] += -sp.eye(size)
+        inequalities[1].power[0] += sp.eye(size)
+        return inequalities
 
 
 class Generator(Injector):

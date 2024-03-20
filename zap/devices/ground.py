@@ -44,17 +44,17 @@ class Ground(AbstractDevice):
     def _device_data(self):
         return GroundData(self.voltage)
 
-    def equality_constraints(self, power, angle, local_variable, la=np):
+    def equality_constraints(self, power, angle, local_variables, la=np):
         data = self.device_data(la=la)
         return [
             power[0],
             angle[0] - data.voltage,
         ]
 
-    def inequality_constraints(self, power, angle, local_variable, la=np):
+    def inequality_constraints(self, power, angle, local_variables, la=np):
         return []
 
-    def operation_cost(self, power, angle, local_variable, la=np):
+    def operation_cost(self, power, angle, local_variables, la=np):
         if la == torch:
             return la.zeros(1)
         else:
@@ -63,8 +63,8 @@ class Ground(AbstractDevice):
     def _equality_matrices(self, equalities, la=np):
         size = equalities[0].power[0].shape[1]
 
-        equalities[0].power[0] = sp.eye(size)
-        equalities[1].angle[0] = sp.eye(size)
+        equalities[0].power[0] += sp.eye(size)
+        equalities[1].angle[0] += sp.eye(size)
         return equalities
 
     def _inequality_matrices(self, inequalities, la=np):

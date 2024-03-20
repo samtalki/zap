@@ -234,6 +234,14 @@ def match_phases(device: AbstractDevice, v, global_v):
         return []
 
 
+def _blockify(eqm, power, prop_name):
+    if len(eqm) >= 1:
+        return sp.vstack([sp.hstack(getattr(eqmi, prop_name)) for eqmi in eqm])
+    else:
+        p_size = sum([p.size for p in power]) if power is not None else 0
+        return sp.coo_matrix((0, p_size))
+
+
 @dataclass
 class PowerNetwork:
     """Defines the domain (nodes and settlement points) of the electrical system."""
@@ -430,6 +438,8 @@ class PowerNetwork:
             devices = devices + [x.ground]
             parameters += [{}]
 
+        assert len(devices) == len(parameters) == len(x.power)
+
         # Build incidence matrix for angle-related variables
         # For multiple time periods, we first build the incidence matrix for a single
         # time period, then apply the Kron product with the identity matrix
@@ -449,48 +459,71 @@ class PowerNetwork:
 
         jac = DispatchOutcome(
             *[
-                DispatchOutcome(*[sp.coo_matrix((dims[row], dims[col])) for col in range(8)])
-                for row in range(8)
+                DispatchOutcome(*[sp.coo_matrix((dims[row], dims[col])) for col in range(len(x))])
+                for row in range(len(x))
             ]
         )
 
         # Construct block row by block row
         # Part 1 - Phase duals (interface)
         # Jacobian is just the matrices of the equality constraint: A[d][t].T @ theta - phi[d][t]
-        jac.phase_duals.angle = -sp.eye(dims.phase_duals)
-        jac.phase_duals.global_angle = angle_incidence.T
+        jac.phase_duals.angle += -sp.eye(dims.phase_duals)
+        jac.phase_duals.global_angle += angle_incidence.T
 
         # Part 2 - Local equality duals (local)
-        # TODO - A_power, A_angle, A_local
+        eq_mats = [
+            d.equality_matrices(eq, p, a, u, **param)
+            for d, eq, p, a, u, param in zip(
+                devices, x.local_equality_duals, x.power, x.angle, x.local_variables, parameters
+            )
+        ]
 
-        # Part 3 - Local inequality duals (local)
+        A_p = sp.block_diag([_blockify(eqm, p, "power") for eqm, p in zip(eq_mats, x.power)])
+        A_a = sp.block_diag([_blockify(eqm, a, "angle") for eqm, a in zip(eq_mats, x.angle)])
+        A_u = sp.block_diag(
+            [_blockify(eqm, u, "local_variables") for eqm, u in zip(eq_mats, x.local_variables)]
+        )
+
+        jac.local_equality_duals.power += A_p
+        jac.local_equality_duals.angle += A_a
+        jac.local_equality_duals.local_variables += A_u
+
+        # Part 3 - Local inequcality duals (local)
         # TODO - diag(lamb) * C
+
+        # diag(C*x - d)
         i_lieq = blocks.local_inequality_duals
-        jac.local_inequality_duals.local_inequality_duals = sp.diags(x_vec[i_lieq[0] : i_lieq[1]])
+        jac.local_inequality_duals.local_inequality_duals += sp.diags(x_vec[i_lieq[0] : i_lieq[1]])
 
         # Part 4 - Local variables (local)
-        # TODO
+        jac.local_variables.local_equality_duals += A_u.T
+        # TODO - Local inequality
+        # TODO - Local objective
 
         # Part 5 - Power (interface)
-        jac.power.price = power_incidence.T
-        # TODO - Local Part
+        jac.power.prices += power_incidence.T
+        jac.power.local_equality_duals += A_p.T
+        # TODO - Local inequality
+        # TODO - Local objective
 
         # Part 6 - Angle (interface)
-        jac.angle.phase_duals = -sp.eye(dims.angle)
-        # TODO - Local Part
+        jac.angle.phase_duals += -sp.eye(dims.angle)
+        jac.angle.local_equality_duals += A_a.T
+        # TODO - Local inequality
+        # TODO - Local objective
 
         # Part 7 - Prices, nu (global)
         # Only participates in the power balance constraint, just a single constraint
         # per node and time period
         # Constraint:      sum(A[d][t] @ p[d][t]) == 0      (dual variable nu)
         # Jacobian:        A[d][t]                          (in row of p[d][t])
-        jac.prices.power = power_incidence
+        jac.prices.power += power_incidence
 
         # Part 8 - Global angle, theta (global)
         # Only participates in the phase consistency constraints (d = device, t = terminal)
         # Constraint:       A[d][t].T @ theta == phi[d][t]      (dual variable mu[d][t])
         # Jacobian:         A[d][t]                             (in column of mu[d][t])
-        jac.global_angle.phase_duals = angle_incidence
+        jac.global_angle.phase_duals += angle_incidence
 
         if vectorize:
             return sp.vstack([sp.hstack([Jij for Jij in Ji]) for Ji in jac], format="csc")

@@ -1,5 +1,6 @@
 import numpy as np
 import cvxpy as cp
+import scipy.sparse as sp
 
 from typing import Optional
 from collections import namedtuple
@@ -149,3 +150,53 @@ class Battery(AbstractDevice):
             cost += la.sum(la.multiply(data.quadratic_cost, la.square(state.discharge)))
 
         return cost
+
+    def _equality_matrices(self, equalities, power_capacity=None, la=np):
+        data = self.device_data(power_capacity=power_capacity, la=la)
+        size = equalities[0].power[0].shape[1]
+
+        # TODO - fix time horizon
+        long_shaped_zeros = np.zeros((self.num_devices, self.time_horizon + 1))
+        shaped_zeros = np.zeros((self.num_devices, self.time_horizon))
+
+        # Power balance
+        equalities[0].power[0] += sp.eye(size)
+        equalities[0].local_variables[1] += -sp.eye(size)
+        equalities[0].local_variables[2] += sp.eye(size)
+
+        # SOC evolution
+        # TODO Build SOC difference matrix
+        soc_current = long_shaped_zeros.copy()
+        soc_last = long_shaped_zeros.copy()
+
+        alpha = shaped_zeros + data.charge_efficiency
+
+        # equalities[1].local_variables[0] += -sp.eye(long_shaped_zeros.size)  # TODO - fix this
+        # equalities[1].local_variables[1] += -sp.diags(alpha.ravel())  # Charging part
+        equalities[1].local_variables[2] += sp.eye(size)
+
+        # Initial / Final SOC
+        soc_first = long_shaped_zeros.copy()
+        soc_first[:, 0] = 1.0
+
+        soc_last = long_shaped_zeros.copy()
+        soc_last[:, -1] = 1.0
+
+        # TODO - fix dims
+        # equalities[2].local_variables[0] += sp.diags(soc_first.ravel())
+        # equalities[3].local_variables[0] += sp.diags(soc_last.ravel())
+
+        return equalities
+
+    def _inequality_matrices(self, inequalities, power_capacity=None, la=np):
+        size = inequalities[0].power[0].shape[1]
+        e_size = inequalities[0].local_variables[0].shape[0]
+
+        inequalities[0].local_variables[0] += -sp.eye(e_size)
+        inequalities[1].local_variables[0] += sp.eye(e_size)
+        inequalities[2].local_variables[1] += -sp.eye(size)
+        inequalities[3].local_variables[1] += sp.eye(size)
+        inequalities[4].local_variables[2] += -sp.eye(size)
+        inequalities[5].local_variables[2] += sp.eye(size)
+
+        return inequalities
