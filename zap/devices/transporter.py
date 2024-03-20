@@ -221,9 +221,6 @@ class ACLine(PowerLine):
         shaped_zeros = np.zeros((self.num_devices, time_horizon))
         b_mat = shaped_zeros + data.susceptance
 
-        print(b_mat.shape)
-        print(equalities[1].angle[0].shape)
-
         equalities[1].power[1] += sp.eye(size)
         equalities[1].angle[0] += -sp.diags(b_mat.ravel())
         equalities[1].angle[1] += sp.diags(b_mat.ravel())

@@ -151,13 +151,47 @@ class Battery(AbstractDevice):
 
         return cost
 
+    def _soc_boundary_matrix(self, num_devices, time_horizon, index=0):
+        soc_first = np.zeros((num_devices, time_horizon + 1))
+        soc_first[:, index] = 1.0
+
+        cols = sp.diags(soc_first.ravel(), format="coo").col
+        rows = np.arange(num_devices)
+        values = np.ones(len(rows))
+        shape = (num_devices, num_devices * (time_horizon + 1))
+
+        return sp.coo_matrix((values, (rows, cols)), shape=shape)
+
+    def _soc_difference_matrix(self, num_devices, time_horizon):
+        empty = np.zeros((num_devices, time_horizon + 1))
+
+        last_soc = empty.copy()
+        last_soc[:, :-1] = -1.0
+
+        next_soc = empty.copy()
+        next_soc[:, 1:] = 1.0
+
+        c1 = sp.diags(last_soc.ravel(), format="coo")
+        c2 = sp.diags(next_soc.ravel(), format="coo")
+        r = np.arange(num_devices * time_horizon)
+
+        cols = np.concatenate([c1.col, c2.col])
+        rows = np.concatenate([r, r])
+        values = np.concatenate([c1.data, c2.data])
+        shape = (num_devices * time_horizon, num_devices * (time_horizon + 1))
+
+        return sp.coo_matrix((values, (rows, cols)), shape=shape)
+
     def _equality_matrices(self, equalities, power_capacity=None, la=np):
         data = self.device_data(power_capacity=power_capacity, la=la)
+
+        # Dimensions
         size = equalities[0].power[0].shape[1]
+        time_horizon = int(size / self.num_devices)
 
         # TODO - fix time horizon
-        long_shaped_zeros = np.zeros((self.num_devices, self.time_horizon + 1))
-        shaped_zeros = np.zeros((self.num_devices, self.time_horizon))
+        long_shaped_zeros = np.zeros((self.num_devices, time_horizon + 1))
+        shaped_zeros = np.zeros((self.num_devices, time_horizon))
 
         # Power balance
         equalities[0].power[0] += sp.eye(size)
@@ -165,26 +199,20 @@ class Battery(AbstractDevice):
         equalities[0].local_variables[2] += sp.eye(size)
 
         # SOC evolution
-        # TODO Build SOC difference matrix
-        soc_current = long_shaped_zeros.copy()
-        soc_last = long_shaped_zeros.copy()
-
         alpha = shaped_zeros + data.charge_efficiency
+        soc_diff = self._soc_difference_matrix(self.num_devices, time_horizon)
 
-        # equalities[1].local_variables[0] += -sp.eye(long_shaped_zeros.size)  # TODO - fix this
-        # equalities[1].local_variables[1] += -sp.diags(alpha.ravel())  # Charging part
-        equalities[1].local_variables[2] += sp.eye(size)
+        equalities[1].local_variables[0] += soc_diff  # Energy
+        equalities[1].local_variables[1] += -sp.diags(alpha.ravel())  # Charging
+        equalities[1].local_variables[2] += sp.eye(size)  # Discharging
 
         # Initial / Final SOC
-        soc_first = long_shaped_zeros.copy()
-        soc_first[:, 0] = 1.0
-
-        soc_last = long_shaped_zeros.copy()
-        soc_last[:, -1] = 1.0
-
-        # TODO - fix dims
-        # equalities[2].local_variables[0] += sp.diags(soc_first.ravel())
-        # equalities[3].local_variables[0] += sp.diags(soc_last.ravel())
+        equalities[2].local_variables[0] += self._soc_boundary_matrix(
+            self.num_devices, time_horizon, index=0
+        )
+        equalities[3].local_variables[0] += self._soc_boundary_matrix(
+            self.num_devices, time_horizon, index=-1
+        )
 
         return equalities
 
