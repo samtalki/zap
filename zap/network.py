@@ -85,7 +85,7 @@ class DispatchOutcome(Sequence):
                 a_shape,
                 prices_shape,
                 global_angle_shape,
-            ]
+            ],
         )
 
     @cached_property
@@ -201,7 +201,9 @@ class DispatchOutcome(Sequence):
         )
 
     def package(self, vec):
-        x = DispatchOutcome(*self._package(vec, self.blocks, self.shape))
+        x = DispatchOutcome(
+            *self._package(vec, self.blocks, self.shape), problem=self.problem, ground=self.ground
+        )
 
         # Replace Nones with empty arrays for the constraints
         for i, eq in enumerate(x.local_equality_duals):
@@ -517,7 +519,7 @@ class PowerNetwork:
         # TODO - Local objective
 
         # Part 5 - Power (interface)
-        jac.power.prices += power_incidence.T
+        jac.power.prices += -power_incidence.T
         jac.power.local_equality_duals += A_p.T
         jac.power.local_inequality_duals += C_p.T
         # TODO - Local objective

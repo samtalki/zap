@@ -114,7 +114,7 @@ class Transporter(AbstractDevice):
         size = inequalities[0].power[0].shape[1]
 
         inequalities[0].power[1] += -sp.eye(size)
-        inequalities[0].power[1] += sp.eye(size)
+        inequalities[1].power[1] += sp.eye(size)
 
         return inequalities
 
@@ -206,10 +206,11 @@ class ACLine(PowerLine):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         base = choose_base_modeler(la)
 
-        pnom = data.nominal_capacity
-        susceptance = base.multiply(data.susceptance, pnom)
+        susceptance = base.multiply(data.susceptance, data.nominal_capacity)
 
-        eq_constraints = super().equality_constraints(power, angle, u, pnom)
+        eq_constraints = super().equality_constraints(
+            power, angle, u, nominal_capacity=nominal_capacity, la=la
+        )
         eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
         return eq_constraints
 
@@ -219,7 +220,9 @@ class ACLine(PowerLine):
 
         time_horizon = int(size / self.num_devices)
         shaped_zeros = np.zeros((self.num_devices, time_horizon))
-        b_mat = shaped_zeros + data.susceptance
+
+        susceptance = la.multiply(data.susceptance, data.nominal_capacity)
+        b_mat = shaped_zeros + susceptance
 
         equalities[1].power[1] += sp.eye(size)
         equalities[1].angle[0] += -sp.diags(b_mat.ravel())
