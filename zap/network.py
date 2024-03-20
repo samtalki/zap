@@ -200,6 +200,33 @@ class DispatchOutcome(Sequence):
             ]
         )
 
+    def package(self, vec):
+        x = DispatchOutcome(*self._package(vec, self.blocks, self.shape))
+
+        # Replace Nones with empty arrays for the constraints
+        for i, eq in enumerate(x.local_equality_duals):
+            if eq is None:
+                x.local_equality_duals[i] = []
+        for i, ineq in enumerate(x.local_inequality_duals):
+            if ineq is None:
+                x.local_inequality_duals[i] = []
+
+        return x
+
+    def _package(self, vec, blocks, shapes):
+        # Base case
+        if isinstance(blocks, tuple):
+            x = vec[blocks[0] : blocks[1]]
+            if len(x) == 0:
+                return None
+            elif len(shapes) > 1:
+                return x.reshape(shapes)
+            else:
+                return x
+
+        # Recursive case
+        return [self._package(vec, blk, shp) for blk, shp in zip(blocks, shapes)]
+
 
 def nested_evaluate(variable):
     return [[xi.value for xi in x] if (x is not None) else None for x in variable]
@@ -489,27 +516,57 @@ class PowerNetwork:
         jac.local_equality_duals.local_variables += A_u
 
         # Part 3 - Local inequcality duals (local)
-        # TODO - diag(lamb) * C
+        inequalities = x._safe_cat(
+            [
+                x._safe_cat([hi.ravel() for hi in d.inequality_constraints(p, a, u, **param)])
+                for d, p, a, u, param in zip(
+                    devices, x.power, x.angle, x.local_variables, parameters
+                )
+            ]
+        )
+
+        ineq_mats = [
+            d.inequality_matrices(ineq, p, a, u, **param)
+            for d, ineq, p, a, u, param in zip(
+                devices, x.local_inequality_duals, x.power, x.angle, x.local_variables, parameters
+            )
+        ]
+
+        C_p = sp.block_diag([_blockify(ineqm, p, "power") for ineqm, p in zip(ineq_mats, x.power)])
+        C_a = sp.block_diag([_blockify(ineqm, a, "angle") for ineqm, a in zip(ineq_mats, x.angle)])
+        C_u = sp.block_diag(
+            [
+                _blockify(ineqm, u, "local_variables")
+                for ineqm, u in zip(ineq_mats, x.local_variables)
+            ]
+        )
+
+        i_lieq = blocks.local_inequality_duals
+        diag_lamb = sp.diags(x_vec[i_lieq[0] : i_lieq[1]])
 
         # diag(C*x - d)
-        i_lieq = blocks.local_inequality_duals
-        jac.local_inequality_duals.local_inequality_duals += sp.diags(x_vec[i_lieq[0] : i_lieq[1]])
+        jac.local_inequality_duals.local_inequality_duals += sp.diags(inequalities)
+
+        # diag(lamb) * C
+        jac.local_inequality_duals.power += diag_lamb * C_p
+        jac.local_inequality_duals.angle += diag_lamb * C_a
+        jac.local_inequality_duals.local_variables += diag_lamb * C_u
 
         # Part 4 - Local variables (local)
         jac.local_variables.local_equality_duals += A_u.T
-        # TODO - Local inequality
+        jac.local_variables.local_inequality_duals += C_u.T
         # TODO - Local objective
 
         # Part 5 - Power (interface)
         jac.power.prices += power_incidence.T
         jac.power.local_equality_duals += A_p.T
-        # TODO - Local inequality
+        jac.power.local_inequality_duals += C_p.T
         # TODO - Local objective
 
         # Part 6 - Angle (interface)
         jac.angle.phase_duals += -sp.eye(dims.angle)
         jac.angle.local_equality_duals += A_a.T
-        # TODO - Local inequality
+        jac.angle.local_inequality_duals += C_a.T
         # TODO - Local objective
 
         # Part 7 - Prices, nu (global)
