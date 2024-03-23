@@ -1,0 +1,82 @@
+import zap
+import numpy as np
+import datetime as dt
+import pandas as pd
+import pypsa
+
+
+def load_pypsa24hour():
+    return load_pypsa_network(num_hours=24)
+
+
+def load_pypsa1hour():
+    return load_pypsa_network(num_hours=1)
+
+
+def load_pypsa_network(num_hours=1, num_nodes=100):
+    dates = pd.date_range(
+        dt.datetime(2019, 1, 2, 0),
+        dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=num_hours),
+        freq="1h",
+        inclusive="left",
+    )
+    # TODO - Remove explicit path
+    pn = pypsa.Network(f"../Epsilon/.pypsa/workflow/resources/western/elec_s_{num_nodes}.nc")
+
+    net, devices = zap.load_pypsa_network(pn, dates)
+    parameters = None
+    return net, devices, parameters
+
+
+def load_simple_network():
+    num_nodes = 7
+
+    net = zap.PowerNetwork(num_nodes=num_nodes)
+
+    generators = zap.Generator(
+        num_nodes=num_nodes,
+        terminal=np.array([0, 1, 3]),
+        dynamic_capacity=np.array(
+            [
+                [100.0, 100.0, 100.0, 100.0],  # Peaker
+                [10.0, 50.0, 50.0, 15.0],  # Solar panel
+                [15.0, 15.0, 15.0, 15.0],  # CC Gas
+            ]
+        ),
+        linear_cost=np.array([100.0, 0.5, 40.0]),
+    )
+
+    loads = zap.Load(
+        num_nodes=num_nodes,
+        terminal=np.array([0]),
+        load=np.array([[30.0, 40.0, 45.0, 80.0]]),
+        linear_cost=np.array([200.0]),
+    )
+
+    links = zap.ACLine(
+        num_nodes=num_nodes,
+        source_terminal=np.array([0, 1, 3]),
+        sink_terminal=np.array([1, 3, 0]),
+        capacity=np.array([45.0, 50.0, 11.0]),
+        susceptance=np.array([0.1, 0.05, 1.0]),
+        linear_cost=0.025 * np.ones(3),
+    )
+
+    batteries = zap.Battery(
+        num_nodes=num_nodes,
+        terminal=np.array([1]),
+        power_capacity=np.array([5.0]),
+        duration=np.array([4.0]),
+        linear_cost=np.array([0.01]),
+    )
+
+    parameters = [
+        {"nominal_capacity": np.array([1.0, 2.0, 1.0])},
+        {},
+        {"nominal_capacity": np.array([1.0, 1.0, 1.0])},
+        {"power_capacity": np.array([5.0])},
+    ]
+
+    devices = [generators, loads, links, batteries]
+
+    return net, devices, parameters
