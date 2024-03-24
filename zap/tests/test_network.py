@@ -25,8 +25,33 @@ class BaseTest(unittest.TestCase):
         # Check solution status
         self.assertTrue(self.dispatch.problem.status == "optimal")
 
-        # TODO Check dimensions
-        pass
+        # Check dimensions
+        time_horizon = self.time_horizon
+        num_devices = len(self.devices) + 1  # Includes ground
+        num_nodes = self.net.num_nodes
+        result = self.dispatch
+
+        # Each variable should have the same number of elements as the number of devices
+        for y in [
+            result.power,
+            result.angle,
+            result.local_variables,
+            result.phase_duals,
+            result.local_equality_duals,
+            result.local_inequality_duals,
+        ]:
+            self.assertEqual(len(y), num_devices)
+
+        # Power and angle should each be (num_terminals, num_devices, time_horizon)
+        for y in [result.power, result.angle]:
+            for y_dev, dev in zip(y, self.devices + [result.ground]):
+                if y_dev is not None:
+                    for y_dev_term in y_dev:
+                        self.assertEqual(y_dev_term.shape, (dev.num_devices, time_horizon))
+
+        # Global variables should be (num_nodes, time_horizon)
+        self.assertEqual(result.global_angle.shape, (num_nodes, time_horizon))
+        self.assertEqual(result.prices.shape, (num_nodes, time_horizon))
 
     def test_kkt(self):
         K = self.net.kkt(self.devices, self.dispatch, parameters=self.parameters)
