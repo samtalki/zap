@@ -6,6 +6,9 @@ from zap.tests import network_examples as examples
 
 
 KKT_TOLERANCE = 1e-2
+JACOBIAN_PERTURBATION_RANGE = [1.0, 1e-1, 1e-2, 1e-3]
+JACOBIAN_ABSOLUTE_TOLERANCE = 1e-7
+JACOBIAN_RELATIVE_TOLERANCE = 1e-4
 
 
 class BaseTest(unittest.TestCase):
@@ -73,9 +76,47 @@ class BaseTest(unittest.TestCase):
         # Check dimensions
         self.assertEqual(jac.shape[0], K.vectorize().size)
 
-        # TODO Check derivatives numerically
+        # Check derivatives numerically
         # Should shrink as we decrease the perturbation
-        pass
+        x, fx = dispatch.vectorize(), K.vectorize()
+
+        def f(x):
+            return net.kkt(devices, dispatch.package(x), parameters=parameters).vectorize()
+
+        total_errors, relative_errors = zip(
+            *[
+                self.numerical_derivative_test(x, fx, f, jac, delta)
+                for delta in JACOBIAN_PERTURBATION_RANGE
+            ]
+        )
+
+        # Check the total error is decreasing or below tolerance
+        abs_decreasing = np.less_equal(np.diff(total_errors), 0.0)
+        rel_decreasing = np.less_equal(np.diff(relative_errors), 0.0)
+
+        abs_numerically_zero = np.less(total_errors[1:], JACOBIAN_ABSOLUTE_TOLERANCE)
+        rel_numerically_zero = np.less(relative_errors[1:], JACOBIAN_RELATIVE_TOLERANCE)
+
+        self.assertTrue(np.all(np.logical_or(abs_decreasing, abs_numerically_zero)))
+        self.assertTrue(np.all(np.logical_or(rel_decreasing, rel_numerically_zero)))
+
+    def numerical_derivative_test(self, x, fx, f, jacobian, delta):
+        # Perturb x
+        dx = np.random.randn(*x.shape)
+        dx = dx / np.linalg.norm(dx)
+        dx *= delta
+
+        # Compute estimated change, f(x + dx) - f(x) ~= jacobian * dx
+        df_est = jacobian @ dx
+
+        # Compute true change
+        df_true = f(x + dx) - fx
+
+        # Measure differences
+        total_error = np.linalg.norm(df_est - df_true)
+        relative_error = total_error / np.linalg.norm(dx)
+
+        return total_error, relative_error
 
 
 # TODO - Make this programmatic
