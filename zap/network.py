@@ -548,7 +548,28 @@ class PowerNetwork:
         else:
             return jac
 
-    def kkt_jacobian_parameters(self, devices, result, parameters=None):
+    def kkt_vjp_variables(
+        self, grad, devices, x: DispatchOutcome, parameters=None, vectorize=True, regularize=0.0
+    ):
+        if isinstance(grad, DispatchOutcome):
+            grad = grad.vectorize()
+
+        jac = self.kkt_jacobian_variables(devices, x, parameters=parameters, vectorize=True)
+
+        # Transpose and regularize
+        jac_t = jac.T.tocsc()
+        if regularize > 0.0:
+            jac_t += regularize * sp.eye(jac_t.shape[0])
+
+        lu_factors = sp.linalg.splu(jac_t)
+        grad_back = lu_factors.solve(grad)
+
+        if vectorize:
+            return grad_back
+        else:
+            return x.package(grad_back)
+
+    def kkt_vjp_parameters(self, devices, result, parameters=None):
         # TODO
         raise NotImplementedError
 

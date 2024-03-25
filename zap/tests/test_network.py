@@ -56,6 +56,12 @@ class BaseTest(unittest.TestCase):
         self.assertEqual(result.global_angle.shape, (num_nodes, time_horizon))
         self.assertEqual(result.prices.shape, (num_nodes, time_horizon))
 
+    def test_vectorization(self):
+        result = self.dispatch
+        new_result = result.package(result.vectorize())
+
+        np.testing.assert_equal(new_result.vectorize(), result.vectorize())
+
     def test_kkt(self):
         K = self.net.kkt(self.devices, self.dispatch, parameters=self.parameters)
 
