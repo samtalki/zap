@@ -30,7 +30,10 @@ def get_time_horizon(array: NDArray) -> int:
 
 def make_dynamic(array: Optional[NDArray]) -> NDArray:
     if (array is not None) and (len(array.shape)) == 1:
-        return np.expand_dims(array, axis=1)
+        if isinstance(array, np.ndarray):
+            return np.expand_dims(array, axis=1)
+        else:
+            return torch.unsqueeze(array, dim=1)
     else:
         return array
 

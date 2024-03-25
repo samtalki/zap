@@ -11,7 +11,7 @@ from collections.abc import Sequence
 
 from zap.devices.abstract import AbstractDevice
 from zap.devices.ground import Ground
-from zap.util import torchify, torch_sparse
+from zap.util import torchify, torch_sparse, grad_or_zero
 
 
 @dataclass
@@ -569,12 +569,48 @@ class PowerNetwork:
         else:
             return x.package(grad_back)
 
-    def kkt_vjp_parameters(self, devices, result, parameters=None):
-        # TODO
-        raise NotImplementedError
+    def kkt_vjp_parameters(
+        self, grad, devices, x: DispatchOutcome, parameters=None, param_ind=None, param_name=None
+    ):
+        if x.ground is not None:
+            devices = devices + [x.ground]
+            parameters = parameters + [{}]
 
-    # def vector_jacobian_product(self, devices, dispatch_outcome, y):
-    #     pass
+        assert param_ind is not None
+        assert param_name is not None
+
+        # Pacakge for efficient computation
+        if not isinstance(grad, DispatchOutcome):
+            grad = x.package(grad)
+
+        # Setup torch
+        x_tc = x.torchify(requires_grad=False)
+        i = param_ind
+        param_i = {k: v for k, v in parameters[i].items()}
+        param_i[param_name] = torchify(param_i[param_name], requires_grad=True)
+        param_i_grad = torch.zeros_like(param_i[param_name])
+
+        # Compute equality VJP
+        equalities = devices[i].equality_constraints(
+            x_tc.power[i], x_tc.angle[i], x_tc.local_variables[i], **param_i, la=torch
+        )
+        for d_nu, eq in zip(torchify(grad.local_equality_duals[i]), equalities):
+            if eq.requires_grad:
+                eq.backward(d_nu)
+                param_i_grad += grad_or_zero(param_i[param_name])
+
+        # Compute inequality VJP
+        ineqs = devices[i].equality_constraints(
+            x_tc.power[i], x_tc.angle[i], x_tc.local_variables[i], **param_i, la=torch
+        )
+        for d_lam, lam, ineq in zip(
+            torchify(grad.local_inequality_duals[i]), x_tc.local_inequality_duals[i], ineqs
+        ):
+            if ineq.requires_grad:
+                ineq.backward(torch.multiply(lam, d_lam))
+                param_i_grad += grad_or_zero(param_i[param_name])
+
+        return param_i_grad
 
 
 def nested_evaluate(variable):

@@ -28,6 +28,8 @@ def torchify(x, requires_grad=False):
         return x
     elif x is None:
         return None
+    elif isinstance(x, dict):
+        return {k: torchify(v, requires_grad=requires_grad) for k, v in x.items()}
     elif isinstance(x, list):
         return [torchify(xi, requires_grad=requires_grad) for xi in x]
     else:
