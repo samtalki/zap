@@ -209,7 +209,15 @@ class AbstractDevice:
         return L
 
     def lagrangian_gradients(
-        self, power, angle, local_vars, equality_duals, inequality_duals, la=np, **kwargs
+        self,
+        power,
+        angle,
+        local_vars,
+        equality_duals,
+        inequality_duals,
+        la=np,
+        create_graph=False,
+        **kwargs,
     ):
         power = torchify(power, requires_grad=True)
         angle = torchify(angle, requires_grad=True)
@@ -223,7 +231,7 @@ class AbstractDevice:
         )
 
         if L.requires_grad:
-            L.backward()
+            L.backward(create_graph=create_graph)
 
         if la == np:
             to_numpy = True

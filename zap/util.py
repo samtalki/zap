@@ -25,6 +25,8 @@ def grad_or_zero(x: torch.Tensor, to_numpy=False):
 
 def torchify(x, requires_grad=False):
     if isinstance(x, torch.Tensor):
+        if requires_grad:
+            x.requires_grad = True
         return x
     elif x is None:
         return None

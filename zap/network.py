@@ -584,11 +584,51 @@ class PowerNetwork:
             grad = x.package(grad)
 
         # Setup torch
-        x_tc = x.torchify(requires_grad=False)
+        x_tc = x.torchify(requires_grad=True)
         i = param_ind
         param_i = {k: v for k, v in parameters[i].items()}
         param_i[param_name] = torchify(param_i[param_name], requires_grad=True)
         param_i_grad = torch.zeros_like(param_i[param_name])
+
+        # Gradient of Lagrangian VJP
+        # Compute Lagrangian and differentiate wrt primals
+        lagrange = devices[i].lagrangian(
+            x_tc.power[i],
+            x_tc.angle[i],
+            x_tc.local_variables[i],
+            x_tc.local_equality_duals[i],
+            x_tc.local_inequality_duals[i],
+            la=torch,
+            **param_i,
+        )
+
+        # Compute first and second derivatives of gradient of Lagrangian
+        def add_dL_contribution(param_i_grad, attr):
+            if getattr(x_tc, attr)[i] is None:
+                return param_i_grad
+
+            dL_var = torch.autograd.grad(
+                lagrange,
+                getattr(x_tc, attr)[i],
+                create_graph=True,
+                allow_unused=True,
+                materialize_grads=True,
+            )
+
+            dL_var_theta = torch.autograd.grad(
+                dL_var,
+                param_i[param_name],
+                grad_outputs=[torchify(p) for p in getattr(grad, attr)[i]],
+                allow_unused=True,
+            )
+            if dL_var_theta[0] is not None:
+                param_i_grad += dL_var_theta[0]
+
+            return param_i_grad
+
+        param_i_grad = add_dL_contribution(param_i_grad, "power")
+        param_i_grad = add_dL_contribution(param_i_grad, "angle")
+        param_i_grad = add_dL_contribution(param_i_grad, "local_variables")
 
         # Compute equality VJP
         equalities = devices[i].equality_constraints(
@@ -600,7 +640,7 @@ class PowerNetwork:
                 param_i_grad += grad_or_zero(param_i[param_name])
 
         # Compute inequality VJP
-        ineqs = devices[i].equality_constraints(
+        ineqs = devices[i].inequality_constraints(
             x_tc.power[i], x_tc.angle[i], x_tc.local_variables[i], **param_i, la=torch
         )
         for d_lam, lam, ineq in zip(

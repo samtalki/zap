@@ -53,7 +53,7 @@ class DispatchLayer:
         # dtheta = -JK_theta.T @ inv(JK_z.T) @ dz
         # dz_bar = inv(JK_z.T) @ dz
         dz_bar = self.network.kkt_vjp_variables(
-            dz, self.devices, z, parameters=parameters, regularize=1e-8
+            dz, self.devices, z, parameters=parameters, regularize=1e-8, vectorize=False
         )
 
         # dtheta = -JK_theta.T @ dz_bar
