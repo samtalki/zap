@@ -167,6 +167,8 @@ def load_pypsa_network(
     marginal_load_value=1000.0,
     drop_empty_generators=True,
     expand_empty_generators=0.0,
+    power_unit=1.0,  # MW
+    cost_unit=1.0,  # $
 ):
     network = PowerNetwork(len(net.buses))
 
@@ -192,5 +194,9 @@ def load_pypsa_network(
         parse_ac_lines(net, ac_transmission_cost=ac_transmission_cost),
         parse_batteries(net, battery_discharge_cost=battery_discharge_cost),
     ]
+
+    for d in devices:
+        d.scale_costs(cost_unit)
+        d.scale_power(power_unit)
 
     return network, devices

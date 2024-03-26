@@ -301,7 +301,7 @@ class PowerNetwork:
             ),
         )
         problem.solve(solver=solver, **solver_kwargs)
-        assert problem.status == "optimal"
+        assert problem.status in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]
 
         # Evaluate variables
         power = nested_evaluate(power)
