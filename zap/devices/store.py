@@ -225,3 +225,11 @@ class Battery(AbstractDevice):
         inequalities[5].local_variables[2] += sp.eye(size)
 
         return inequalities
+
+    def scale_costs(self, scale):
+        self.linear_cost /= scale
+        if self.quadratic_cost is not None:
+            self.quadratic_cost /= scale
+
+    def scale_power(self, scale):
+        self.power_capacity /= scale

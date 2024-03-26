@@ -15,12 +15,14 @@ class DispatchLayer:
         parameter_names: dict[str, tuple[int, str]],
         time_horizon: int = 1,
         solver=cp.ECOS,
+        solver_kwargs={},
     ):
         self.network = network
         self.devices = devices
         self.parameter_names = parameter_names
         self.time_horizon = time_horizon
         self.solver = solver
+        self.solver_kwargs = solver_kwargs
 
         # TODO - check that parameters match devices
         # TODO - check that parameters are unique?
@@ -44,7 +46,11 @@ class DispatchLayer:
         parameters = self.setup_parameters(**kwargs)
 
         return self.network.dispatch(
-            self.devices, time_horizon=self.time_horizon, parameters=parameters, solver=self.solver
+            self.devices,
+            time_horizon=self.time_horizon,
+            parameters=parameters,
+            solver=self.solver,
+            solver_kwargs=self.solver_kwargs,
         )
 
     def backward(self, z: DispatchOutcome, dz: DispatchOutcome, regularize=1e-8, **kwargs):

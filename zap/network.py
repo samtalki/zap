@@ -244,6 +244,7 @@ class PowerNetwork:
         solver=cp.ECOS,
         parameters=None,
         add_ground=True,
+        solver_kwargs={},
     ) -> DispatchOutcome:
         # Add ground if necessary
         ground = None
@@ -299,7 +300,8 @@ class PowerNetwork:
                 *local_inequalities,
             ),
         )
-        problem.solve(solver=solver)
+        problem.solve(solver=solver, **solver_kwargs)
+        assert problem.status == "optimal"
 
         # Evaluate variables
         power = nested_evaluate(power)

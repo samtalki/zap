@@ -7,6 +7,8 @@ from zap.devices.injector import Generator, Load
 from zap.devices.transporter import DCLine, ACLine
 from zap.devices.store import Battery
 
+pd.set_option("future.no_silent_downcasting", True)
+
 
 def parse_buses(net: pypsa.Network):
     buses = net.buses.loc[net.buses.carrier != "battery"].index
@@ -30,37 +32,70 @@ def build_dynamic(device, device_t, key, dates):
     return dynamic_values
 
 
-def parse_generators(net: pypsa.Network, dates):
+def parse_generators(
+    net: pypsa.Network,
+    dates,
+    rng: np.random.Generator,
+    *,
+    generator_cost_perturbation,
+    expand_empty_generators,
+    drop_empty_generators,
+):
+    if drop_empty_generators:
+        assert expand_empty_generators == 0.0
+
     buses, buses_to_index = parse_buses(net)
     terminals = net.generators.bus.replace(buses_to_index).values.astype(int)
 
     # Build dynamic capacities
-    dynamic_capacities = build_dynamic(
-        net.generators, net.generators_t, "p_max_pu", dates
-    )
-    dynamic_costs = build_dynamic(
-        net.generators, net.generators_t, "marginal_cost", dates
-    )
+    dynamic_capacities = build_dynamic(net.generators, net.generators_t, "p_max_pu", dates)
+    dynamic_costs = build_dynamic(net.generators, net.generators_t, "marginal_cost", dates)
+
+    # Perturb costs
+    dynamic_costs += generator_cost_perturbation * rng.random(dynamic_costs.shape)
+
+    # Build nominal capacities
+    nominal_capacities = net.generators.p_nom.values
+
+    if drop_empty_generators:
+        mask = nominal_capacities > 0
+        terminals = terminals[mask]
+        dynamic_capacities = dynamic_capacities[mask]
+        dynamic_costs = dynamic_costs[mask]
+        nominal_capacities = nominal_capacities[mask]
+    else:
+        nominal_capacities += expand_empty_generators
 
     return Generator(
         num_nodes=len(buses),
         terminal=terminals,
-        nominal_capacity=net.generators.p_nom.values,
+        nominal_capacity=nominal_capacities,
         dynamic_capacity=dynamic_capacities,
         linear_cost=dynamic_costs,
     )
 
 
-def parse_loads(net: pypsa.Network, dates, marginal_load_value=10_000.0):
+def parse_loads(
+    net: pypsa.Network,
+    dates,
+    rng: np.random.Generator,
+    *,
+    load_cost_perturbation,
+    marginal_load_value,
+):
     buses, buses_to_index = parse_buses(net)
     terminals = net.loads.bus.replace(buses_to_index).values.astype(int)
     load = build_dynamic(net.loads, net.loads_t, "p_set", dates)
+
+    # Build and perturb costs
+    load_cost = marginal_load_value * np.ones(len(buses))
+    load_cost += load_cost_perturbation * rng.random(load_cost.shape)
 
     return Load(
         num_nodes=len(buses),
         terminal=terminals,
         load=load,
-        linear_cost=marginal_load_value * np.ones(len(buses)),
+        linear_cost=load_cost,
     )
 
 
@@ -86,7 +121,7 @@ def parse_dc_lines(net: pypsa.Network):
     )
 
 
-def parse_ac_lines(net: pypsa.Network):
+def parse_ac_lines(net: pypsa.Network, *, ac_transmission_cost):
     buses, buses_to_index = parse_buses(net)
 
     sources, sinks = get_source_sinks(net.lines, buses_to_index)
@@ -94,6 +129,7 @@ def parse_ac_lines(net: pypsa.Network):
     # Compute per-MW susceptance
     susceptance = 1 / net.lines.x.values
     susceptance = np.divide(susceptance, net.lines.s_nom.values)
+    susceptance *= 1e3  # Convert to Kilosiemens / per-MW
 
     return ACLine(
         num_nodes=len(buses),
@@ -102,10 +138,11 @@ def parse_ac_lines(net: pypsa.Network):
         susceptance=susceptance,
         capacity=net.lines.s_max_pu.values,
         nominal_capacity=net.lines.s_nom.values,
+        linear_cost=ac_transmission_cost * np.ones(sources.size),
     )
 
 
-def parse_batteries(net: pypsa.Network):
+def parse_batteries(net: pypsa.Network, *, battery_discharge_cost):
     buses, buses_to_index = parse_buses(net)
     terminals = net.storage_units.bus.replace(buses_to_index).values.astype(int)
 
@@ -115,18 +152,45 @@ def parse_batteries(net: pypsa.Network):
         power_capacity=net.storage_units.p_nom.values,
         duration=net.storage_units.max_hours.values,
         charge_efficiency=net.storage_units.efficiency_dispatch.values,
+        linear_cost=battery_discharge_cost * np.ones(terminals.size),
     )
 
 
-def load_pypsa_network(net: pypsa.Network, dates):
+def load_pypsa_network(
+    net: pypsa.Network,
+    dates,
+    seed=0,
+    battery_discharge_cost=0.0,
+    ac_transmission_cost=0.0,
+    generator_cost_perturbation=0.0,
+    load_cost_perturbation=0.0,
+    marginal_load_value=1000.0,
+    drop_empty_generators=True,
+    expand_empty_generators=0.0,
+):
     network = PowerNetwork(len(net.buses))
 
+    rng = np.random.default_rng(seed)
+
     devices = [
-        parse_generators(net, dates),
-        parse_loads(net, dates),
+        parse_generators(
+            net,
+            dates,
+            rng,
+            generator_cost_perturbation=generator_cost_perturbation,
+            expand_empty_generators=expand_empty_generators,
+            drop_empty_generators=drop_empty_generators,
+        ),
+        parse_loads(
+            net,
+            dates,
+            rng,
+            load_cost_perturbation=load_cost_perturbation,
+            marginal_load_value=marginal_load_value,
+        ),
         parse_dc_lines(net),
-        parse_ac_lines(net),
-        parse_batteries(net),
+        parse_ac_lines(net, ac_transmission_cost=ac_transmission_cost),
+        parse_batteries(net, battery_discharge_cost=battery_discharge_cost),
     ]
 
     return network, devices

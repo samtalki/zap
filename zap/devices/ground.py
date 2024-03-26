@@ -69,3 +69,9 @@ class Ground(AbstractDevice):
 
     def _inequality_matrices(self, inequalities, la=np):
         return inequalities
+
+    def scale_costs(self, scale):
+        pass
+
+    def scale_power(self, scale):
+        pass

@@ -118,6 +118,14 @@ class Transporter(AbstractDevice):
 
         return inequalities
 
+    def scale_costs(self, scale):
+        self.linear_cost /= scale
+        if self.quadratic_cost is not None:
+            self.quadratic_cost /= scale
+
+    def scale_power(self, scale):
+        self.nominal_capacity /= scale
+
 
 class PowerLine(Transporter):
     """A simple symmetric transporter."""

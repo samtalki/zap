@@ -7,4 +7,4 @@ from zap.devices.injector import Injector, Generator, Load
 from zap.devices.transporter import Transporter, DCLine, ACLine
 from zap.devices.store import Battery
 
-from zap.importers.pypsa import load_pypsa_network
+from zap import importers

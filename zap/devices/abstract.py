@@ -79,6 +79,12 @@ class AbstractDevice:
     def _inequality_matrices(self, inequalities, **kwargs):
         raise NotImplementedError
 
+    def scale_costs(self, scale):
+        raise NotImplementedError
+
+    def scale_power(self, scale):
+        raise NotImplementedError
+
     # Properties
 
     @property
