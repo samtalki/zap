@@ -636,7 +636,7 @@ class PowerNetwork:
         )
         for d_nu, eq in zip(torchify(grad.local_equality_duals[i]), equalities):
             if eq.requires_grad:
-                eq.backward(d_nu)
+                eq.backward(d_nu, retain_graph=True)  # TODO - Is this bad?
                 param_i_grad += grad_or_zero(param_i[param_name])
 
         # Compute inequality VJP

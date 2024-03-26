@@ -1,7 +1,10 @@
 import unittest
 import cvxpy as cp
 import numpy as np
+import pandas as pd
 
+import zap
+from zap.layer import DispatchLayer
 from zap.tests import network_examples as examples
 
 
@@ -9,6 +12,9 @@ KKT_TOLERANCE = 1e-2
 JACOBIAN_PERTURBATION_RANGE = [1.0, 1e-1, 1e-2, 1e-3]
 JACOBIAN_ABSOLUTE_TOLERANCE = 1e-7
 JACOBIAN_RELATIVE_TOLERANCE = 1e-4
+
+# TODO Resolve this warning
+pd.set_option("future.no_silent_downcasting", True)
 
 
 class BaseTest(unittest.TestCase):
@@ -73,7 +79,7 @@ class BaseTest(unittest.TestCase):
         K_vec = K.vectorize()
         self.assertLessEqual(np.linalg.norm(K_vec) / np.sqrt(K_vec.size), KKT_TOLERANCE)
 
-    def test_jacobian(self):
+    def test_kkt_jacobian(self):
         net, devices, dispatch, parameters = self.net, self.devices, self.dispatch, self.parameters
 
         K = net.kkt(devices, dispatch, parameters=parameters)
@@ -105,6 +111,74 @@ class BaseTest(unittest.TestCase):
 
         self.assertTrue(np.all(np.logical_or(abs_decreasing, abs_numerically_zero)))
         self.assertTrue(np.all(np.logical_or(rel_decreasing, rel_numerically_zero)))
+
+    def test_layer_jacobian(self):
+        net, devices = self.net, self.devices
+
+        gen_index = [i for i, dev in enumerate(devices) if isinstance(dev, zap.Generator)][0]
+        line_index = [i for i, dev in enumerate(devices) if isinstance(dev, zap.ACLine)][0]
+        battery_index = [i for i, dev in enumerate(devices) if isinstance(dev, zap.Battery)][0]
+
+        parameter_names = {
+            "generator_capacity": (gen_index, "nominal_capacity"),
+            "line_capacity": (line_index, "nominal_capacity"),
+            "battery_power": (battery_index, "power_capacity"),
+        }
+
+        parameter_values = {
+            "generator_capacity": devices[gen_index].nominal_capacity,
+            "line_capacity": devices[line_index].nominal_capacity,
+            "battery_power": devices[battery_index].power_capacity,
+        }
+
+        # Construct layer
+        layer = DispatchLayer(
+            net,
+            devices,
+            parameter_names=parameter_names,
+            time_horizon=self.time_horizon,
+            solver=cp.MOSEK,
+        )
+
+        y = layer.forward(**parameter_values)
+
+        # Check that output matches non-layer dispatch
+        np.testing.assert_allclose(y.vectorize(), self.dispatch.vectorize())
+
+        # ===
+        # Compute derivative accuracy
+        # ====
+
+        # Define objective and its gradient
+        dy = y.package(np.zeros_like(y.vectorize()))
+        dy.power[gen_index][0] += devices[gen_index].linear_cost
+        # dy.power[line_index][0] += devices[line_index].linear_cost
+        # dy.local_variables[battery_index][2] += devices[battery_index].linear_cost
+
+        def f_full(**kwargs):
+            return np.dot(layer.forward(**kwargs).vectorize(), dy.vectorize())
+
+        fy = f_full(**parameter_values)
+
+        grad_param = layer.backward(y, dy, **parameter_values, regularize=1e-10)
+
+        # Change parameter slightly
+        delta = 1e-3
+        for key in parameter_values:
+            parameter_values[key] += delta / np.sqrt(parameter_values[key].size)
+
+        # Compute new output
+        fy_new = f_full(**parameter_values)
+        f_diff_true = fy_new - fy
+
+        # Compute estimated change
+        f_diff_est = 0.0
+        for key in parameter_values:
+            f_diff_est += grad_param[key].T @ (
+                delta * np.ones_like(grad_param[key]) / np.sqrt(grad_param[key].size)
+            )
+
+        np.testing.assert_allclose(f_diff_est, f_diff_true, atol=1e-3, rtol=1e-3)
 
     def numerical_derivative_test(self, x, fx, f, jacobian, delta):
         # Perturb x

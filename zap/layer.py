@@ -47,13 +47,13 @@ class DispatchLayer:
             self.devices, time_horizon=self.time_horizon, parameters=parameters, solver=self.solver
         )
 
-    def backward(self, z: DispatchOutcome, dz: DispatchOutcome, **kwargs):
+    def backward(self, z: DispatchOutcome, dz: DispatchOutcome, regularize=1e-8, **kwargs):
         parameters = self.setup_parameters(**kwargs)
 
         # dtheta = -JK_theta.T @ inv(JK_z.T) @ dz
         # dz_bar = inv(JK_z.T) @ dz
         dz_bar = self.network.kkt_vjp_variables(
-            dz, self.devices, z, parameters=parameters, regularize=1e-8, vectorize=False
+            dz, self.devices, z, parameters=parameters, regularize=regularize, vectorize=False
         )
 
         # dtheta = -JK_theta.T @ dz_bar

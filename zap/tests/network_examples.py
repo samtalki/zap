@@ -33,6 +33,13 @@ def load_simple_network():
 
     net = zap.PowerNetwork(num_nodes=num_nodes)
 
+    parameters = [
+        {"nominal_capacity": np.array([1.0, 2.0, 1.0])},
+        {},
+        {"nominal_capacity": np.array([1.0, 1.0, 1.0])},
+        {"power_capacity": np.array([5.0])},
+    ]
+
     generators = zap.Generator(
         num_nodes=num_nodes,
         terminal=np.array([0, 1, 3]),
@@ -44,6 +51,7 @@ def load_simple_network():
             ]
         ),
         linear_cost=np.array([100.0, 0.5, 40.0]),
+        nominal_capacity=parameters[0]["nominal_capacity"],
     )
 
     loads = zap.Load(
@@ -53,30 +61,23 @@ def load_simple_network():
         linear_cost=np.array([200.0]),
     )
 
-    links = zap.ACLine(
+    lines = zap.ACLine(
         num_nodes=num_nodes,
         source_terminal=np.array([0, 1, 3]),
         sink_terminal=np.array([1, 3, 0]),
         capacity=np.array([45.0, 50.0, 11.0]),
         susceptance=np.array([0.1, 0.05, 1.0]),
         linear_cost=0.025 * np.ones(3),
+        nominal_capacity=parameters[2]["nominal_capacity"],
     )
 
     batteries = zap.Battery(
         num_nodes=num_nodes,
         terminal=np.array([1]),
-        power_capacity=np.array([5.0]),
         duration=np.array([4.0]),
         linear_cost=np.array([0.01]),
+        power_capacity=parameters[3]["power_capacity"],
     )
 
-    parameters = [
-        {"nominal_capacity": np.array([1.0, 2.0, 1.0])},
-        {},
-        {"nominal_capacity": np.array([1.0, 1.0, 1.0])},
-        {"power_capacity": np.array([5.0])},
-    ]
-
-    devices = [generators, loads, links, batteries]
-
+    devices = [generators, loads, lines, batteries]
     return net, devices, parameters

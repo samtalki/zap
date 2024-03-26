@@ -188,9 +188,6 @@ class Battery(AbstractDevice):
         # Dimensions
         size = equalities[0].power[0].shape[1]
         time_horizon = int(size / self.num_devices)
-
-        # TODO - fix time horizon
-        long_shaped_zeros = np.zeros((self.num_devices, time_horizon + 1))
         shaped_zeros = np.zeros((self.num_devices, time_horizon))
 
         # Power balance
