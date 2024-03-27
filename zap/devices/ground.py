@@ -75,3 +75,22 @@ class Ground(AbstractDevice):
 
     def scale_power(self, scale):
         pass
+
+    def admm_initialize_power_variables(self, time_horizon: int):
+        return [np.zeros((self.num_devices, time_horizon))]
+
+    def admm_initialize_angle_variables(self, time_horizon: int):
+        return [np.zeros((self.num_devices, time_horizon))]
+
+    def admm_prox_update(self, rho, power, angle, la=np):
+        data = self.device_data(la=la)
+
+        # Problem is
+        #     min_p    {p = 0} + {a = voltage} + (rho/2) || p - power ||_2^2 + (rho/2) || a - angle ||_2^2
+        # Solution is just
+        #     p = 0, a = voltage
+
+        p = np.zeros_like(power[0])
+        a = np.zeros_like(angle[0]) + data.voltage
+
+        return [p], [a]

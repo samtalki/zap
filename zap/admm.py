@@ -47,3 +47,13 @@ def get_terminal_residual(angles, average_angle, net, devices, time_horizon):
             r_dt += a_dt - A_dt.T @ average_angle
 
     return residuals
+
+
+def dc_average(x, net, devices, time_horizon, num_terminals):
+    return get_nodal_average(x, net, devices, time_horizon, num_terminals)
+
+
+def ac_average(x, net, devices, time_horizon, num_ac_terminals):
+    return get_nodal_average(
+        x, net, devices, time_horizon, num_ac_terminals, only_ac=True, check_connections=False
+    )

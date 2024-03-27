@@ -112,10 +112,7 @@ class Injector(AbstractDevice):
     def admm_initialize_angle_variables(self, time_horizon: int):
         return None
 
-    def admm_initialize_local_variables(self, time_horizon: int):
-        return None
-
-    def admm_prox_update(self, rho, power, angle, _, nominal_capacity=None, la=np):
+    def admm_prox_update(self, rho, power, angle, nominal_capacity=None, la=np):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         assert angle is None
 
@@ -125,11 +122,9 @@ class Injector(AbstractDevice):
         #     2 a p + b +  rho (p - power) = 0
         # Which is solved by
         #     p = (rho power - b) / (2 a + rho)
-        if data.quadratic_cost is None:
-            denom = rho
-        else:
-            denom = 2 * data.quadratic_cost + rho
+        quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
 
+        denom = 2 * quadratic_cost + rho
         p = np.divide(rho * power[0] - data.linear_cost, denom)
 
         # Finally, we project onto the box constraints

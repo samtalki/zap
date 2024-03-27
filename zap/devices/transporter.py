@@ -126,6 +126,62 @@ class Transporter(AbstractDevice):
     def scale_power(self, scale):
         self.nominal_capacity /= scale
 
+    def admm_initialize_power_variables(self, time_horizon: int):
+        return [
+            np.zeros((self.num_devices, time_horizon)),
+            np.zeros((self.num_devices, time_horizon)),
+        ]
+
+    def admm_initialize_angle_variables(self, time_horizon: int):
+        return None
+
+    def admm_prox_update(self, rho, power, angle, nominal_capacity=None, la=np):
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
+        pmax = np.multiply(data.max_power, data.nominal_capacity)
+        pmin = np.multiply(data.min_power, data.nominal_capacity)
+
+        assert angle is None
+
+        # Problem is
+        #     min_p    a p1^2 + b |p1|
+        #              + (rho/2) ||p0 - power0||_2^2 + (rho/2) ||p1 - power1||_2^2
+        #              + {p1 box constraints} + {p0 + p1 = 0}
+        # Setting p0 = -p1, we remove the equality constraint and reformulate as
+        #     min_p1   a p1^2 + b |p1|
+        #              + (rho/2) ||-p1 - power0||_2^2 + (rho/2) ||p1 - power1||_2^2
+        #              + {p1 box constraints}
+        # The objective derivative is then
+        #     2 a p1 + b sign(p1) - rho (-p1 - power0) + rho (p1 - power1)
+        # Which is solved by
+        #     2 a p1 + b sign(p1) + rho p1 + rho power0 + rho p1 - rho power1 = 0
+        #     2 a p1 + 2 rho p1 = rho power1 - rho power0 - b sign(p1)
+        #     p1 = (rho power1 - rho power0 - b sign(p1)) / (2 a + 2 rho)
+
+        # Default is sign(num) = +1.0
+        num = rho * power[1] - rho * power[0] - data.linear_cost
+
+        # Fix values for sign(num) = -1.0
+        num_sign = np.sign(num)
+        to_flip = num_sign < 0
+        num[to_flip] += 2 * (data.linear_cost * to_flip)[to_flip]  # Elementwise-mul
+
+        # Check that sign of numerator matches sign used in solution
+        # Values that were flipped should have negative sign
+        # TODO - Check that logic is correct here
+        # I think there's a missing step where we set some values to zero
+        assert np.all(np.sign(num) == num_sign)
+
+        # This term is always positive, so we can pick it after choosing the sign
+        denom = 2 * quadratic_cost + 2 * rho
+        p1 = np.divide(num, denom)
+
+        # Finally, we project onto the box constraints
+        p1 = np.clip(p1, pmin, pmax)
+        p0 = -p1
+
+        return [p0, p1], None
+
 
 class PowerLine(Transporter):
     """A simple symmetric transporter."""
