@@ -106,6 +106,39 @@ class Injector(AbstractDevice):
     def scale_power(self, scale):
         self.nominal_capacity /= scale
 
+    def admm_initialize_power_variables(self, time_horizon: int):
+        return [np.zeros((self.num_devices, time_horizon))]
+
+    def admm_initialize_angle_variables(self, time_horizon: int):
+        return None
+
+    def admm_initialize_local_variables(self, time_horizon: int):
+        return None
+
+    def admm_prox_update(self, rho, power, angle, _, nominal_capacity=None, la=np):
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        assert angle is None
+
+        # Problem is
+        #     min_p    a p^2 + b p + (rho / 2) || p - power ||_2^2 + {box constraints}
+        # Objective derivative is
+        #     2 a p + b +  rho (p - power) = 0
+        # Which is solved by
+        #     p = (rho power - b) / (2 a + rho)
+        if data.quadratic_cost is None:
+            denom = rho
+        else:
+            denom = 2 * data.quadratic_cost + rho
+
+        p = np.divide(rho * power[0] - data.linear_cost, denom)
+
+        # Finally, we project onto the box constraints
+        pmax = np.multiply(data.max_power, data.nominal_capacity)
+        pmin = np.multiply(data.min_power, data.nominal_capacity)
+        p = np.clip(p, pmin, pmax)
+
+        return [p], None
+
 
 class Generator(Injector):
     """An Injector that can only deposit power."""

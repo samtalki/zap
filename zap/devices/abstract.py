@@ -85,6 +85,18 @@ class AbstractDevice:
     def scale_power(self, scale):
         raise NotImplementedError
 
+    def admm_initialize_power_variables(self, time_horizon: int):
+        raise NotImplementedError
+
+    def admm_initialize_angle_variables(self, time_horizon: int):
+        raise NotImplementedError
+
+    def admm_initialize_local_variables(self, time_horizon: int):
+        raise NotImplementedError
+
+    def admm_prox_update(self, rho, power, angle, local_variables, **kwargs):
+        raise NotImplementedError
+
     # Properties
 
     @property
