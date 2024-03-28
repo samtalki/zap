@@ -142,7 +142,12 @@ class Transporter(AbstractDevice):
         pmin = np.multiply(data.min_power, data.nominal_capacity)
 
         assert angle is None
-        assert np.sum(np.abs(data.linear_cost)) == 0.0  # TODO
+
+        # TODO
+        # This shouldn't be too hard, we just solve the two cases (p1 < 0) and (p1 > 0)
+        # Then project onto [pmin, 0] and [0, pmax]
+        # Then pick the better of the two
+        assert np.sum(np.abs(data.linear_cost)) == 0.0
 
         # Problem is
         #     min_p    a p1^2 + b |p1|
@@ -160,18 +165,18 @@ class Transporter(AbstractDevice):
         #     p1 = (rho power1 - rho power0 - b sign(p1)) / (2 a + 2 rho)
 
         # Default is sign(num) = +1.0
-        num = rho * power[1] - rho * power[0] - data.linear_cost
+        num = rho * (power[1] - power[0]) - data.linear_cost
 
         # Fix values for sign(num) = -1.0
-        num_sign = np.sign(num)
-        to_flip = num_sign < 0
-        num[to_flip] += 2 * (data.linear_cost * to_flip)[to_flip]  # Elementwise-mul
+        # num_sign = np.sign(num)
+        # to_flip = num_sign < 0
+        # num[to_flip] += 2 * (data.linear_cost * to_flip)[to_flip]  # Elementwise-mul
 
         # Check that sign of numerator matches sign used in solution
         # Values that were flipped should have negative sign
         # TODO - Check that logic is correct here
         # I think there's a missing step where we set some values to zero
-        assert np.all(np.sign(num) == num_sign)
+        # assert np.all(np.sign(num) == num_sign)
 
         # This term is always positive, so we can pick it after choosing the sign
         denom = 2 * quadratic_cost + 2 * rho
@@ -301,7 +306,10 @@ class ACLine(PowerLine):
             np.zeros((self.num_devices, time_horizon)),
         ]
 
-    def admm_prox_update(self, rho, power, angle, nominal_capacity=None, la=np):
+    def admm_prox_update(self, rho, power, angle, nominal_capacity=None, la=np, cvx_mode=False):
+        if cvx_mode:
+            return self.cvx_admm_prox_update(rho, power, angle, nominal_capacity=None)
+
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
         pmax = np.multiply(data.max_power, data.nominal_capacity)
@@ -328,7 +336,7 @@ class ACLine(PowerLine):
         #   (2 a + 2 rho + 2 rho mu^2) p + b sign(p)
         #   =
         #   rho (power1 - power0 + mu angle[1] - mu angle[0])
-        num = rho * (power[1] - power[0] + mu * (angle[1] - angle[0]))
+        num = rho * (power[1] - power[0] + mu * (angle[0] - angle[1]))
         denom = 2 * (quadratic_cost + rho * (1 + np.power(mu, 2)))
 
         p1 = np.divide(num, denom)
@@ -340,3 +348,36 @@ class ACLine(PowerLine):
         theta0 = theta1 + p1 / susceptance
 
         return [p0, p1], [theta0, theta1]
+
+    def cvx_admm_prox_update(self, rho, power, angle, nominal_capacity=None):
+        print("Solving AC line prox update via CVX...")
+        import cvxpy as cp
+
+        data = self.device_data(nominal_capacity=nominal_capacity)
+        pmax = np.multiply(data.max_power, data.nominal_capacity)
+        pmin = np.multiply(data.min_power, data.nominal_capacity)
+        susceptance = np.multiply(data.susceptance, data.nominal_capacity)
+
+        p0 = cp.Variable(power[0].shape)
+        p1 = cp.Variable(power[0].shape)
+        theta0 = cp.Variable(angle[0].shape)
+        theta1 = cp.Variable(angle[0].shape)
+
+        objective = rho * (
+            cp.sum_squares(p0 - power[0])
+            + cp.sum_squares(p1 - power[1])
+            + cp.sum_squares(theta0 - angle[0])
+            + cp.sum_squares(theta1 - angle[1])
+        )
+
+        constraints = [
+            p1 + p0 == 0,
+            p1 == cp.multiply(susceptance, (theta0 - theta1)),
+            p1 <= pmax,
+            p1 >= pmin,
+        ]
+
+        prob = cp.Problem(cp.Minimize(objective), constraints)
+        prob.solve(solver=cp.MOSEK)
+
+        return [p0.value, p1.value], [theta0.value, theta1.value]
