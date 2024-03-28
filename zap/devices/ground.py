@@ -82,7 +82,7 @@ class Ground(AbstractDevice):
     def admm_initialize_angle_variables(self, time_horizon: int):
         return [np.zeros((self.num_devices, time_horizon))]
 
-    def admm_prox_update(self, rho, power, angle, la=np):
+    def admm_prox_update(self, rho_power, rho_angle, power, angle, la=np):
         data = self.device_data(la=la)
 
         # Problem is
