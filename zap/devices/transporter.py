@@ -142,6 +142,7 @@ class Transporter(AbstractDevice):
         pmin = np.multiply(data.min_power, data.nominal_capacity)
 
         assert angle is None
+        assert np.sum(np.abs(data.linear_cost)) == 0.0  # TODO
 
         # Problem is
         #     min_p    a p1^2 + b |p1|
@@ -293,3 +294,49 @@ class ACLine(PowerLine):
         equalities[1].angle[1] += sp.diags(b_mat.ravel())
 
         return super()._equality_matrices(equalities, nominal_capacity=nominal_capacity, la=la)
+
+    def admm_initialize_angle_variables(self, time_horizon: int):
+        return [
+            np.zeros((self.num_devices, time_horizon)),
+            np.zeros((self.num_devices, time_horizon)),
+        ]
+
+    def admm_prox_update(self, rho, power, angle, nominal_capacity=None, la=np):
+        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
+        pmax = np.multiply(data.max_power, data.nominal_capacity)
+        pmin = np.multiply(data.min_power, data.nominal_capacity)
+        susceptance = la.multiply(data.susceptance, data.nominal_capacity)
+
+        assert np.sum(np.abs(data.linear_cost)) == 0.0  # TODO
+
+        # See transporter for details on derivation
+        # Here, we also have angle variables
+        # However, we can write p0 and theta0 in terms of p1 and theta1
+        #   p0 = -p1
+        #   theta0 = theta1 + p1 / susceptance
+        #
+        # The solution for theta1 is:
+        #   theta1 = (1/2) (angle1 + angle0) - mu * p1
+        # where:
+        #   mu = 1 / (2 * susceptance)
+
+        mu = 1 / (2 * susceptance)
+
+        # Now we can solve a minimization problem over just p1
+        # with solution:
+        #   (2 a + 2 rho + 2 rho mu^2) p + b sign(p)
+        #   =
+        #   rho (power1 - power0 + mu angle[1] - mu angle[0])
+        num = rho * (power[1] - power[0] + mu * (angle[1] - angle[0]))
+        denom = 2 * (quadratic_cost + rho * (1 + np.power(mu, 2)))
+
+        p1 = np.divide(num, denom)
+        p1 = np.clip(p1, pmin, pmax)
+
+        # Solve for other variables
+        p0 = -p1
+        theta1 = 0.5 * angle[0] + 0.5 * angle[1] - mu * p1
+        theta0 = theta1 + p1 / susceptance
+
+        return [p0, p1], [theta0, theta1]

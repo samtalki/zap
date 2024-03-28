@@ -36,15 +36,17 @@ def get_nodal_average(
     return np.divide(average_x, num_terminals)
 
 
-def get_terminal_residual(angles, average_angle, net, devices, time_horizon):
+def get_terminal_residual(angles, average_angle, devices):
     residuals = [
-        None if x_dev is None else [np.zeros_like(x_dt) for x_dt in x_dev] for x_dev in angles
+        None
+        if a_dev is None
+        else [a_dt - A_dt.T @ average_angle for a_dt, A_dt in zip(a_dev, dev.incidence_matrix)]
+        for a_dev, dev in zip(angles, devices)
     ]
-    for dev, r_dev, a_dev in zip(devices, residuals, angles):
-        if r_dev is None:
-            continue
-        for A_dt, r_dt, a_dt in zip(dev.incidence_matrix, r_dev, a_dev):
-            r_dt += a_dt - A_dt.T @ average_angle
+    # for dev, r_dev, a_dev in zip(devices, residuals, angles):
+    #     if r_dev is not None:
+    #         for A_dt, r_dt, a_dt in zip(dev.incidence_matrix, r_dev, a_dev):
+    #             r_dt +=
 
     return residuals
 
