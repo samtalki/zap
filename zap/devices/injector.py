@@ -112,20 +112,25 @@ class Injector(AbstractDevice):
     def admm_initialize_angle_variables(self, time_horizon: int):
         return None
 
-    def admm_prox_update(self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np):
+    def admm_prox_update(
+        self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np, D_pow2=None
+    ):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         assert angle is None
 
+        if D_pow2 is None:
+            D_pow2 = [1.0]
+
         # Problem is
-        #     min_p    a p^2 + b p + (rho / 2) || p - power ||_2^2 + {box constraints}
+        #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}
         # Objective derivative is
-        #     2 a p + b +  rho (p - power) = 0
+        #     2 a p + b +  rho Dp^2 (p - power) = 0
         # Which is solved by
-        #     p = (rho power - b) / (2 a + rho)
+        #     p = (rho Dp^2 power - b) / (2 a + rho Dp^2)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
 
-        denom = 2 * quadratic_cost + rho_power
-        p = np.divide(rho_power * power[0] - data.linear_cost, denom)
+        denom = 2 * quadratic_cost + rho_power * D_pow2[0]
+        p = np.divide(rho_power * D_pow2[0] * power[0] - data.linear_cost, denom)
 
         # Finally, we project onto the box constraints
         pmax = np.multiply(data.max_power, data.nominal_capacity)

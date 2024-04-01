@@ -135,11 +135,16 @@ class Transporter(AbstractDevice):
     def admm_initialize_angle_variables(self, time_horizon: int):
         return None
 
-    def admm_prox_update(self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np):
+    def admm_prox_update(
+        self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np, D_pow2=None
+    ):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
         pmax = np.multiply(data.max_power, data.nominal_capacity)
         pmin = np.multiply(data.min_power, data.nominal_capacity)
+
+        if D_pow2 is None:
+            D_pow2 = [1.0, 1.0]
 
         assert angle is None
 
@@ -151,24 +156,27 @@ class Transporter(AbstractDevice):
 
         # Problem is
         #     min_p    a p1^2 + b |p1|
-        #              + (rho/2) ||p0 - power0||_2^2 + (rho/2) ||p1 - power1||_2^2
+        #              + (rho/2) ||D0 (p0 - power0)||_2^2 + (rho/2) ||D1 (p1 - power1)||_2^2
         #              + {p1 box constraints} + {p0 + p1 = 0}
+        #
         # Setting p0 = -p1, we remove the equality constraint and reformulate as
         #     min_p1   a p1^2 + b |p1|
-        #              + (rho/2) ||-p1 - power0||_2^2 + (rho/2) ||p1 - power1||_2^2
+        #              + (rho/2) ||D0 (-p1 - power0) ||_2^2 + (rho/2) ||D1 (p1 - power1) ||_2^2
         #              + {p1 box constraints}
+        #
         # The objective derivative is then
-        #     2 a p1 + b sign(p1) - rho (-p1 - power0) + rho (p1 - power1)
-        # Which is solved by
-        #     2 a p1 + b sign(p1) + rho p1 + rho power0 + rho p1 - rho power1 = 0
-        #     2 a p1 + 2 rho p1 = rho power1 - rho power0 - b sign(p1)
-        #     p1 = (rho power1 - rho power0 - b sign(p1)) / (2 a + 2 rho)
+        #     2 a p1 + b sign(p1) - rho D0^2 (-p1 - power0) + rho D1^2 (p1 - power1),
+        #
+        # which is solved by
+        #     2 a p1 + b sign(p1) + rho D0^2 p1 + rho D0^2 power0 + rho D1^2 p1 - rho D1^2 power1 = 0
+        #     2 a p1 + rho (D0^2 + D1^2) p1 = rho D1^2 power1 - rho D0^2 power0 - b sign(p1)
+        #     p1 = (rho D1^2 power1 - rho D0^2 power0 - b sign(p1)) / (2 a + rho D0^2 + rho D1^2)
 
         # Default is sign(num) = +1.0
-        num = rho_power * (power[1] - power[0]) - data.linear_cost
+        num = rho_power * (D_pow2[1] * power[1] - D_pow2[0] * power[0]) - data.linear_cost
 
         # This term is always positive, so we can pick it after choosing the sign
-        denom = 2 * quadratic_cost + 2 * rho_angle
+        denom = 2 * quadratic_cost + rho_power * (D_pow2[0] + D_pow2[1])
         p1 = np.divide(num, denom)
 
         # Finally, we project onto the box constraints
