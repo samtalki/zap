@@ -121,7 +121,7 @@ def parse_dc_lines(net: pypsa.Network):
     )
 
 
-def parse_ac_lines(net: pypsa.Network, *, ac_transmission_cost):
+def parse_ac_lines(net: pypsa.Network, *, ac_transmission_cost, susceptance_unit):
     buses, buses_to_index = parse_buses(net)
 
     sources, sinks = get_source_sinks(net.lines, buses_to_index)
@@ -130,6 +130,11 @@ def parse_ac_lines(net: pypsa.Network, *, ac_transmission_cost):
     susceptance = 1 / net.lines.x.values
     susceptance = np.divide(susceptance, net.lines.s_nom.values)
     susceptance *= 1e3  # Convert to Kilosiemens / per-MW
+
+    if susceptance_unit == "auto":
+        susceptance /= np.median(susceptance)
+    else:
+        susceptance /= susceptance_unit
 
     return ACLine(
         num_nodes=len(buses),
@@ -169,6 +174,7 @@ def load_pypsa_network(
     expand_empty_generators=0.0,
     power_unit=1.0,  # MW
     cost_unit=1.0,  # $
+    susceptance_unit="auto",
 ):
     network = PowerNetwork(len(net.buses))
 
@@ -191,7 +197,9 @@ def load_pypsa_network(
             marginal_load_value=marginal_load_value,
         ),
         parse_dc_lines(net),
-        parse_ac_lines(net, ac_transmission_cost=ac_transmission_cost),
+        parse_ac_lines(
+            net, ac_transmission_cost=ac_transmission_cost, susceptance_unit=susceptance_unit
+        ),
         parse_batteries(net, battery_discharge_cost=battery_discharge_cost),
     ]
 
