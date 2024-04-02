@@ -27,7 +27,8 @@ def nested_subtract(x1, x2, alpha=None):
 
 def nested_norm(data, p=None):
     mini_norms = [
-        ([0.0] if x_dev is None else [np.linalg.norm(x, p) for x in x_dev]) for x_dev in data
+        ([0.0] if x_dev is None else [np.linalg.norm(x.ravel(), p) for x in x_dev])
+        for x_dev in data
     ]
     return np.linalg.norm(np.concatenate(mini_norms), p)
 
@@ -128,19 +129,27 @@ class ADMMSolver:
     safe_mode: bool = False
     track_objective: bool = True
 
-    def solve(self, net, devices: list[AbstractDevice], time_horizon, *, parameters=None):
+    def solve(
+        self, net, devices: list[AbstractDevice], time_horizon, *, parameters=None, nu_star=None
+    ):
+        if parameters is None:
+            parameters = [{} for _ in devices]
+
         # Initialize
         st = self.initialize_solver(net, devices, time_horizon)
         history = self.initialize_history()
 
         rho_power = self.rho_power
-        rho_angle = rho_power if self.rho_angle is None else self.rho_angle
+        rho_angle = self.rho_angle
+
+        if rho_angle is None:
+            rho_angle = rho_power
 
         for iteration in range(self.num_iterations):
             # (1) Device proximal updates
             for i, dev in enumerate(devices):
                 set_p = self.set_power(dev, st.power[i], st)
-                set_v = self.set_phase(dev, st.phase[i], st)
+                set_v = self.set_phase(dev, st.dual_phase[i], st)
 
                 p, v = dev.admm_prox_update(rho_power, rho_angle, set_p, set_v, **parameters[i])
                 st.power[i] = p
@@ -150,9 +159,13 @@ class ADMMSolver:
             last_avg_phase = st.avg_phase
             last_resid_power = st.resid_power
 
+            # Note: it's important to do this in two steps so that the correct averages
+            # are used to calculate residuals.
             st = st.update(
                 avg_power=dc_average(st.power, net, devices, time_horizon, st.num_terminals),
                 avg_phase=ac_average(st.phase, net, devices, time_horizon, st.num_ac_terminals),
+            )
+            st = st.update(
                 resid_power=get_terminal_residual(st.power, st.avg_power, devices),
                 resid_phase=get_terminal_residual(st.phase, st.avg_phase, devices),
             )
@@ -160,7 +173,7 @@ class ADMMSolver:
             # (3) Update scaled prices
             st = st.update(
                 dual_power=st.dual_power + st.avg_power,
-                dual_phase=nested_add(st.dual_phase, st.avg_phase),
+                dual_phase=nested_add(st.dual_phase, st.resid_phase),
             )
 
             # (4) Update history
@@ -170,16 +183,20 @@ class ADMMSolver:
                 ]
                 st = st.update(objective=sum(op_costs))
 
-            self.update_history(history, st, last_avg_phase, last_resid_power)
+            self.update_history(history, st, last_avg_phase, last_resid_power, nu_star)
 
-            # (5, optional) Run numerical checks
+            # (5) Convergence check
+
+            # (Optional) Run numerical checks
             if self.safe_mode:
+                # Dual phases should average to zero
                 avg_dual_phase = ac_average(
                     st.dual_phase, net, devices, time_horizon, st.num_ac_terminals
                 )
+                # print(iteration, np.linalg.norm(avg_dual_phase))
                 np.testing.assert_allclose(avg_dual_phase, 0.0, atol=1e-8)
 
-        return st
+        return st, history
 
     def set_power(self, dev: AbstractDevice, dev_power, st: ADMMState):
         return [
@@ -187,30 +204,38 @@ class ADMMSolver:
             for p, Ai in zip(dev_power, dev.incidence_matrix)
         ]
 
-    def set_phase(self, dev: AbstractDevice, dev_phase, st: ADMMState):
-        if dev_phase is None:
+    def set_phase(self, dev: AbstractDevice, dev_dual_phase, st: ADMMState):
+        if dev_dual_phase is None:
             return None
         else:
-            return [Ai.T @ st.avg_phase - v for v, Ai in zip(dev_phase, dev.incidence_matrix)]
+            return [Ai.T @ st.avg_phase - v for v, Ai in zip(dev_dual_phase, dev.incidence_matrix)]
 
-    def update_history(self, history: ADMMState, st: ADMMState, last_avg_phase, last_resid_power):
+    def update_history(
+        self, history: ADMMState, st: ADMMState, last_avg_phase, last_resid_power, nu_star
+    ):
         history.objective += [st.objective]
+        p = self.resid_norm
 
         # Primal residuals
-        history.power += [np.linalg.norm(st.avg_power, self.resid_norm)]
-        history.phase += [nested_norm(st.resid_phase, self.resid_norm)]
+        history.power += [np.linalg.norm(st.avg_power.ravel(), p)]
+        history.phase += [nested_norm(st.resid_phase, p)]
 
         # Dual residuals
         dual_resid_power = nested_subtract(st.resid_power, last_resid_power, self.rho_power)
-        history.dual_power += [nested_norm(dual_resid_power, self.resid_norm)]
+        history.dual_power += [nested_norm(dual_resid_power, p)]
         history.dual_phase += [
-            np.linalg.norm((st.avg_phase - last_avg_phase) * self.rho_angle, self.resid_norm)
+            np.linalg.norm((st.avg_phase - last_avg_phase).ravel() * self.rho_angle, p)
         ]
+
+        if nu_star is not None:
+            history.price_error += [
+                np.linalg.norm((st.dual_power * self.rho_power - nu_star).ravel(), p)
+            ]
 
         return history
 
     def initialize_history(self) -> ADMMState:
-        return ADMMState(
+        history = ADMMState(
             num_terminals=None,
             num_ac_terminals=None,
             power=[],
@@ -219,6 +244,8 @@ class ADMMSolver:
             dual_phase=[],
             objective=[],
         )
+        history.price_error = []
+        return history
 
     def initialize_solver(self, net, devices, time_horizon) -> ADMMState:
         num_terminals = get_num_terminals(net, devices)
