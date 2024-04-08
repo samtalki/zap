@@ -22,3 +22,10 @@ class WeightedADMMSolver(ADMMSolver):
     """Stores weighted ADMM solver parameters and exposes a solve function."""
 
     pass
+
+    def initialize_solver(self, net, devices, time_horizon) -> ExtendedADMMState:
+        st = super().initialize_solver(net, devices, time_horizon)
+
+        return ExtendedADMMState(
+            **st.__dict__, copy_power=st.power.copy(), copy_phase=st.phase.copy()
+        )

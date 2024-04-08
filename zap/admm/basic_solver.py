@@ -98,8 +98,8 @@ class ADMMSolver:
         rho_power, rho_angle = self.get_rho()
 
         for i, dev in enumerate(devices):
-            set_p = self.set_power(dev, st.power[i], st)
-            set_v = self.set_phase(dev, st.dual_phase[i], st)
+            set_p = self.set_power(dev, i, st)
+            set_v = self.set_phase(dev, i, st)
 
             p, v = dev.admm_prox_update(rho_power, rho_angle, set_p, set_v, **parameters[i])
             st.power[i] = p
@@ -107,14 +107,20 @@ class ADMMSolver:
 
         return st
 
-    def set_power(self, dev: AbstractDevice, dev_power, st: ADMMState):
-        return
+    def set_power(self, dev: AbstractDevice, dev_index: int, st: ADMMState):
+        return [
+            p - Ai.T @ (st.avg_power + st.dual_power)
+            for p, Ai in zip(st.power[dev_index], dev.incidence_matrix)
+        ]
 
-    def set_phase(self, dev: AbstractDevice, dev_dual_phase, st: ADMMState):
-        if dev_dual_phase is None:
+    def set_phase(self, dev: AbstractDevice, dev_index: int, st: ADMMState):
+        if st.dual_phase[dev_index] is None:
             return None
         else:
-            return [Ai.T @ st.avg_phase - v for v, Ai in zip(dev_dual_phase, dev.incidence_matrix)]
+            return [
+                Ai.T @ st.avg_phase - v
+                for v, Ai in zip(st.dual_phase[dev_index], dev.incidence_matrix)
+            ]
 
     def update_averages_and_residuals(self, st: ADMMState, net, devices, time_horizon):
         # Note: it's important to do this in two steps so that the correct averages
