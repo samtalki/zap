@@ -113,13 +113,21 @@ class Injector(AbstractDevice):
         return None
 
     def admm_prox_update(
-        self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np, D_pow2=None
+        self,
+        rho_power,
+        rho_angle,
+        power,
+        angle,
+        nominal_capacity=None,
+        la=np,
+        power_weights=None,
+        angle_weights=None,
     ):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         assert angle is None
 
-        if D_pow2 is None:
-            D_pow2 = [1.0]
+        # if D_pow2 is None:
+        D_pow2 = [1.0]
 
         # Problem is
         #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}

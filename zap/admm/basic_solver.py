@@ -97,12 +97,24 @@ class ADMMSolver:
 
     def device_updates(self, st: ADMMState, devices, parameters):
         rho_power, rho_angle = self.get_rho()
+        weights_power, weights_angle = self.get_weights()
 
         for i, dev in enumerate(devices):
             set_p = self.set_power(dev, i, st)
             set_v = self.set_phase(dev, i, st)
 
-            p, v = dev.admm_prox_update(rho_power, rho_angle, set_p, set_v, **parameters[i])
+            w_p = weights_power[i]
+            w_v = weights_angle[i]
+
+            p, v = dev.admm_prox_update(
+                rho_power,
+                rho_angle,
+                set_p,
+                set_v,
+                power_weights=w_p,
+                angle_weights=w_v,
+                **parameters[i],
+            )
             st.power[i] = p
             st.phase[i] = v
 
@@ -141,6 +153,12 @@ class ADMMSolver:
             dual_power=st.dual_power + st.avg_power,
             dual_phase=nested_add(st.dual_phase, st.resid_phase),
         )
+
+    # ====
+    # Preconditioning
+    # ====
+    def get_weights(self):
+        return self.power_weights, self.angle_weights
 
     # ====
     # History, numerical checks, etc
@@ -225,6 +243,11 @@ class ADMMSolver:
         return history
 
     def initialize_solver(self, net, devices, time_horizon) -> ADMMState:
+        # Setup weights
+        self.power_weights = [None for _ in devices]
+        self.angle_weights = [None for _ in devices]
+
+        # Setup state
         num_terminals = get_num_terminals(net, devices)
         num_ac_terminals = get_num_terminals(net, devices, only_ac=True)
 

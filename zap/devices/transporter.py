@@ -136,15 +136,23 @@ class Transporter(AbstractDevice):
         return None
 
     def admm_prox_update(
-        self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np, D_pow2=None
+        self,
+        rho_power,
+        rho_angle,
+        power,
+        angle,
+        nominal_capacity=None,
+        la=np,
+        power_weights=None,
+        angle_weights=None,
     ):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
         pmax = np.multiply(data.max_power, data.nominal_capacity)
         pmin = np.multiply(data.min_power, data.nominal_capacity)
 
-        if D_pow2 is None:
-            D_pow2 = [1.0, 1.0]
+        # if D_pow2 is None:
+        D_pow2 = [1.0, 1.0]
 
         assert angle is None
 
@@ -304,7 +312,16 @@ class ACLine(PowerLine):
         ]
 
     def admm_prox_update(
-        self, rho_power, rho_angle, power, angle, nominal_capacity=None, la=np, cvx_mode=False
+        self,
+        rho_power,
+        rho_angle,
+        power,
+        angle,
+        nominal_capacity=None,
+        power_weights=None,
+        angle_weights=None,
+        la=np,
+        cvx_mode=False,
     ):
         if cvx_mode:
             return self.cvx_admm_prox_update(

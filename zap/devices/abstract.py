@@ -94,7 +94,9 @@ class AbstractDevice:
     # def admm_initialize_local_variables(self, time_horizon: int):
     #     raise NotImplementedError
 
-    def admm_prox_update(self, rho_power, rho_angle, power, angle, **kwargs):
+    def admm_prox_update(
+        self, rho_power, rho_angle, power, angle, power_weights=None, angle_weights=None, **kwargs
+    ):
         raise NotImplementedError
 
     # Properties
