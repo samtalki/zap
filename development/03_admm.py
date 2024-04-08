@@ -269,7 +269,8 @@ def __(
         rho_angle=rho_angle,
         rtol=eps_pd,
         resid_norm=2,
-        safe_mode=True
+        safe_mode=True,
+        weighting_strategy="uniform"
     )
 
     state, history = admm.solve(
@@ -346,7 +347,7 @@ def __(history, plot_convergence):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(fstar, history, nested_norm, np, rho_power, simple_result, state):
     print("f/f* =", history.objective[-1] / fstar)
     print(

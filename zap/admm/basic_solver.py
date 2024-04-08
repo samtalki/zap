@@ -1,4 +1,5 @@
 import dataclasses
+import functools
 import numpy as np
 
 from zap.devices.abstract import AbstractDevice
@@ -30,6 +31,14 @@ class ADMMState:
     def update(self, **kwargs):
         """Return a new state with fields updated."""
         return dataclasses.replace(self, **kwargs)
+
+    @functools.cached_property
+    def power_weights(self):
+        return [None for _ in self.power]
+
+    @functools.cached_property
+    def angle_weights(self):
+        return [None for _ in self.phase]
 
 
 @dataclasses.dataclass
@@ -97,14 +106,12 @@ class ADMMSolver:
 
     def device_updates(self, st: ADMMState, devices, parameters):
         rho_power, rho_angle = self.get_rho()
-        weights_power, weights_angle = self.get_weights()
-
         for i, dev in enumerate(devices):
             set_p = self.set_power(dev, i, st)
             set_v = self.set_phase(dev, i, st)
 
-            w_p = weights_power[i]
-            w_v = weights_angle[i]
+            w_p = st.power_weights[i]
+            w_v = st.angle_weights[i]
 
             p, v = dev.admm_prox_update(
                 rho_power,
@@ -153,12 +160,6 @@ class ADMMSolver:
             dual_power=st.dual_power + st.avg_power,
             dual_phase=nested_add(st.dual_phase, st.resid_phase),
         )
-
-    # ====
-    # Preconditioning
-    # ====
-    def get_weights(self):
-        return self.power_weights, self.angle_weights
 
     # ====
     # History, numerical checks, etc
