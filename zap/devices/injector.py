@@ -126,8 +126,7 @@ class Injector(AbstractDevice):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         assert angle is None
 
-        # if D_pow2 is None:
-        D_pow2 = [1.0]
+        Dp2 = [np.power(p, 2) for p in power_weights]
 
         # Problem is
         #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}
@@ -137,8 +136,9 @@ class Injector(AbstractDevice):
         #     p = (rho Dp^2 power - b) / (2 a + rho Dp^2)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
 
-        denom = 2 * quadratic_cost + rho_power * D_pow2[0]
-        p = np.divide(rho_power * D_pow2[0] * power[0] - data.linear_cost, denom)
+        num = rho_power * Dp2[0] * power[0] - data.linear_cost
+        denom = 2 * quadratic_cost + rho_power * Dp2[0]
+        p = np.divide(num, denom)
 
         # Finally, we project onto the box constraints
         pmax = np.multiply(data.max_power, data.nominal_capacity)

@@ -113,7 +113,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, pypsa, zap):
 
 @app.cell
 def __(load_pypsa_network):
-    net, devices, time_horizon = load_pypsa_network(time_horizon=24)
+    net, devices, time_horizon = load_pypsa_network(time_horizon=8)
 
     for _d in devices:
         print(type(_d))
@@ -173,9 +173,9 @@ def __(mo):
 
 
 @app.cell
-def __(cp, deepcopy, devices, nested_norm, net, np, time_horizon, zap):
+def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
     simple_devices = deepcopy(devices[:3])
-    use_ac = True
+    use_ac = False
 
     # Add AC or DC lines
     if use_ac:
@@ -194,11 +194,11 @@ def __(cp, deepcopy, devices, nested_norm, net, np, time_horizon, zap):
             )
         ]
 
-    # Add ground
-    _ground = zap.Ground(
-        num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
-    )
-    simple_devices += [_ground]
+    # # Add ground
+    # _ground = zap.Ground(
+    #     num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
+    # )
+    # simple_devices += [_ground]
 
     # Dispatch
     simple_result = net.dispatch(
@@ -262,6 +262,7 @@ def __(
     simple_devices,
     simple_result,
     time_horizon,
+    weighting_strategy,
 ):
     admm = WeightedADMMSolver(
         num_iterations=admm_num_iters,
@@ -270,7 +271,8 @@ def __(
         rtol=eps_pd,
         resid_norm=2,
         safe_mode=True,
-        weighting_strategy="uniform"
+        weighting_strategy=weighting_strategy,
+        weighting_seed=0,
     )
 
     state, history = admm.solve(
@@ -287,10 +289,13 @@ def __(mo):
 
 @app.cell
 def __():
+    weighting_strategy = "random"
+
     rho_power = 0.5
     rho_angle = 5.0 * rho_power
-    admm_num_iters = 500
-    return admm_num_iters, rho_angle, rho_power
+
+    admm_num_iters = 300
+    return admm_num_iters, rho_angle, rho_power, weighting_strategy
 
 
 @app.cell

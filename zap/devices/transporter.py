@@ -151,8 +151,7 @@ class Transporter(AbstractDevice):
         pmax = np.multiply(data.max_power, data.nominal_capacity)
         pmin = np.multiply(data.min_power, data.nominal_capacity)
 
-        # if D_pow2 is None:
-        D_pow2 = [1.0, 1.0]
+        Dp2 = [np.power(p, 2) for p in power_weights]
 
         assert angle is None
 
@@ -181,10 +180,10 @@ class Transporter(AbstractDevice):
         #     p1 = (rho D1^2 power1 - rho D0^2 power0 - b sign(p1)) / (2 a + rho D0^2 + rho D1^2)
 
         # Default is sign(num) = +1.0
-        num = rho_power * (D_pow2[1] * power[1] - D_pow2[0] * power[0]) - data.linear_cost
+        num = rho_power * (Dp2[1] * power[1] - Dp2[0] * power[0]) - data.linear_cost
 
         # This term is always positive, so we can pick it after choosing the sign
-        denom = 2 * quadratic_cost + rho_power * (D_pow2[0] + D_pow2[1])
+        denom = 2 * quadratic_cost + rho_power * (Dp2[0] + Dp2[1])
         p1 = np.divide(num, denom)
 
         # Finally, we project onto the box constraints
