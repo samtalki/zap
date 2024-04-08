@@ -223,8 +223,8 @@ def __(mo):
 
 @app.cell
 def __():
-    from zap.admm import ADMMSolver
-    return ADMMSolver,
+    from zap.admm import ADMMSolver, WeightedADMMSolver
+    return ADMMSolver, WeightedADMMSolver
 
 
 @app.cell
@@ -253,7 +253,7 @@ def __(mo):
 
 @app.cell
 def __(
-    ADMMSolver,
+    WeightedADMMSolver,
     admm_num_iters,
     eps_pd,
     net,
@@ -263,7 +263,7 @@ def __(
     simple_result,
     time_horizon,
 ):
-    admm = ADMMSolver(
+    admm = WeightedADMMSolver(
         num_iterations=admm_num_iters,
         rho_power=rho_power,
         rho_angle=rho_angle,
@@ -330,7 +330,8 @@ def __(admm_num_iters, eps_pd, fstar, np, plt, state):
         ax.set_title("|f - f*| / f*")
 
         ax = axes[1][1]
-        ax.plot(np.array(hist.price_error) / state.dual_power.size)
+        if len(hist.price_error) > 0:
+            ax.plot(np.array(hist.price_error) / state.dual_power.size)
         ax.set_yscale("log")
         ax.set_title("nu - nu*")
 

@@ -165,21 +165,33 @@ class ADMMSolver:
         history.objective += [st.objective]
         p = self.resid_norm
 
-        # Primal residuals
-        history.power += [np.linalg.norm(st.avg_power.ravel(), p)]
-        history.phase += [nested_norm(st.resid_phase, p)]
-
-        # Dual residuals
-        dual_resid_power = nested_subtract(st.resid_power, last_resid_power, self.rho_power)
-        history.dual_power += [nested_norm(dual_resid_power, p)]
-        history.dual_phase += [
-            np.linalg.norm((st.avg_phase - last_avg_phase).ravel() * self.rho_angle, p)
-        ]
+        # Primal/dual residuals
+        history = self.update_primal_residuals(history, st)
+        history = self.update_dual_residuals(history, st, last_resid_power, last_avg_phase)
 
         if nu_star is not None:
             history.price_error += [
                 np.linalg.norm((st.dual_power * self.rho_power - nu_star).ravel(), p)
             ]
+
+        return history
+
+    def update_primal_residuals(self, history: ADMMState, st: ADMMState):
+        p = self.resid_norm
+        history.power += [np.linalg.norm(st.avg_power.ravel(), p)]
+        history.phase += [nested_norm(st.resid_phase, p)]
+        return history
+
+    def update_dual_residuals(
+        self, history: ADMMState, st: ADMMState, last_resid_power, last_avg_phase
+    ):
+        p = self.resid_norm
+
+        dual_resid_power = nested_subtract(st.resid_power, last_resid_power, self.rho_power)
+        history.dual_power += [nested_norm(dual_resid_power, p)]
+        history.dual_phase += [
+            np.linalg.norm((st.avg_phase - last_avg_phase).ravel() * self.rho_angle, p)
+        ]
 
         return history
 
