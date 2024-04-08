@@ -64,7 +64,7 @@ class ADMMSolver:
         st = self.initialize_solver(net, devices, time_horizon)
         history = self.initialize_history()
 
-        for _ in range(self.num_iterations):
+        for iteration in range(self.num_iterations):
             # (1) Device proximal updates
             st = self.device_updates(st, devices, parameters)
 
@@ -74,7 +74,7 @@ class ADMMSolver:
             st = self.update_averages_and_residuals(st, net, devices, time_horizon)
 
             # (3) Update scaled prices
-            st = self.price_updates(st)
+            st = self.price_updates(st, net, devices, time_horizon)
 
             # (4) Hisory, convergence checks, numerical checks
             if self.track_objective:
@@ -86,6 +86,7 @@ class ADMMSolver:
                 break  # Quit early
 
             if self.safe_mode:
+                self.dimension_checks(st, net, devices, time_horizon)
                 self.numerical_checks(st, net, devices, time_horizon)
 
         return st, history
@@ -135,7 +136,7 @@ class ADMMSolver:
         )
         return st
 
-    def price_updates(self, st: ADMMState):
+    def price_updates(self, st: ADMMState, net, devices, time_horizon):
         return st.update(
             dual_power=st.dual_power + st.avg_power,
             dual_phase=nested_add(st.dual_phase, st.resid_phase),
@@ -145,10 +146,21 @@ class ADMMSolver:
     # History, numerical checks, etc
     # ====
 
+    def dimension_checks(self, st: ADMMState, net, devices, time_horizon):
+        num_devices = len(devices)
+        num_nodes = net.num_nodes
+
+        assert len(st.power) == num_devices
+        assert len(st.phase) == num_devices
+        assert len(st.dual_phase) == num_devices
+        assert st.dual_power.shape == (num_nodes, time_horizon)
+
+        return True
+
     def numerical_checks(self, st: ADMMState, net, devices, time_horizon):
         # Dual phases should average to zero
         avg_dual_phase = ac_average(st.dual_phase, net, devices, time_horizon, st.num_ac_terminals)
-        np.testing.assert_allclose(avg_dual_phase, 0.0, atol=1e-8)
+        np.testing.assert_allclose(nested_norm(avg_dual_phase), 0.0, atol=1e-8)
         return True
 
     def compute_objective(self, st: ADMMState, devices: list[AbstractDevice]):

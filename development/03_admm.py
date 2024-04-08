@@ -66,8 +66,8 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network(
-            f"~/pypsa-usa/workflow/resources/western/elec_s_100_ec_lv1.25_Co2L1.25.nc"
-        )
+        f"~/pypsa-usa/workflow/resources/western/elec_s_100_ec_lv1.25_Co2L1.25.nc"
+    )
     return pn,
 
 
@@ -346,7 +346,7 @@ def __(history, plot_convergence):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(fstar, history, nested_norm, np, rho_power, simple_result, state):
     print("f/f* =", history.objective[-1] / fstar)
     print(
