@@ -91,6 +91,9 @@ class AbstractDevice:
     def admm_initialize_angle_variables(self, time_horizon: int):
         raise NotImplementedError
 
+    def get_admm_power_weights(self, power, strategy: str, **kwargs):
+        return [np.ones_like(pi) for pi in power]
+
     # def admm_initialize_local_variables(self, time_horizon: int):
     #     raise NotImplementedError
 

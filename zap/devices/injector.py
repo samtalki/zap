@@ -147,6 +147,19 @@ class Injector(AbstractDevice):
 
         return [p], None
 
+    def get_admm_power_weights(self, power, strategy: str, nominal_capacity=None):
+        data = self.device_data(nominal_capacity=nominal_capacity, la=np)
+
+        if strategy == "smart_cost":
+            avg_cost = np.mean(data.linear_cost, axis=1).reshape((-1, 1))
+            return [np.maximum(np.sqrt(1 / (avg_cost + 0.01)), 1.0)]
+
+        if strategy == "smart_bounds":
+            return [np.minimum(np.sqrt(1 / (data.nominal_capacity + 1.0)), 1.0)]
+
+        else:
+            return [np.ones_like(pi) for pi in power]
+
 
 class Generator(Injector):
     """An Injector that can only deposit power."""

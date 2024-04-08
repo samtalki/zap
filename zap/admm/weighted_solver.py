@@ -39,7 +39,7 @@ class WeightedADMMSolver(ADMMSolver):
     weighting_seed: int = 0
 
     def __post_init__(self):
-        assert self.weighting_strategy in ["uniform", "random"]
+        assert self.weighting_strategy in ["uniform", "random", "smart_cost", "smart_bounds"]
 
     def initialize_solver(self, net, devices, time_horizon) -> ExtendedADMMState:
         st = super().initialize_solver(net, devices, time_horizon)
@@ -47,10 +47,18 @@ class WeightedADMMSolver(ADMMSolver):
         # Set weights
         rng = np.random.default_rng(self.weighting_seed)
 
-        if self.weighting_strategy == "uniform":
-            _power_weights = nested_map(lambda x: np.ones_like(x), st.power)
-        else:
+        if self.weighting_strategy == "random":
             _power_weights = nested_map(lambda x: 0.5 + rng.random(x.shape), st.power)
+
+        elif self.weighting_strategy in ["smart_cost", "smart_bounds"]:
+            # TODO - Put parameters in here
+            _power_weights = [
+                d.get_admm_power_weights(pi, self.weighting_strategy)
+                for (pi, d) in zip(st.power, devices)
+            ]
+
+        else:  # uniform
+            _power_weights = nested_map(lambda x: np.ones_like(x), st.power)
 
         _angle_weights = nested_map(lambda x: np.ones_like(x), st.phase)
 

@@ -194,6 +194,8 @@ def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
             )
         ]
 
+    # simple_devices[0].linear_cost = np.ones_like(simple_devices[0].linear_cost)
+
     # # Add ground
     # _ground = zap.Ground(
     #     num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
@@ -288,14 +290,30 @@ def __(mo):
 
 
 @app.cell
-def __():
-    weighting_strategy = "random"
+def __(devices, np):
+    np.min(devices[0].nominal_capacity)
+    return
 
+
+@app.cell
+def __(np, state):
+    np.sort(state.power_weights[0][0][:, 0])[[0,1,2,-3,-2,-1]]
+    return
+
+
+@app.cell
+def __():
     rho_power = 0.5
     rho_angle = 5.0 * rho_power
 
     admm_num_iters = 300
-    return admm_num_iters, rho_angle, rho_power, weighting_strategy
+    return admm_num_iters, rho_angle, rho_power
+
+
+@app.cell
+def __():
+    weighting_strategy = "smart_bounds"
+    return weighting_strategy,
 
 
 @app.cell
@@ -310,7 +328,7 @@ def __(nested_map, np, simple_result, time_horizon):
 
 
 @app.cell(hide_code=True)
-def __(admm_num_iters, eps_pd, fstar, np, plt, state):
+def __(admm_num_iters, eps_pd, fstar, np, plt, simple_result):
     def plot_convergence(hist):
         fig, axes = plt.subplots(2, 2, figsize=(7, 4))
 
@@ -337,7 +355,7 @@ def __(admm_num_iters, eps_pd, fstar, np, plt, state):
 
         ax = axes[1][1]
         if len(hist.price_error) > 0:
-            ax.plot(np.array(hist.price_error) / state.dual_power.size)
+            ax.plot(np.array(hist.price_error) / simple_result.prices.size)
         ax.set_yscale("log")
         ax.set_title("nu - nu*")
 
@@ -349,6 +367,37 @@ def __(admm_num_iters, eps_pd, fstar, np, plt, state):
 @app.cell
 def __(history, plot_convergence):
     plot_convergence(history)
+    return
+
+
+@app.cell(hide_code=True)
+def __(
+    WeightedADMMSolver,
+    admm_num_iters,
+    eps_pd,
+    net,
+    plot_convergence,
+    rho_angle,
+    rho_power,
+    simple_devices,
+    simple_result,
+    time_horizon,
+):
+    _admm = WeightedADMMSolver(
+        num_iterations=admm_num_iters,
+        rho_power=rho_power,
+        rho_angle=rho_angle,
+        rtol=eps_pd,
+        resid_norm=2,
+        safe_mode=True,
+        weighting_strategy="uniform",
+    )
+
+    _state, _history = _admm.solve(
+        net, simple_devices, time_horizon, nu_star=-simple_result.prices
+    )
+
+    plot_convergence(_history)
     return
 
 
