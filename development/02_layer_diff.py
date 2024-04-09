@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.3.4"
+__generated_with = "0.3.10"
 app = marimo.App()
 
 
@@ -211,7 +211,7 @@ def __(deepcopy, np):
 @app.cell
 def __(load_pypsa_network):
     net, devices, time_horizon = load_pypsa_network(
-        time_horizon=8,
+        time_horizon=24,
         marginal_load_value=1000.0,
         load_cost_perturbation=100.0,
         generator_cost_perturbation=2.0,
@@ -253,6 +253,84 @@ def __(devices, errors, np):
 
 @app.cell
 def __():
+    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+    return ProcessPoolExecutor, ThreadPoolExecutor
+
+
+@app.cell
+def __():
+    import multiprocessing as mp
+    return mp,
+
+
+@app.cell
+def __(dt, load_pypsa_network):
+    cases = [
+        load_pypsa_network(
+            time_horizon=24,
+            start_date=dt.datetime(2019, 6, day + 1, 0),
+        )
+        for day in range(16)
+    ]
+    return cases,
+
+
+@app.cell
+def __(cp, make_layer):
+    def run_little_simulation(case):
+        _F, _theta = make_layer(
+            *case,
+            use_lines=True,
+            solver=cp.MOSEK,
+            solver_opts={"verbose": False, "accept_unknown": True},
+        )
+        _y = _F(**_theta)
+        print(_y.power[0])
+        return _y
+    return run_little_simulation,
+
+
+@app.cell
+def __(cases, run_little_simulation):
+    _x = run_little_simulation(cases[0])
+    return
+
+
+@app.cell
+def __(mp):
+    # executor = ThreadPoolExecutor(max_workers=4)
+    # outcomes = executor.map(run_little_simulation, range(8))
+    # [o for o in outcomes]
+
+    _num_workers = 2
+    _num_jobs = 8
+
+    def f(x):
+        return x*x
+
+    queue = mp.Queue()
+
+    with mp.Pool(processes=_num_workers) as pool:
+        results = pool.map_async(f, range(10))
+
+    # jobs = []
+    # for i in range(0, _num_workers):
+    #     process = multiprocessing.Process(target=run_little_simulation, args=(cases[i],))
+    #     jobs.append(process)
+
+    # # Start the processes
+    # for j in jobs:
+    #     j.start()
+
+    # # Ensure all of the processes have finished
+    # for j in jobs:
+    #     j.join()
+    return f, pool, queue, results
+
+
+@app.cell
+def __(results):
+    results.get()
     return
 
 
