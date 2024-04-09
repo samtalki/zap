@@ -1,5 +1,6 @@
 import itertools
 import torch
+import time  # noqa
 import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
@@ -8,6 +9,7 @@ from dataclasses import dataclass
 from itertools import repeat
 from functools import cached_property
 from collections.abc import Sequence
+from sparse_dot_mkl import sparse_qr_solve_mkl
 
 from zap.devices.abstract import AbstractDevice
 from zap.devices.ground import Ground
@@ -551,20 +553,35 @@ class PowerNetwork:
             return jac
 
     def kkt_vjp_variables(
-        self, grad, devices, x: DispatchOutcome, parameters=None, vectorize=True, regularize=0.0
+        self,
+        grad,
+        devices,
+        x: DispatchOutcome,
+        parameters=None,
+        vectorize=True,
+        regularize=0.0,
+        linear_solver="mkl",
     ):
         if isinstance(grad, DispatchOutcome):
             grad = grad.vectorize()
 
+        # start = time.time()
         jac = self.kkt_jacobian_variables(devices, x, parameters=parameters, vectorize=True)
+        # print("Build Jacobian: ", time.time() - start)
 
         # Transpose and regularize
         jac_t = jac.T.tocsc()
         if regularize > 0.0:
             jac_t += regularize * sp.eye(jac_t.shape[0])
 
-        lu_factors = sp.linalg.splu(jac_t)
-        grad_back = lu_factors.solve(grad)
+        # start = time.time()
+        if linear_solver == "mkl":
+            grad_back = sparse_qr_solve_mkl(jac_t.tocsr(), grad)
+
+        else:  # Use scipy
+            lu_factors = sp.linalg.splu(jac_t)
+            grad_back = lu_factors.solve(grad)
+        # print("Solve linear system:", time.time() - start)
 
         if vectorize:
             return grad_back

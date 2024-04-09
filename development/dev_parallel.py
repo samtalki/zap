@@ -106,9 +106,9 @@ def f(x):
 
 
 if __name__ == "__main__":
-    num_workers = 16
-    num_cases = 256
-    time_horizon = 1
+    num_workers = 1
+    num_cases = 16
+    time_horizon = 24
 
     cases = [
         load_pypsa_network(

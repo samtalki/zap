@@ -58,11 +58,14 @@ class DispatchLayer:
 
         # dtheta = -JK_theta.T @ inv(JK_z.T) @ dz
         # dz_bar = inv(JK_z.T) @ dz
+        # start = time.time()
         dz_bar = self.network.kkt_vjp_variables(
             dz, self.devices, z, parameters=parameters, regularize=regularize, vectorize=False
         )
+        # print("J_var.T @ x: ", time.time() - start)
 
         # dtheta = -JK_theta.T @ dz_bar
+        # start = time.time()
         dtheta = {}
         for key, (i, name) in self.parameter_names.items():
             dtheta[key] = -self.network.kkt_vjp_parameters(
@@ -73,5 +76,6 @@ class DispatchLayer:
                 param_ind=i,
                 param_name=name,
             ).numpy()
+        # print("J_theta.T @ x: ", time.time() - start)
 
         return dtheta

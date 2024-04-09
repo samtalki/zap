@@ -36,6 +36,12 @@ def __():
 
 
 @app.cell
+def __():
+    import scipy.sparse as sp
+    return sp,
+
+
+@app.cell
 def __(mo):
     mo.md("## Network")
     return
@@ -156,10 +162,20 @@ def __(mo):
 
 
 @app.cell
-def __(deepcopy, np):
+def __():
+    import time
+    return time,
+
+
+@app.cell(hide_code=True)
+def __(deepcopy, np, time):
     def test_layer_gradients(layer, theta0, regularize=1e-8, delta=1e-4, param_min=1e-4):
         theta0 = deepcopy(theta0)
+        start = time.time()
         y0 = layer(**theta0)
+        runtime = time.time() - start
+        print("Forward Pass:", runtime)
+
 
         # Define linear objective J(y) and it's gradient nabla_J
         dJ = y0.package(np.zeros_like(y0.vectorize()))
@@ -171,7 +187,10 @@ def __(deepcopy, np):
         J0 = J(y0)
 
         # Compute gradient dJ / dtheta
+        start = time.time()
         dJ_dtheta0 = layer.backward(y0, dJ, **theta0, regularize=regularize)
+        runtime = time.time() - start
+        print("Backward Pass:", runtime)
 
         # Perturb parameter slightly
         theta1 = deepcopy(theta0)
@@ -211,7 +230,8 @@ def __(deepcopy, np):
 @app.cell
 def __(load_pypsa_network):
     net, devices, time_horizon = load_pypsa_network(
-        time_horizon=24,
+        num_nodes=200,
+        time_horizon=48,
         marginal_load_value=1000.0,
         load_cost_perturbation=100.0,
         generator_cost_perturbation=2.0,
@@ -235,9 +255,39 @@ def __(cp, devices, make_layer, net, test_layer_gradients, time_horizon):
     )
     y = _F(**_theta)
     errors = test_layer_gradients(_F, _theta, delta=1e-2, regularize=1e-8)
-
-    errors
     return errors, y
+
+
+@app.cell
+def __(devices, net, sp, y):
+    from sparse_dot_mkl import sparse_qr_solve_mkl
+
+    jac = net.kkt_jacobian_variables(devices, y)
+    jac += 0.01 * sp.eye(jac.shape[0])
+
+    jac_csr = jac.tocsr()
+
+    test_grad = y.vectorize()
+    return jac, jac_csr, sparse_qr_solve_mkl, test_grad
+
+
+@app.cell
+def __(jac, sp, test_grad):
+    lu_factors = sp.linalg.splu(jac)
+    grad_back = lu_factors.solve(test_grad)
+    return grad_back, lu_factors
+
+
+@app.cell
+def __(jac_csr, sparse_qr_solve_mkl, test_grad):
+    grad_back2 = sparse_qr_solve_mkl(jac_csr, test_grad)
+    return grad_back2,
+
+
+@app.cell
+def __(grad_back, grad_back2, np):
+    np.linalg.norm(grad_back - grad_back2) / np.linalg.norm(grad_back)
+    return
 
 
 @app.cell
@@ -248,89 +298,6 @@ def __(devices, errors, np):
     _x = devices[3].nominal_capacity
     _x = devices[3].susceptance
     np.sort(_x, axis=0)[list(range(5)) + list(range(-6, -1))]
-    return
-
-
-@app.cell
-def __():
-    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-    return ProcessPoolExecutor, ThreadPoolExecutor
-
-
-@app.cell
-def __():
-    import multiprocessing as mp
-    return mp,
-
-
-@app.cell
-def __(dt, load_pypsa_network):
-    cases = [
-        load_pypsa_network(
-            time_horizon=24,
-            start_date=dt.datetime(2019, 6, day + 1, 0),
-        )
-        for day in range(16)
-    ]
-    return cases,
-
-
-@app.cell
-def __(cp, make_layer):
-    def run_little_simulation(case):
-        _F, _theta = make_layer(
-            *case,
-            use_lines=True,
-            solver=cp.MOSEK,
-            solver_opts={"verbose": False, "accept_unknown": True},
-        )
-        _y = _F(**_theta)
-        print(_y.power[0])
-        return _y
-    return run_little_simulation,
-
-
-@app.cell
-def __(cases, run_little_simulation):
-    _x = run_little_simulation(cases[0])
-    return
-
-
-@app.cell
-def __(mp):
-    # executor = ThreadPoolExecutor(max_workers=4)
-    # outcomes = executor.map(run_little_simulation, range(8))
-    # [o for o in outcomes]
-
-    _num_workers = 2
-    _num_jobs = 8
-
-    def f(x):
-        return x*x
-
-    queue = mp.Queue()
-
-    with mp.Pool(processes=_num_workers) as pool:
-        results = pool.map_async(f, range(10))
-
-    # jobs = []
-    # for i in range(0, _num_workers):
-    #     process = multiprocessing.Process(target=run_little_simulation, args=(cases[i],))
-    #     jobs.append(process)
-
-    # # Start the processes
-    # for j in jobs:
-    #     j.start()
-
-    # # Ensure all of the processes have finished
-    # for j in jobs:
-    #     j.join()
-    return f, pool, queue, results
-
-
-@app.cell
-def __(results):
-    results.get()
     return
 
 
