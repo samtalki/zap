@@ -246,7 +246,7 @@ class PowerNetwork:
             d.operation_cost(p, v, u, **param, la=la)
             for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
         ]
-        return la.sum(costs)
+        return sum(costs)
 
     def dispatch(
         self,

@@ -1,13 +1,16 @@
+import numpy as np
+import torch
+
 from zap.network import DispatchOutcome, PowerNetwork
 
 
 class AbstractObjective:
     """Abstract implementation of operation objectives."""
 
-    def __call__(self, y: DispatchOutcome, parameters=None):
-        return self.forward(y, parameters=parameters)
+    def __call__(self, y: DispatchOutcome, parameters=None, use_torch=False):
+        return self.forward(y, parameters=parameters, use_torch=use_torch)
 
-    def forward(self, y: DispatchOutcome, parameters=None):
+    def forward(self, y: DispatchOutcome, parameters=None, use_torch=False):
         raise NotImplementedError
 
     @property
@@ -26,9 +29,14 @@ class DispatchCostObjective(AbstractObjective):
         self.net = net
         self.devices = devices
 
-    def forward(self, y: DispatchOutcome, parameters=None):
+    def forward(self, y: DispatchOutcome, parameters=None, use_torch=False):
+        if use_torch:
+            la = torch
+        else:
+            la = np
+
         return self.net.operation_cost(
-            self.devices, y.power, y.angle, y.local_variables, parameters=parameters
+            self.devices, y.power, y.angle, y.local_variables, parameters=parameters, la=la
         )
 
     @property

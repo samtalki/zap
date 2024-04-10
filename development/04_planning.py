@@ -82,7 +82,7 @@ def __(mo):
 
 
 @app.cell
-def __(DispatchLayer, cp, devices, net, time_horizon):
+def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
     parameter_names = {
         "generator_capacity": (0, "nominal_capacity"),
         "line_capacity": (2, "nominal_capacity"),
@@ -100,7 +100,7 @@ def __(DispatchLayer, cp, devices, net, time_horizon):
 
     initial_parameters = {}
     for name, (index, attr) in parameter_names.items():
-        initial_parameters[name] = getattr(devices[index], attr)
+        initial_parameters[name] = deepcopy(getattr(devices[index], attr))
 
     initial_parameters
     return attr, index, initial_parameters, layer, name, parameter_names
@@ -135,14 +135,13 @@ def __(devices, initial_parameters, layer, net, y0, zap):
     return f0, op_objective
 
 
-app._unparsable_cell(
-    r"""
-    def inv_objective()
+@app.cell
+def __(initial_parameters, np):
+    def inv_objective(**kwargs):
+        return np.ones((3, 1)).T @ kwargs["generator_capacity"]
 
-    # inv_objective = 
-    """,
-    name="__"
-)
+    inv_objective(**initial_parameters)
+    return inv_objective,
 
 
 @app.cell(hide_code=True)
@@ -167,14 +166,67 @@ def __(deepcopy, initial_parameters, max_expansion):
     return lower_bounds, param, upper_bounds, v
 
 
-app._unparsable_cell(
-    r"""
+@app.cell
+def __(
+    inv_objective,
+    layer,
+    lower_bounds,
+    op_objective,
+    upper_bounds,
+    zap,
+):
     problem = zap.planning.PlanningProblem(
-        operation_objective=
+        operation_objective=op_objective,
+        investment_objective=inv_objective,
+        layer=layer,
+        lower_bounds=lower_bounds,
+        upper_bounds=upper_bounds,
+        regularize=1e-6
     )
-    """,
-    name="__"
-)
+    return problem,
+
+
+@app.cell
+def __(initial_parameters, problem):
+    problem(**initial_parameters)
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md("## Compute Gradients")
+    return
+
+
+@app.cell
+def __(initial_parameters, problem):
+    J0 = problem.forward(**initial_parameters, requires_grad=True)
+    grad = problem.backward(**initial_parameters)
+
+    grad
+    return J0, grad
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md("### Gradient Update")
+    return
+
+
+@app.cell
+def __(deepcopy, f0, grad, initial_parameters, problem):
+    _pname = "line_capacity"
+    _pind = 1
+    _delta = 0.001
+
+    new_parameters = deepcopy(initial_parameters)
+    new_parameters[_pname][_pind] += _delta
+
+    J1 = problem.forward(**new_parameters)
+
+    print(J1 - f0)
+    print(grad[_pname][_pind] * _delta)
+    return J1, new_parameters
 
 
 if __name__ == "__main__":

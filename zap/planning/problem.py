@@ -1,4 +1,8 @@
+import zap.util as util
+
+from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
+from zap.planning.objectives import AbstractObjective
 
 
 class PlanningProblem:
@@ -6,17 +10,19 @@ class PlanningProblem:
 
     def __init__(
         self,
-        operation_objective,
+        operation_objective: AbstractObjective,
         investment_objective,
         layer: DispatchLayer,
         lower_bounds: dict,
         upper_bounds: dict,
+        regularize=1e-6,
     ):
         self.operation_objective = operation_objective
         self.investment_objective = investment_objective
         self.layer = layer
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
+        self.regularize = regularize
 
     @property
     def parameter_names(self):
@@ -30,20 +36,38 @@ class PlanningProblem:
         return self.forward(**kwargs)
 
     def forward(self, requires_grad: bool = False, **kwargs):
+        params = self.layer.setup_parameters(**kwargs)
+
         # Forward pass through dispatch layer
         # Store this for efficient backward pass
         self.state = self.layer.forward(**kwargs)
 
         if requires_grad:
-            self.torch_state = self.state.torchify()
+            self.torch_state = self.state.torchify(requires_grad=True)
+        else:
+            self.torch_state = self.state
 
-        op_cost = self.operation_objective(self.state)
+        op_cost = self.operation_objective(
+            self.torch_state, parameters=params, use_torch=requires_grad
+        )
         inv_cost = self.investment_objective(**kwargs)
-        return op_cost + inv_cost
 
-    def backward(self, dJ=1.0, **kwargs):
+        self.cost = op_cost  # + inv_cost
+        return self.cost
+
+    def backward(self, **kwargs):
         # Backward pass through objectives
-        pass
+        self.cost.backward()  # Torch backward
+        dy = DispatchOutcome(*[util.grad_or_zero(x) for x in self.torch_state])
+        dy.ground = self.state.ground
 
         # Backward pass through layer
-        pass
+        dtheta = self.layer.backward(self.state, dy, regularize=self.regularize, **kwargs)
+
+        return dtheta
+
+    def forward_and_back(self, **kwargs):
+        J = self.forward(requires_grad=True, **kwargs)
+        grad = self.backward(**kwargs)
+
+        return J, grad

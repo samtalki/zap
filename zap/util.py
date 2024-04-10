@@ -10,7 +10,7 @@ def replace_none(x, replacement):
         return x
 
 
-def grad_or_zero(x: torch.Tensor, to_numpy=False):
+def grad_or_zero(x, to_numpy=False):
     if x is None:
         return None
     elif isinstance(x, list):
