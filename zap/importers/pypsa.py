@@ -9,6 +9,8 @@ from zap.devices.store import Battery
 
 pd.set_option("future.no_silent_downcasting", True)
 
+HOURS_PER_YEAR = 365 * 24
+
 
 def parse_buses(net: pypsa.Network):
     buses = net.buses.loc[net.buses.carrier != "battery"].index
@@ -57,12 +59,16 @@ def parse_generators(
     # Build nominal capacities
     nominal_capacities = net.generators.p_nom.values
 
+    # Build capital costs
+    capital_costs = net.generators.capital_cost.values * (len(dates) / HOURS_PER_YEAR)
+
     if drop_empty_generators:
         mask = nominal_capacities > 0
         terminals = terminals[mask]
         dynamic_capacities = dynamic_capacities[mask]
         dynamic_costs = dynamic_costs[mask]
         nominal_capacities = nominal_capacities[mask]
+        capital_costs = capital_costs[mask]
     else:
         nominal_capacities += expand_empty_generators
 
@@ -72,6 +78,7 @@ def parse_generators(
         nominal_capacity=nominal_capacities,
         dynamic_capacity=dynamic_capacities,
         linear_cost=dynamic_costs,
+        capital_cost=capital_costs,
     )
 
 
@@ -106,7 +113,7 @@ def get_source_sinks(df: pd.DataFrame, buses_to_index):
     return sources, sinks
 
 
-def parse_dc_lines(net: pypsa.Network):
+def parse_dc_lines(net: pypsa.Network, dates):
     buses, buses_to_index = parse_buses(net)
 
     links = net.links[net.links.carrier == "DC"]
@@ -118,10 +125,11 @@ def parse_dc_lines(net: pypsa.Network):
         sink_terminal=sinks,
         capacity=links.p_max_pu.values,
         nominal_capacity=links.p_nom.values,
+        capital_cost=links.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
     )
 
 
-def parse_ac_lines(net: pypsa.Network, *, ac_transmission_cost, susceptance_unit):
+def parse_ac_lines(net: pypsa.Network, dates, *, ac_transmission_cost, susceptance_unit):
     buses, buses_to_index = parse_buses(net)
 
     sources, sinks = get_source_sinks(net.lines, buses_to_index)
@@ -144,10 +152,11 @@ def parse_ac_lines(net: pypsa.Network, *, ac_transmission_cost, susceptance_unit
         capacity=net.lines.s_max_pu.values,
         nominal_capacity=net.lines.s_nom.values,
         linear_cost=ac_transmission_cost * np.ones(sources.size),
+        capital_cost=net.lines.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
     )
 
 
-def parse_batteries(net: pypsa.Network, *, battery_discharge_cost):
+def parse_batteries(net: pypsa.Network, dates, *, battery_discharge_cost):
     buses, buses_to_index = parse_buses(net)
     terminals = net.storage_units.bus.replace(buses_to_index).values.astype(int)
 
@@ -158,6 +167,7 @@ def parse_batteries(net: pypsa.Network, *, battery_discharge_cost):
         duration=net.storage_units.max_hours.values,
         charge_efficiency=net.storage_units.efficiency_dispatch.values,
         linear_cost=battery_discharge_cost * np.ones(terminals.size),
+        capital_cost=net.storage_units.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
     )
 
 
@@ -196,11 +206,11 @@ def load_pypsa_network(
             load_cost_perturbation=load_cost_perturbation,
             marginal_load_value=marginal_load_value,
         ),
-        parse_dc_lines(net),
+        parse_dc_lines(net, dates),
         parse_ac_lines(
-            net, ac_transmission_cost=ac_transmission_cost, susceptance_unit=susceptance_unit
+            net, dates, ac_transmission_cost=ac_transmission_cost, susceptance_unit=susceptance_unit
         ),
-        parse_batteries(net, battery_discharge_cost=battery_discharge_cost),
+        parse_batteries(net, dates, battery_discharge_cost=battery_discharge_cost),
     ]
 
     for d in devices:

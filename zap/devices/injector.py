@@ -32,6 +32,7 @@ class Injector(AbstractDevice):
     linear_cost: NDArray
     quadratic_cost: Optional[NDArray] = None
     nominal_capacity: Optional[NDArray] = None
+    capital_cost: Optional[NDArray] = None
 
     def __post_init__(self):
         if self.nominal_capacity is None:
@@ -43,6 +44,7 @@ class Injector(AbstractDevice):
         self.linear_cost = make_dynamic(self.linear_cost)
         self.quadratic_cost = make_dynamic(self.quadratic_cost)
         self.nominal_capacity = make_dynamic(self.nominal_capacity)
+        self.capital_cost = make_dynamic(self.capital_cost)
 
         # TODO - Add dimension checks
         pass
@@ -102,6 +104,8 @@ class Injector(AbstractDevice):
         self.linear_cost /= scale
         if self.quadratic_cost is not None:
             self.quadratic_cost /= scale
+        if self.capital_cost is not None:
+            self.capital_cost /= scale
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
@@ -173,6 +177,7 @@ class Generator(Injector):
         linear_cost,
         quadratic_cost=None,
         nominal_capacity=None,
+        capital_cost=None,
     ):
         self.num_nodes = num_nodes
         self.terminal = terminal
@@ -184,6 +189,7 @@ class Generator(Injector):
         self.nominal_capacity = make_dynamic(nominal_capacity)
         self.linear_cost = make_dynamic(linear_cost)
         self.quadratic_cost = make_dynamic(quadratic_cost)
+        self.capital_cost = make_dynamic(capital_cost)
 
         # TODO - Add dimension checks
         pass

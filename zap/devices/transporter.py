@@ -50,6 +50,7 @@ class Transporter(AbstractDevice):
     linear_cost: NDArray
     quadratic_cost: Optional[NDArray] = None
     nominal_capacity: Optional[NDArray] = None
+    capital_cost: Optional[NDArray] = None
 
     def __post_init__(self):
         # Reshape arrays
@@ -60,6 +61,7 @@ class Transporter(AbstractDevice):
         self.nominal_capacity = make_dynamic(
             replace_none(self.nominal_capacity, np.ones(self.num_devices))
         )
+        self.capital_cost = make_dynamic(self.capital_cost)
 
         # TODO - Add dimension checks
         pass
@@ -122,6 +124,8 @@ class Transporter(AbstractDevice):
         self.linear_cost /= scale
         if self.quadratic_cost is not None:
             self.quadratic_cost /= scale
+        if self.capital_cost is not None:
+            self.capital_cost /= scale
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
@@ -206,6 +210,7 @@ class PowerLine(Transporter):
         linear_cost=None,
         quadratic_cost=None,
         nominal_capacity=None,
+        capital_cost=None,
     ):
         if linear_cost is None:
             linear_cost = np.zeros(capacity.shape)
@@ -219,6 +224,7 @@ class PowerLine(Transporter):
         self.nominal_capacity = make_dynamic(
             replace_none(nominal_capacity, np.ones(self.num_devices))
         )
+        self.capital_cost = make_dynamic(capital_cost)
 
     @property
     def min_power(self):
@@ -249,6 +255,7 @@ class ACLine(PowerLine):
         linear_cost=None,
         quadratic_cost=None,
         nominal_capacity=None,
+        capital_cost=None,
     ):
         self.susceptance = make_dynamic(susceptance)
 
@@ -260,6 +267,7 @@ class ACLine(PowerLine):
             linear_cost=linear_cost,
             quadratic_cost=quadratic_cost,
             nominal_capacity=nominal_capacity,
+            capital_cost=capital_cost,
         )
 
     @property
