@@ -238,6 +238,16 @@ class PowerNetwork:
 
     num_nodes: int
 
+    def operation_cost(self, devices, power, angle, local_variables, parameters=None, la=np):
+        if parameters is None:
+            parameters = [{} for _ in devices]
+
+        costs = [
+            d.operation_cost(p, v, u, **param, la=la)
+            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
+        ]
+        return la.sum(costs)
+
     def dispatch(
         self,
         devices: list[AbstractDevice],

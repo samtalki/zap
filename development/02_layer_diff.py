@@ -230,8 +230,8 @@ def __(deepcopy, np, time):
 @app.cell
 def __(load_pypsa_network):
     net, devices, time_horizon = load_pypsa_network(
-        num_nodes=200,
-        time_horizon=48,
+        num_nodes=100,
+        time_horizon=8,
         marginal_load_value=1000.0,
         load_cost_perturbation=100.0,
         generator_cost_perturbation=2.0,
@@ -254,40 +254,10 @@ def __(cp, devices, make_layer, net, test_layer_gradients, time_horizon):
         solver_opts={"verbose": False, "accept_unknown": True},
     )
     y = _F(**_theta)
-    errors = test_layer_gradients(_F, _theta, delta=1e-2, regularize=1e-8)
+    errors = test_layer_gradients(_F, _theta, delta=1e-3, regularize=1e-4)
+
+    errors
     return errors, y
-
-
-@app.cell
-def __(devices, net, sp, y):
-    from sparse_dot_mkl import sparse_qr_solve_mkl
-
-    jac = net.kkt_jacobian_variables(devices, y)
-    jac += 0.01 * sp.eye(jac.shape[0])
-
-    jac_csr = jac.tocsr()
-
-    test_grad = y.vectorize()
-    return jac, jac_csr, sparse_qr_solve_mkl, test_grad
-
-
-@app.cell
-def __(jac, sp, test_grad):
-    lu_factors = sp.linalg.splu(jac)
-    grad_back = lu_factors.solve(test_grad)
-    return grad_back, lu_factors
-
-
-@app.cell
-def __(jac_csr, sparse_qr_solve_mkl, test_grad):
-    grad_back2 = sparse_qr_solve_mkl(jac_csr, test_grad)
-    return grad_back2,
-
-
-@app.cell
-def __(grad_back, grad_back2, np):
-    np.linalg.norm(grad_back - grad_back2) / np.linalg.norm(grad_back)
-    return
 
 
 @app.cell
