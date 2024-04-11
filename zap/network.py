@@ -257,18 +257,19 @@ class PowerNetwork:
         add_ground=True,
         solver_kwargs={},
     ) -> DispatchOutcome:
+        parameters = expand_params(parameters, devices)
+
         # Add ground if necessary
         ground = None
         if add_ground:
             ground = Ground(num_nodes=self.num_nodes, terminal=np.array([0]))
             devices = devices + [ground]
+            parameters = parameters + [{}]
 
         # Type checks
         assert all([d.num_nodes == self.num_nodes for d in devices])
         assert time_horizon > 0
         assert all([d.time_horizon in [0, time_horizon] for d in devices])
-
-        parameters = expand_params(parameters, devices)
 
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))

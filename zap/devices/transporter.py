@@ -19,6 +19,7 @@ TransporterData = namedtuple(
         "linear_cost",
         "quadratic_cost",
         "nominal_capacity",
+        "capital_cost",
     ],
 )
 
@@ -31,6 +32,7 @@ ACLineData = namedtuple(
         "quadratic_cost",
         "nominal_capacity",
         "susceptance",
+        "capital_cost",
     ],
 )
 
@@ -81,6 +83,7 @@ class Transporter(AbstractDevice):
             self.linear_cost,
             self.quadratic_cost,
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
+            self.capital_cost,
         )
 
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
@@ -129,6 +132,19 @@ class Transporter(AbstractDevice):
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
+
+    def get_investment_cost(self, nominal_capacity=None, la=np):
+        # Get original nominal capacity and capital cost
+        # Nominal capacity isn't passed here because we want to use the original value
+        data = self.device_data(la=la)
+
+        if self.capital_cost is None:
+            return 0.0
+
+        pnom_min = data.nominal_capacity
+        capital_cost = data.capital_cost
+
+        return la.sum(capital_cost * (nominal_capacity - pnom_min))
 
     def admm_initialize_power_variables(self, time_horizon: int):
         return [
@@ -282,6 +298,7 @@ class ACLine(PowerLine):
             self.quadratic_cost,
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
             self.susceptance,
+            self.capital_cost,
         )
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):

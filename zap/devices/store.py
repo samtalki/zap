@@ -28,6 +28,7 @@ BatteryData = namedtuple(
         "final_soc",
         "linear_cost",
         "quadratic_cost",
+        "capital_cost",
     ],
 )
 
@@ -92,6 +93,7 @@ class Battery(AbstractDevice):
             self.final_soc,
             self.linear_cost,
             self.quadratic_cost,
+            self.capital_cost,
         )
 
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
@@ -237,3 +239,16 @@ class Battery(AbstractDevice):
 
     def scale_power(self, scale):
         self.power_capacity /= scale
+
+    def get_investment_cost(self, power_capacity=None, la=np):
+        # Get original nominal capacity and capital cost
+        # Nominal capacity isn't passed here because we want to use the original value
+        data = self.device_data(la=la)
+
+        if self.capital_cost is None:
+            return 0.0
+
+        pnom_min = data.power_capacity
+        capital_cost = data.capital_cost
+
+        return la.sum(capital_cost * (power_capacity - pnom_min))

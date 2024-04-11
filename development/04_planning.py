@@ -46,7 +46,7 @@ def __(np, num_nodes, zap):
         ),
         linear_cost=np.array([100.0, 0.5, 40.0]),
         nominal_capacity=np.array([100.0, 50.0, 15.0]),
-        capital_cost=np.array([40.0, 50.0, 100.0]),
+        capital_cost=np.array([4.0, 10.0, 10.0]),
     )
 
     loads = zap.Load(
@@ -60,10 +60,11 @@ def __(np, num_nodes, zap):
         num_nodes=num_nodes,
         source_terminal=np.array([0, 1, 3]),
         sink_terminal=np.array([1, 3, 0]),
-        capacity=np.array([45.0, 50.0, 11.0]),
+        capacity=np.ones(3),
         susceptance=np.array([0.1, 0.05, 1.0]),
+        nominal_capacity=np.array([45.0, 50.0, 11.0]),
         linear_cost=0.025 * np.ones(3),
-        capital_cost=np.array([15.0, 25.0, 30.0]),
+        capital_cost=np.array([100.0, 25.0, 30.0]),
     )
 
     batteries = zap.Battery(
@@ -140,17 +141,31 @@ def __(devices, initial_parameters, layer, net, y0, zap):
 
 
 @app.cell
-def __(generators, initial_parameters, zap):
-    def inv_objective(use_torch=False, **kwargs):
-        capital_cost = generators.capital_cost
+def __():
+    # def inv_objective(use_torch=False, **kwargs):
+    #     capital_cost = generators.capital_cost
 
-        if use_torch:
-            capital_cost = zap.util.torchify(capital_cost)
+    #     if use_torch:
+    #         capital_cost = zap.util.torchify(capital_cost)
 
-        return capital_cost.T @ kwargs["generator_capacity"]
+    #     return capital_cost.T @ kwargs["generator_capacity"]
 
-    inv_objective(**initial_parameters)
+    # inv_objective(**initial_parameters)
+    return
+
+
+@app.cell
+def __(devices, layer, other_params, zap):
+    inv_objective = zap.planning.InvestmentObjective(devices, layer)
+    inv_objective(**other_params)
     return inv_objective,
+
+
+@app.cell
+def __(deepcopy, initial_parameters):
+    other_params = deepcopy(initial_parameters)
+    other_params["generator_capacity"][1] += 10.0
+    return other_params,
 
 
 @app.cell(hide_code=True)
@@ -226,9 +241,9 @@ def __(mo):
 
 @app.cell
 def __(J0, deepcopy, grad, initial_parameters, problem):
-    _pname = "line_capacity"
+    _pname = "generator_capacity"
     _pind = 1
-    _delta = 0.00001
+    _delta = 0.001
 
     new_parameters = deepcopy(initial_parameters)
     new_parameters[_pname][_pind] += _delta

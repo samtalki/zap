@@ -116,7 +116,7 @@ class AbstractDevice:
     # Planning Functionality
     # ====
 
-    def get_investment_cost(la=np, **kwargs):
+    def get_investment_cost(self, **kwargs):
         return 0.0
 
     # ====

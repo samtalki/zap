@@ -1,18 +1,17 @@
 import torch
 import numpy as np
 
-import zap.util as util
-from zap.network import PowerNetwork
 from zap.devices.abstract import AbstractDevice
+from zap.layer import DispatchLayer
 
 
 class AbstractInvestmentObjective:
     """Abstract implementation of investment objectives."""
 
-    def __call__(self, parameters=None, use_torch=False):
-        return self.forward(parameters=parameters, use_torch=use_torch)
+    def __call__(self, use_torch=False, **kwargs):
+        return self.forward(use_torch=use_torch, **kwargs)
 
-    def forward(self, parameters=None, use_torch=False):
+    def forward(self, use_torch=False, **kwargs):
         raise NotImplementedError
 
     @property
@@ -27,12 +26,12 @@ class AbstractInvestmentObjective:
 class InvestmentObjective(AbstractInvestmentObjective):
     """Simple linear investment objective."""
 
-    def __init__(self, net: PowerNetwork, devices: list[AbstractDevice]):
-        self.net = net
+    def __init__(self, devices: list[AbstractDevice], layer: DispatchLayer):
         self.devices = devices
+        self.layer = layer
 
-    def forward(self, parameters=None, use_torch=False):
-        parameters = util.expand_params(parameters, self.devices)
+    def forward(self, use_torch=False, **kwargs):
+        parameters = self.layer.setup_parameters(**kwargs)
 
         if use_torch:
             la = torch

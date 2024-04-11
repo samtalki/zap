@@ -17,6 +17,7 @@ InjectorData = namedtuple(
         "linear_cost",
         "quadratic_cost",
         "nominal_capacity",
+        "capital_cost",
     ],
 )
 
@@ -64,6 +65,7 @@ class Injector(AbstractDevice):
             self.linear_cost,
             self.quadratic_cost,
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
+            self.capital_cost,
         )
 
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
@@ -201,6 +203,18 @@ class Generator(Injector):
     @property
     def max_power(self):
         return self.dynamic_capacity
+
+    def get_investment_cost(self, nominal_capacity=None, la=np):
+        # Get nominal capacity and capital cost
+        data = self.device_data(la=la)
+
+        if self.capital_cost is None:
+            return 0.0
+
+        pnom_min = data.nominal_capacity
+        capital_cost = data.capital_cost
+
+        return la.sum(capital_cost * (nominal_capacity - pnom_min))
 
 
 class Load(Injector):
