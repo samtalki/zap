@@ -45,7 +45,9 @@ class AbstractDevice:
     num_nodes: int
     time_horizon: int
 
-    # Overwriteable methods
+    # ====
+    # Core Functionality
+    # ====
 
     # Optional
     @property
@@ -73,17 +75,25 @@ class AbstractDevice:
     def _device_data(self, **kwargs):
         raise NotImplementedError
 
+    def scale_costs(self, scale):
+        raise NotImplementedError
+
+    def scale_power(self, scale):
+        raise NotImplementedError
+
+    # ====
+    # KKT Jacobian Functionality
+    # ====
+
     def _equality_matrices(self, equalities, **kwargs):
         raise NotImplementedError
 
     def _inequality_matrices(self, inequalities, **kwargs):
         raise NotImplementedError
 
-    def scale_costs(self, scale):
-        raise NotImplementedError
-
-    def scale_power(self, scale):
-        raise NotImplementedError
+    # ====
+    # ADMM Functionality
+    # ====
 
     def admm_initialize_power_variables(self, time_horizon: int):
         raise NotImplementedError
@@ -101,6 +111,17 @@ class AbstractDevice:
         self, rho_power, rho_angle, power, angle, power_weights=None, angle_weights=None, **kwargs
     ):
         raise NotImplementedError
+
+    # ====
+    # Planning Functionality
+    # ====
+
+    def get_investment_cost(la=np, **kwargs):
+        return 0.0
+
+    # ====
+    # Shared Functionality (No need to override)
+    # ====
 
     # Properties
 

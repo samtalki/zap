@@ -3,6 +3,14 @@ import numpy as np
 import cvxpy as cp
 
 
+def expand_params(params, devices):
+    if params is None:
+        params = [{} for _ in devices]
+
+    assert len(params) == len(devices)
+    return params
+
+
 def replace_none(x, replacement):
     if x is None:
         return replacement

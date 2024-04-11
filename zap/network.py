@@ -13,7 +13,7 @@ from sparse_dot_mkl import sparse_qr_solve_mkl
 
 from zap.devices.abstract import AbstractDevice
 from zap.devices.ground import Ground
-from zap.util import torchify, torch_sparse, grad_or_zero
+from zap.util import torchify, torch_sparse, grad_or_zero, expand_params
 
 
 @dataclass
@@ -239,8 +239,7 @@ class PowerNetwork:
     num_nodes: int
 
     def operation_cost(self, devices, power, angle, local_variables, parameters=None, la=np):
-        if parameters is None:
-            parameters = [{} for _ in devices]
+        parameters = expand_params(parameters, devices)
 
         costs = [
             d.operation_cost(p, v, u, **param, la=la)
@@ -269,10 +268,7 @@ class PowerNetwork:
         assert time_horizon > 0
         assert all([d.time_horizon in [0, time_horizon] for d in devices])
 
-        if parameters is None:
-            parameters = [{} for _ in devices]
-        else:
-            parameters = parameters + [{}]  # For the ground
+        parameters = expand_params(parameters, devices)
 
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))
@@ -337,8 +333,7 @@ class PowerNetwork:
         )
 
     def kkt(self, devices, result, parameters=None, la=np):
-        if parameters is None:
-            parameters = [{} for _ in devices]
+        parameters = expand_params(parameters, devices)
 
         if result.ground is not None:
             devices = devices + [result.ground]
@@ -433,8 +428,7 @@ class PowerNetwork:
         return phase_diffs
 
     def kkt_jacobian_variables(self, devices, x: DispatchOutcome, parameters=None, vectorize=True):
-        if parameters is None:
-            parameters = [{} for _ in devices]
+        parameters = expand_params(parameters, devices)
 
         if x.ground is not None:
             devices = devices + [x.ground]

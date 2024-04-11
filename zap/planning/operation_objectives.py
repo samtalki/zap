@@ -4,7 +4,7 @@ import torch
 from zap.network import DispatchOutcome, PowerNetwork
 
 
-class AbstractObjective:
+class AbstractOperationObjective:
     """Abstract implementation of operation objectives."""
 
     def __call__(self, y: DispatchOutcome, parameters=None, use_torch=False):
@@ -22,7 +22,7 @@ class AbstractObjective:
         return False
 
 
-class DispatchCostObjective(AbstractObjective):
+class DispatchCostObjective(AbstractOperationObjective):
     """Cost of the dispatch outcome."""
 
     def __init__(self, net: PowerNetwork, devices):
@@ -48,7 +48,7 @@ class DispatchCostObjective(AbstractObjective):
         return False
 
 
-class EmissionsObjective(AbstractObjective):
+class EmissionsObjective(AbstractOperationObjective):
     """Total emissions of the dispatch outcome."""
 
     def forward(self, y: DispatchOutcome):

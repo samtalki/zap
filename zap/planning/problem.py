@@ -2,7 +2,7 @@ import zap.util as util
 
 from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
-from zap.planning.operation_objectives import AbstractObjective
+from zap.planning.operation_objectives import AbstractOperationObjective
 
 
 class PlanningProblem:
@@ -10,7 +10,7 @@ class PlanningProblem:
 
     def __init__(
         self,
-        operation_objective: AbstractObjective,
+        operation_objective: AbstractOperationObjective,
         investment_objective,
         layer: DispatchLayer,
         lower_bounds: dict,

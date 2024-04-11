@@ -39,13 +39,14 @@ def __(np, num_nodes, zap):
         terminal=np.array([0, 1, 3]),
         dynamic_capacity=np.array(
             [
-                [100.0, 100.0, 100.0, 100.0],  # Peaker
-                [10.0, 50.0, 50.0, 15.0],  # Solar panel
-                [15.0, 15.0, 15.0, 15.0],  # CC Gas
+                np.ones(4),  # Peaker
+                [0.2, 1.0, 1.0, 0.3],  # Solar panel
+                np.ones(4),  # CC Gas
             ]
         ),
         linear_cost=np.array([100.0, 0.5, 40.0]),
-        capital_cost=np.array([40.0, 50.0, 100.0])
+        nominal_capacity=np.array([100.0, 50.0, 15.0]),
+        capital_cost=np.array([40.0, 50.0, 100.0]),
     )
 
     loads = zap.Load(
@@ -62,7 +63,7 @@ def __(np, num_nodes, zap):
         capacity=np.array([45.0, 50.0, 11.0]),
         susceptance=np.array([0.1, 0.05, 1.0]),
         linear_cost=0.025 * np.ones(3),
-        capital_cost=np.array([15.0, 25.0, 30.0])
+        capital_cost=np.array([15.0, 25.0, 30.0]),
     )
 
     batteries = zap.Battery(
