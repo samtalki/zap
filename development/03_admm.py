@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.3.4"
+__generated_with = "0.3.10"
 app = marimo.App()
 
 
@@ -66,17 +66,14 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network(
-        f"~/pypsa-usa/workflow/resources/western/elec_s_100_ec_lv1.25_Co2L1.25.nc"
+        f"~/pypsa-usa/workflow/resources/western/elec_s_100_ec.nc"
     )
     return pn,
 
 
 @app.cell
-def __(np, pn):
-    np.max((pn.generators["p_nom"] - pn.generators["p_nom_min"]).values)
-    # [["p_nom", "p_nom_min",  "p_nom_max", "p_nom_extendable"]]
-
-    pn.generators
+def __(pn):
+    pn
     return
 
 
@@ -121,6 +118,12 @@ def __(load_pypsa_network):
 
 
 @app.cell
+def __(devices):
+    devices[3]
+    return
+
+
+@app.cell
 def __(cp, devices, net, time_horizon):
     result = net.dispatch(
         devices,
@@ -131,6 +134,24 @@ def __(cp, devices, net, time_horizon):
     )
     result.problem.value
     return result,
+
+
+@app.cell
+def __(devices):
+    len(devices)
+    return
+
+
+@app.cell
+def __(result):
+    result.shape
+    return
+
+
+@app.cell
+def __(result):
+    result.problem.solver_stats
+    return
 
 
 @app.cell
@@ -175,7 +196,7 @@ def __(mo):
 @app.cell
 def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
     simple_devices = deepcopy(devices[:3])
-    use_ac = False
+    use_ac = True
 
     # Add AC or DC lines
     if use_ac:
@@ -312,8 +333,20 @@ def __():
 
 @app.cell
 def __():
-    weighting_strategy = "smart_bounds"
+    weighting_strategy = "uniform"
     return weighting_strategy,
+
+
+@app.cell
+def __(simple_devices):
+    [type(d) for d in simple_devices]
+    return
+
+
+@app.cell
+def __(devices):
+    devices[3].num_devices
+    return
 
 
 @app.cell
@@ -370,34 +403,23 @@ def __(history, plot_convergence):
     return
 
 
-@app.cell(hide_code=True)
-def __(
-    WeightedADMMSolver,
-    admm_num_iters,
-    eps_pd,
-    net,
-    plot_convergence,
-    rho_angle,
-    rho_power,
-    simple_devices,
-    simple_result,
-    time_horizon,
-):
-    _admm = WeightedADMMSolver(
-        num_iterations=admm_num_iters,
-        rho_power=rho_power,
-        rho_angle=rho_angle,
-        rtol=eps_pd,
-        resid_norm=2,
-        safe_mode=True,
-        weighting_strategy="uniform",
-    )
+@app.cell
+def __():
+    # _admm = WeightedADMMSolver(
+    #     num_iterations=admm_num_iters,
+    #     rho_power=rho_power,
+    #     rho_angle=rho_angle,
+    #     rtol=eps_pd,
+    #     resid_norm=2,
+    #     safe_mode=True,
+    #     weighting_strategy="uniform",
+    # )
 
-    _state, _history = _admm.solve(
-        net, simple_devices, time_horizon, nu_star=-simple_result.prices
-    )
+    # _state, _history = _admm.solve(
+    #     net, simple_devices, time_horizon, nu_star=-simple_result.prices
+    # )
 
-    plot_convergence(_history)
+    # plot_convergence(_history)
     return
 
 

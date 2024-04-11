@@ -2,7 +2,7 @@ import zap.util as util
 
 from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
-from zap.planning.objectives import AbstractObjective
+from zap.planning.operation_objectives import AbstractObjective
 
 
 class PlanningProblem:
@@ -36,7 +36,14 @@ class PlanningProblem:
         return self.forward(**kwargs)
 
     def forward(self, requires_grad: bool = False, **kwargs):
-        params = self.layer.setup_parameters(**kwargs)
+        torch_kwargs = {}
+        for p, v in kwargs.items():
+            if requires_grad:
+                torch_kwargs[p] = util.torchify(v, requires_grad=True)
+            else:
+                torch_kwargs[p] = v
+
+        params = self.layer.setup_parameters(**torch_kwargs)
 
         # Forward pass through dispatch layer
         # Store this for efficient backward pass
@@ -50,24 +57,39 @@ class PlanningProblem:
         op_cost = self.operation_objective(
             self.torch_state, parameters=params, use_torch=requires_grad
         )
-        inv_cost = self.investment_objective(**kwargs)
+        inv_cost = self.investment_objective(**torch_kwargs, use_torch=requires_grad)
 
-        self.cost = op_cost  # + inv_cost
+        self.op_cost = op_cost
+        self.inv_cost = inv_cost
+        self.cost = op_cost + inv_cost
+
+        self.kwargs = kwargs
+        self.torch_kwargs = torch_kwargs
+        self.params = params
+
         return self.cost
 
-    def backward(self, **kwargs):
-        # Backward pass through objectives
+    def backward(self):
+        # Backward pass through operation / investment objective
         self.cost.backward()  # Torch backward
+
+        # Direct component of gradients
+        dtheta_direct = {k: util.grad_or_zero(v) for k, v in self.torch_kwargs.items()}
+
+        # Indirect, implicitly differentiated component
         dy = DispatchOutcome(*[util.grad_or_zero(x) for x in self.torch_state])
         dy.ground = self.state.ground
 
         # Backward pass through layer
-        dtheta = self.layer.backward(self.state, dy, regularize=self.regularize, **kwargs)
+        dtheta_op = self.layer.backward(self.state, dy, regularize=self.regularize, **self.kwargs)
+
+        # Combine gradients
+        dtheta = {k: v + dtheta_op[k] for k, v in dtheta_direct.items()}
 
         return dtheta
 
     def forward_and_back(self, **kwargs):
         J = self.forward(requires_grad=True, **kwargs)
-        grad = self.backward(**kwargs)
+        grad = self.backward()
 
         return J, grad

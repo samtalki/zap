@@ -9,12 +9,13 @@ def __():
     import marimo as mo
     import numpy as np
     import cvxpy as cp
+    import torch
 
     from copy import deepcopy
 
     import zap
     from zap import DispatchLayer
-    return DispatchLayer, cp, deepcopy, mo, np, zap
+    return DispatchLayer, cp, deepcopy, mo, np, torch, zap
 
 
 @app.cell(hide_code=True)
@@ -44,6 +45,7 @@ def __(np, num_nodes, zap):
             ]
         ),
         linear_cost=np.array([100.0, 0.5, 40.0]),
+        capital_cost=np.array([40.0, 50.0, 100.0])
     )
 
     loads = zap.Load(
@@ -59,7 +61,8 @@ def __(np, num_nodes, zap):
         sink_terminal=np.array([1, 3, 0]),
         capacity=np.array([45.0, 50.0, 11.0]),
         susceptance=np.array([0.1, 0.05, 1.0]),
-        linear_cost=0.025 * np.ones(3)
+        linear_cost=0.025 * np.ones(3),
+        capital_cost=np.array([15.0, 25.0, 30.0])
     )
 
     batteries = zap.Battery(
@@ -136,9 +139,14 @@ def __(devices, initial_parameters, layer, net, y0, zap):
 
 
 @app.cell
-def __(initial_parameters, np):
-    def inv_objective(**kwargs):
-        return np.ones((3, 1)).T @ kwargs["generator_capacity"]
+def __(generators, initial_parameters, zap):
+    def inv_objective(use_torch=False, **kwargs):
+        capital_cost = generators.capital_cost
+
+        if use_torch:
+            capital_cost = zap.util.torchify(capital_cost)
+
+        return capital_cost.T @ kwargs["generator_capacity"]
 
     inv_objective(**initial_parameters)
     return inv_objective,
@@ -181,7 +189,7 @@ def __(
         layer=layer,
         lower_bounds=lower_bounds,
         upper_bounds=upper_bounds,
-        regularize=1e-6
+        regularize=1e-4
     )
     return problem,
 
@@ -192,7 +200,7 @@ def __(initial_parameters, problem):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(mo):
     mo.md("## Compute Gradients")
     return
@@ -200,8 +208,10 @@ def __(mo):
 
 @app.cell
 def __(initial_parameters, problem):
-    J0 = problem.forward(**initial_parameters, requires_grad=True)
-    grad = problem.backward(**initial_parameters)
+    # J0 = problem.forward(**initial_parameters, requires_grad=True)
+    # grad = problem.backward()
+
+    J0, grad = problem.forward_and_back(**initial_parameters)
 
     grad
     return J0, grad
@@ -214,17 +224,17 @@ def __(mo):
 
 
 @app.cell
-def __(deepcopy, f0, grad, initial_parameters, problem):
+def __(J0, deepcopy, grad, initial_parameters, problem):
     _pname = "line_capacity"
     _pind = 1
-    _delta = 0.001
+    _delta = 0.00001
 
     new_parameters = deepcopy(initial_parameters)
     new_parameters[_pname][_pind] += _delta
 
     J1 = problem.forward(**new_parameters)
 
-    print(J1 - f0)
+    print(J1 - J0.detach().numpy())
     print(grad[_pname][_pind] * _delta)
     return J1, new_parameters
 
