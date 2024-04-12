@@ -119,6 +119,9 @@ class AbstractDevice:
     def get_investment_cost(self, **kwargs):
         return 0.0
 
+    def get_emissions(self, power, **kwargs):
+        return 0.0
+
     # ====
     # Shared Functionality (No need to override)
     # ====

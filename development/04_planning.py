@@ -47,6 +47,7 @@ def __(np, num_nodes, zap):
         linear_cost=np.array([100.0, 0.5, 40.0]),
         nominal_capacity=np.array([100.0, 50.0, 15.0]),
         capital_cost=np.array([4.0, 10.0, 10.0]),
+        emission_rates=np.array([800.0, 0.0, 500.0]),
     )
 
     loads = zap.Load(
@@ -141,17 +142,25 @@ def __(devices, initial_parameters, layer, net, y0, zap):
 
 
 @app.cell
-def __():
-    # def inv_objective(use_torch=False, **kwargs):
-    #     capital_cost = generators.capital_cost
+def __(devices, initial_parameters, layer, y0, zap):
+    carbon_objective = zap.planning.EmissionsObjective(devices)
 
-    #     if use_torch:
-    #         capital_cost = zap.util.torchify(capital_cost)
+    carbon_objective(y0, layer.setup_parameters(**initial_parameters))
+    return carbon_objective,
 
-    #     return capital_cost.T @ kwargs["generator_capacity"]
 
-    # inv_objective(**initial_parameters)
-    return
+@app.cell
+def __(generators, initial_parameters, zap):
+    def simple_inv_objective(use_torch=False, **kwargs):
+        capital_cost = generators.capital_cost
+
+        if use_torch:
+            capital_cost = zap.util.torchify(capital_cost)
+
+        return 0.0  # capital_cost.T @ kwargs["generator_capacity"]
+
+    simple_inv_objective(**initial_parameters)
+    return simple_inv_objective,
 
 
 @app.cell
@@ -192,15 +201,15 @@ def __(deepcopy, initial_parameters, max_expansion):
 
 @app.cell
 def __(
+    carbon_objective,
     inv_objective,
     layer,
     lower_bounds,
-    op_objective,
     upper_bounds,
     zap,
 ):
     problem = zap.planning.PlanningProblem(
-        operation_objective=op_objective,
+        operation_objective=carbon_objective,
         investment_objective=inv_objective,
         layer=layer,
         lower_bounds=lower_bounds,

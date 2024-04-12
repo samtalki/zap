@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from zap.network import DispatchOutcome, PowerNetwork
+from zap.devices.abstract import AbstractDevice
 
 
 class AbstractOperationObjective:
@@ -51,8 +52,21 @@ class DispatchCostObjective(AbstractOperationObjective):
 class EmissionsObjective(AbstractOperationObjective):
     """Total emissions of the dispatch outcome."""
 
-    def forward(self, y: DispatchOutcome):
-        raise NotImplementedError  # TODO
+    def __init__(self, devices: list[AbstractDevice]):
+        self.devices = devices
+
+    def forward(self, y: DispatchOutcome, parameters=None, use_torch=False):
+        if use_torch:
+            la = torch
+        else:
+            la = np
+
+        emissions = [
+            d.get_emissions(p, **param, la=la)
+            for p, d, param in zip(y.power, self.devices, parameters)
+        ]
+
+        return sum(emissions)
 
     @property
     def is_convex(self):

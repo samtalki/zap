@@ -18,6 +18,7 @@ InjectorData = namedtuple(
         "quadratic_cost",
         "nominal_capacity",
         "capital_cost",
+        "emission_rates",
     ],
 )
 
@@ -34,6 +35,7 @@ class Injector(AbstractDevice):
     quadratic_cost: Optional[NDArray] = None
     nominal_capacity: Optional[NDArray] = None
     capital_cost: Optional[NDArray] = None
+    emission_rates: Optional[NDArray] = None
 
     def __post_init__(self):
         if self.nominal_capacity is None:
@@ -46,6 +48,7 @@ class Injector(AbstractDevice):
         self.quadratic_cost = make_dynamic(self.quadratic_cost)
         self.nominal_capacity = make_dynamic(self.nominal_capacity)
         self.capital_cost = make_dynamic(self.capital_cost)
+        self.emission_rates = make_dynamic(self.emission_rates)
 
         # TODO - Add dimension checks
         pass
@@ -66,6 +69,7 @@ class Injector(AbstractDevice):
             self.quadratic_cost,
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
             self.capital_cost,
+            self.emission_rates,
         )
 
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
@@ -180,6 +184,7 @@ class Generator(Injector):
         quadratic_cost=None,
         nominal_capacity=None,
         capital_cost=None,
+        emission_rates=None,
     ):
         self.num_nodes = num_nodes
         self.terminal = terminal
@@ -192,6 +197,7 @@ class Generator(Injector):
         self.linear_cost = make_dynamic(linear_cost)
         self.quadratic_cost = make_dynamic(quadratic_cost)
         self.capital_cost = make_dynamic(capital_cost)
+        self.emission_rates = make_dynamic(emission_rates)
 
         # TODO - Add dimension checks
         pass
@@ -215,6 +221,14 @@ class Generator(Injector):
         capital_cost = data.capital_cost
 
         return la.sum(capital_cost * (nominal_capacity - pnom_min))
+
+    def get_emissions(self, power, nominal_capacity=None, la=np):
+        data = self.device_data(la=la)
+
+        if data.emission_rates is None:
+            return 0.0
+        else:
+            return la.sum(la.multiply(data.emission_rates, power[0]))
 
 
 class Load(Injector):
