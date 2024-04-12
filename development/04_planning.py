@@ -25,6 +25,12 @@ def __(mo):
 
 
 @app.cell
+def __(zap):
+    zap.importers.load_test_network()
+    return
+
+
+@app.cell
 def __():
     num_nodes = 10
     return num_nodes,
