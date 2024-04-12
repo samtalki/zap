@@ -1,10 +1,13 @@
 import numpy as np
+from typing import Tuple
 
 from zap.network import PowerNetwork
-from zap.devices import Generator, Load, ACLine, Battery
+from zap.devices import AbstractDevice, Generator, Load, ACLine, Battery
+
+TestCase = Tuple[PowerNetwork, list[AbstractDevice]]
 
 
-def load_test_network(num_nodes=7):
+def load_test_network(num_nodes=7) -> TestCase:
     net = PowerNetwork(num_nodes)
 
     generators = Generator(
@@ -50,4 +53,73 @@ def load_test_network(num_nodes=7):
     )
 
     devices = [generators, loads, links, batteries]
+    return net, devices
+
+
+def load_garver_network(curtailment_cost=500.0, init_solar=360.0) -> TestCase:
+    """Classic 6-bus network with 3 generators and 5 loads, based on Garver 1970.
+
+    The network is augmented with emissions data, fuel costs, and generator capital costs.
+
+    See Romero et al 2002, **Test systems and mathematical models for transmission network expansion
+    planning**, for more details.
+
+        https://digital-library.theiet.org/content/journals/10.1049/ip-gtd_20020026
+    """
+
+    net = PowerNetwork(6)
+
+    loads = Load(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0, 1, 2, 3, 4]),
+        load=np.array([80.0, 240.0, 40.0, 160.0, 40.0]),
+        linear_cost=curtailment_cost * np.ones(5),
+    )
+
+    # Three generators
+    # A (gas) peaker, a solar farm, and a (coal) base load plant
+    generators = Generator(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0, 2, 5]),
+        nominal_capacity=np.array([150.0, init_solar, 600.0]),
+        dynamic_capacity=np.ones(3),
+        linear_cost=np.array([36.8, 0.1, 22.4]),
+        emission_rates=np.array([0.440, 0.00, 1.03]),
+        capital_cost=np.array([5.0, 15.0, 30.0]),  # TODO - Pick better numbers
+    )
+
+    # Raw data
+    wire_reactance = np.array(
+        [0.4, 0.38, 0.6, 0.2, 0.68, 0.2, 0.4, 0.31, 0.3, 0.59, 0.2, 0.48, 0.63, 0.3, 0.61]
+    )
+    wire_capacity = np.array([100, 100, 80, 100, 70, 100, 100, 100, 100, 82, 100, 100, 75, 100, 78])
+    wire_cost = np.array([40, 38, 60, 20, 68, 20, 40, 31, 30, 59, 20, 48, 63, 30, 61])
+    num_wires = np.array([1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0])
+
+    # Convert to per-MW values
+    nominal_capacity = wire_capacity * num_wires  # Capacity in MW
+    cost = wire_cost / wire_capacity  # Cost per MW
+    susceptance = 1 / wire_reactance  # Susceptance in Siemens / wire
+    susceptance = susceptance / wire_capacity  # Susceptance in Siemens / MW
+
+    lines = ACLine(
+        num_nodes=net.num_nodes,
+        # Correct for silly 0-indexing
+        source_terminal=np.array([1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 5]) - 1,
+        sink_terminal=np.array([2, 3, 4, 5, 6, 3, 4, 5, 6, 4, 5, 6, 5, 6, 6]) - 1,
+        susceptance=susceptance,
+        capacity=np.ones(num_wires.size),
+        nominal_capacity=nominal_capacity,
+        capital_cost=cost,
+    )
+
+    # Add some helpful metadata for debugging later
+    lines.metadata = {
+        "wire_reactance": wire_reactance,
+        "wire_capacity": wire_capacity,
+        "wire_cost": wire_cost,
+    }
+
+    devices = [generators, loads, lines]
+
     return net, devices

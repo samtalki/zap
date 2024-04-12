@@ -250,13 +250,17 @@ class PowerNetwork:
     def dispatch(
         self,
         devices: list[AbstractDevice],
-        time_horizon=1,
+        time_horizon=None,
         *,
         solver=cp.ECOS,
         parameters=None,
         add_ground=True,
         solver_kwargs={},
     ) -> DispatchOutcome:
+        # Compute time horizon automatically
+        if time_horizon is None:
+            time_horizon = max([d.time_horizon for d in devices])
+
         parameters = expand_params(parameters, devices)
 
         # Add ground if necessary
