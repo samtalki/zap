@@ -45,9 +45,9 @@ def __(mo):
 @app.cell
 def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
     parameter_names = {
-        # "generator_capacity": (0, "nominal_capacity"),
+        "generator_capacity": (0, "nominal_capacity"),
         "line_capacity": (2, "nominal_capacity"),
-        # "battery_capacity": (3, "power_capacity"),
+        "battery_capacity": (3, "power_capacity"),
     }
 
     layer = DispatchLayer(
@@ -169,7 +169,7 @@ def __(
         layer=layer,
         lower_bounds=lower_bounds,
         upper_bounds=upper_bounds,
-        regularize=1e-4
+        regularize=1e-8
     )
     return problem,
 
@@ -205,13 +205,13 @@ def __(mo):
 
 @app.cell
 def __(zap):
-    line_type = zap.DCLine
+    line_type = zap.ACLine
     return line_type,
 
 
 @app.cell
 def __(J0, deepcopy, grad, initial_parameters, problem):
-    _pname = "line_capacity"
+    _pname = "battery_capacity"
     _pind = 0
     _delta = 0.001
 
@@ -223,6 +223,30 @@ def __(J0, deepcopy, grad, initial_parameters, problem):
     print(J1 - J0.detach().numpy())
     print(grad[_pname][_pind] * _delta)
     return J1, new_parameters
+
+
+@app.cell
+def __():
+    # Learned - backward accumulates gradients!
+
+    # _x = torch.tensor(np.array([1.0]), requires_grad=True)
+
+    # _y1 = _x + _x
+    # _y2 = 5 * _x
+
+    # _y1.backward(retain_graph=True)
+    # print(_x.grad)
+
+    # _y2.backward(retain_graph=True)
+    # print(_x.grad)
+
+    # _z = 3 * _x
+    # _z.backward()
+
+    # print(_x.grad
+
+    #      )
+    return
 
 
 if __name__ == "__main__":
