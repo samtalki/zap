@@ -25,26 +25,15 @@ def __(mo):
 
 
 @app.cell
-def __(zap):
+def __(line_type, zap):
     num_nodes = 10
 
-    net, devices = zap.importers.load_test_network(num_nodes=num_nodes)
+    net, devices = zap.importers.load_test_network(
+        num_nodes=num_nodes, line_type=line_type
+    )
 
     time_horizon = devices[0].time_horizon
     return devices, net, num_nodes, time_horizon
-
-
-@app.cell
-def __(cp, zap):
-    _net, _devices = zap.importers.load_garver_network()
-     
-    _y = _net.dispatch(
-        _devices,
-        solver=cp.MOSEK
-    )
-
-    _y
-    return
 
 
 @app.cell(hide_code=True)
@@ -56,9 +45,9 @@ def __(mo):
 @app.cell
 def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
     parameter_names = {
-        "generator_capacity": (0, "nominal_capacity"),
+        # "generator_capacity": (0, "nominal_capacity"),
         "line_capacity": (2, "nominal_capacity"),
-        "battery_capacity": (3, "power_capacity"),
+        # "battery_capacity": (3, "power_capacity"),
     }
 
     layer = DispatchLayer(
@@ -139,7 +128,7 @@ def __(devices, layer, other_params, zap):
 @app.cell
 def __(deepcopy, initial_parameters):
     other_params = deepcopy(initial_parameters)
-    other_params["generator_capacity"][1] += 10.0
+    # other_params["generator_capacity"][1] += 10.0
     return other_params,
 
 
@@ -215,9 +204,15 @@ def __(mo):
 
 
 @app.cell
+def __(zap):
+    line_type = zap.DCLine
+    return line_type,
+
+
+@app.cell
 def __(J0, deepcopy, grad, initial_parameters, problem):
-    _pname = "generator_capacity"
-    _pind = 1
+    _pname = "line_capacity"
+    _pind = 0
     _delta = 0.001
 
     new_parameters = deepcopy(initial_parameters)

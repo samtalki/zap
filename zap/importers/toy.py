@@ -2,12 +2,12 @@ import numpy as np
 from typing import Tuple
 
 from zap.network import PowerNetwork
-from zap.devices import AbstractDevice, Generator, Load, ACLine, Battery
+from zap.devices import AbstractDevice, Generator, Load, DCLine, ACLine, Battery
 
 TestCase = Tuple[PowerNetwork, list[AbstractDevice]]
 
 
-def load_test_network(num_nodes=7) -> TestCase:
+def load_test_network(num_nodes: int = 7, line_type=ACLine) -> TestCase:
     net = PowerNetwork(num_nodes)
 
     generators = Generator(
@@ -33,16 +33,20 @@ def load_test_network(num_nodes=7) -> TestCase:
         linear_cost=np.array([200.0]),
     )
 
-    links = ACLine(
-        num_nodes=num_nodes,
-        source_terminal=np.array([0, 1, 3]),
-        sink_terminal=np.array([1, 3, 0]),
-        capacity=np.ones(3),
-        susceptance=np.array([0.1, 0.05, 1.0]),
-        nominal_capacity=np.array([45.0, 50.0, 11.0]),
-        linear_cost=0.025 * np.ones(3),
-        capital_cost=np.array([100.0, 25.0, 30.0]),
-    )
+    line_kwargs = {
+        "num_nodes": num_nodes,
+        "source_terminal": np.array([0, 1, 3]),
+        "sink_terminal": np.array([1, 3, 0]),
+        "capacity": np.ones(3),
+        "nominal_capacity": np.array([45.0, 50.0, 11.0]),
+        "linear_cost": 0.025 * np.ones(3),
+        "capital_cost": np.array([100.0, 25.0, 30.0]),
+    }
+
+    if line_type == ACLine:
+        lines = ACLine(susceptance=np.array([0.1, 0.05, 1.0]), **line_kwargs)
+    else:  # line_type == DCLine
+        lines = DCLine(**line_kwargs)
 
     batteries = Battery(
         num_nodes=num_nodes,
@@ -52,7 +56,7 @@ def load_test_network(num_nodes=7) -> TestCase:
         linear_cost=np.array([0.01]),
     )
 
-    devices = [generators, loads, links, batteries]
+    devices = [generators, loads, lines, batteries]
     return net, devices
 
 

@@ -138,7 +138,7 @@ class Transporter(AbstractDevice):
         # Nominal capacity isn't passed here because we want to use the original value
         data = self.device_data(la=la)
 
-        if self.capital_cost is None:
+        if self.capital_cost is None or nominal_capacity is None:
             return 0.0
 
         pnom_min = data.nominal_capacity

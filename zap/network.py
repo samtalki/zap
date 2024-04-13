@@ -663,7 +663,9 @@ class PowerNetwork:
             x_tc.power[i], x_tc.angle[i], x_tc.local_variables[i], **param_i, la=torch
         )
         for d_nu, eq in zip(torchify(grad.local_equality_duals[i]), equalities):
+            eq: torch.Tensor
             if eq.requires_grad:
+                print("Calculate equality VJP!")
                 eq.backward(d_nu, retain_graph=True)  # TODO - Is this bad?
                 param_i_grad += grad_or_zero(param_i[param_name])
 
@@ -675,6 +677,7 @@ class PowerNetwork:
             torchify(grad.local_inequality_duals[i]), x_tc.local_inequality_duals[i], ineqs
         ):
             if ineq.requires_grad:
+                print("Calculate inequality VJP!")
                 ineq.backward(torch.multiply(lam, d_lam))
                 param_i_grad += grad_or_zero(param_i[param_name])
 
