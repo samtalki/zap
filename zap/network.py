@@ -468,8 +468,8 @@ class PowerNetwork:
         # Construct block row by block row
         # Part 1 - Phase duals (interface)
         # Jacobian is just the matrices of the equality constraint: A[d][t].T @ theta - phi[d][t]
-        jac.phase_duals.angle += -sp.eye(dims.phase_duals)
-        jac.phase_duals.global_angle += angle_incidence.T
+        jac.phase_duals.angle = -sp.eye(dims.phase_duals)
+        jac.phase_duals.global_angle = angle_incidence.T
 
         # Part 2 - Local equality duals (local)
         eq_mats = [
@@ -485,9 +485,9 @@ class PowerNetwork:
             [_blockify(eqm, u, "local_variables") for eqm, u in zip(eq_mats, x.local_variables)]
         )
 
-        jac.local_equality_duals.power += A_p
-        jac.local_equality_duals.angle += A_a
-        jac.local_equality_duals.local_variables += A_u
+        jac.local_equality_duals.power = A_p
+        jac.local_equality_duals.angle = A_a
+        jac.local_equality_duals.local_variables = A_u
 
         # Part 3 - Local inequcality duals (local)
         inequalities = x._safe_cat(
@@ -519,28 +519,28 @@ class PowerNetwork:
         diag_lamb = sp.diags(x_vec[i_lieq[0] : i_lieq[1]])
 
         # diag(C*x - d)
-        jac.local_inequality_duals.local_inequality_duals += sp.diags(inequalities)
+        jac.local_inequality_duals.local_inequality_duals = sp.diags(inequalities)
 
         # diag(lamb) * C
-        jac.local_inequality_duals.power += diag_lamb * C_p
-        jac.local_inequality_duals.angle += diag_lamb * C_a
-        jac.local_inequality_duals.local_variables += diag_lamb * C_u
+        jac.local_inequality_duals.power = diag_lamb * C_p
+        jac.local_inequality_duals.angle = diag_lamb * C_a
+        jac.local_inequality_duals.local_variables = diag_lamb * C_u
 
         # Part 4 - Local variables (local)
-        jac.local_variables.local_equality_duals += A_u.T
-        jac.local_variables.local_inequality_duals += C_u.T
+        jac.local_variables.local_equality_duals = A_u.T
+        jac.local_variables.local_inequality_duals = C_u.T
         # TODO - Local objective
 
         # Part 5 - Power (interface)
-        jac.power.prices += -power_incidence.T
-        jac.power.local_equality_duals += A_p.T
-        jac.power.local_inequality_duals += C_p.T
+        jac.power.prices = -power_incidence.T
+        jac.power.local_equality_duals = A_p.T
+        jac.power.local_inequality_duals = C_p.T
         # TODO - Local objective
 
         # Part 6 - Angle (interface)
-        jac.angle.phase_duals += -sp.eye(dims.angle)
-        jac.angle.local_equality_duals += A_a.T
-        jac.angle.local_inequality_duals += C_a.T
+        jac.angle.phase_duals = -sp.eye(dims.angle)
+        jac.angle.local_equality_duals = A_a.T
+        jac.angle.local_inequality_duals = C_a.T
         # TODO - Local objective
 
         # Part 7 - Prices, nu (global)
@@ -548,13 +548,13 @@ class PowerNetwork:
         # per node and time period
         # Constraint:      sum(A[d][t] @ p[d][t]) == 0      (dual variable nu)
         # Jacobian:        A[d][t]                          (in row of p[d][t])
-        jac.prices.power += power_incidence
+        jac.prices.power = power_incidence
 
         # Part 8 - Global angle, theta (global)
         # Only participates in the phase consistency constraints (d = device, t = terminal)
         # Constraint:       A[d][t].T @ theta == phi[d][t]      (dual variable mu[d][t])
         # Jacobian:         A[d][t]                             (in column of mu[d][t])
-        jac.global_angle.phase_duals += angle_incidence
+        jac.global_angle.phase_duals = angle_incidence
 
         if vectorize:
             return sp.vstack([sp.hstack([Jij for Jij in Ji]) for Ji in jac], format="csc")

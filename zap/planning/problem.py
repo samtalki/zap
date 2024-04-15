@@ -1,8 +1,23 @@
-import zap.util as util
+import dataclasses
+import numpy as np
 
+import zap.util as util
 from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
 from zap.planning.operation_objectives import AbstractOperationObjective
+
+
+@dataclasses.dataclass(kw_only=True)
+class GradientDescent:
+    """Parameters for gradient descent."""
+
+    step_size: float = 1e-3
+
+    def step(self, state: dict, grad: dict):
+        for param in state.keys():
+            state[param] -= self.step_size * grad[param].numpy()
+
+        return state
 
 
 class PlanningProblem:
@@ -93,3 +108,46 @@ class PlanningProblem:
         grad = self.backward()
 
         return J, grad
+
+    def solve(self, algorithm=None, initial_state=None, num_iterations=100):
+        if algorithm is None:
+            algorithm = GradientDescent()
+
+        # Setup initial state and history
+        state = self.initialize_parameters(initial_state)
+        history = {
+            "loss": [],
+        }  # TODO(later) Add other trackers
+
+        # Initialize loop
+        J, grad = self.forward_and_back(**state)
+        history = self.update_history(history, J, grad, state)
+
+        # Gradient descent loop
+        for iteration in range(num_iterations):
+            # Gradient step and project
+            state = algorithm.step(state, grad)
+            state = self.project(state)
+
+            # Update loss
+            J, grad = self.forward_and_back(**state)
+
+            # Record stuff
+            history = self.update_history(history, J, grad, state)
+
+        return state, history
+
+    def initialize_parameters(self, initial_state):
+        if initial_state is None:
+            return self.layer.initialize_parameters()
+        else:
+            return initial_state
+
+    def update_history(self, history: dict, J, grad, state):
+        history["loss"] += [J]
+        return history
+
+    def project(self, state: dict):
+        for param in state.keys():
+            state[param] = np.clip(state[param], self.lower_bounds[param], self.upper_bounds[param])
+        return state

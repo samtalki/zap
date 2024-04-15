@@ -270,12 +270,54 @@ def __(mo):
 
 @app.cell
 def __():
+    import cProfile
+    import pstats
+    return cProfile, pstats
+
+
+@app.cell
+def __():
+    # _J0 = problem.forward(**initial_parameters, requires_grad=True)
+    # cProfile.run("problem.backward()", sort=pstats.SortKey.CUMULATIVE)
     return
 
 
 @app.cell
 def __():
+    # stats = cProfile.run("problem.solve(num_iterations=50)", sort=pstats.SortKey.CUMULATIVE)
     return
+
+
+@app.cell
+def __(initial_parameters, layer):
+    layer(**initial_parameters)
+    None
+    return
+
+
+@app.cell
+def __(problem, zap):
+    alg = zap.planning.GradientDescent(step_size=1e-2)
+
+    state, history = problem.solve(num_iterations=50, algorithm=alg)
+    return alg, history, state
+
+
+@app.cell
+def __(history):
+    import matplotlib.pyplot as plt
+    import seaborn
+
+    seaborn.set_theme(style="whitegrid")
+
+    loss = [h.detach().numpy() for h in history["loss"]]
+
+    print(loss[-1])
+
+    plt.figure(figsize=(6, 2))
+    plt.plot(loss)
+    plt.show()
+    return loss, plt, seaborn
 
 
 @app.cell(hide_code=True)

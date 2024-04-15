@@ -1,5 +1,6 @@
 import cvxpy as cp
 from typing import Any
+from copy import deepcopy
 
 from zap.network import PowerNetwork, DispatchOutcome
 from zap.devices.abstract import AbstractDevice
@@ -79,3 +80,10 @@ class DispatchLayer:
         # print("J_theta.T @ x: ", time.time() - start)
 
         return dtheta
+
+    def initialize_parameters(self):
+        initial_parameters = {}
+        for name, (index, attr) in self.parameter_names.items():
+            initial_parameters[name] = deepcopy(getattr(self.devices[index], attr))
+
+        return initial_parameters
