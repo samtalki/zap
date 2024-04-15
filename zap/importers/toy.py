@@ -96,9 +96,11 @@ def load_garver_network(curtailment_cost=500.0, init_solar=360.0) -> TestCase:
     wire_reactance = np.array(
         [0.4, 0.38, 0.6, 0.2, 0.68, 0.2, 0.4, 0.31, 0.3, 0.59, 0.2, 0.48, 0.63, 0.3, 0.61]
     )
-    wire_capacity = np.array([100, 100, 80, 100, 70, 100, 100, 100, 100, 82, 100, 100, 75, 100, 78])
-    wire_cost = np.array([40, 38, 60, 20, 68, 20, 40, 31, 30, 59, 20, 48, 63, 30, 61])
-    num_wires = np.array([1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0])
+    wire_capacity = np.array(
+        [100.0, 100, 80, 100, 70, 100, 100, 100, 100, 82, 100, 100, 75, 100, 78]
+    )
+    wire_cost = np.array([40.0, 38, 60, 20, 68, 20, 40, 31, 30, 59, 20, 48, 63, 30, 61])
+    num_wires = np.array([1.0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0])
 
     # Convert to per-MW values
     nominal_capacity = wire_capacity * num_wires  # Capacity in MW

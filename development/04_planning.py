@@ -25,14 +25,14 @@ def __(mo):
 
 
 @app.cell
-def __(line_type, zap):
-    num_nodes = 10
-
-    net, devices = zap.importers.load_test_network(
-        num_nodes=num_nodes, line_type=line_type
-    )
+def __(zap):
+    # net, devices = zap.importers.load_test_network(
+    #     num_nodes=10, line_type=line_type
+    # )
+    net, devices = zap.importers.load_garver_network()
 
     time_horizon = devices[0].time_horizon
+    num_nodes = net.num_nodes
     return devices, net, num_nodes, time_horizon
 
 
@@ -47,7 +47,7 @@ def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
     parameter_names = {
         "generator_capacity": (0, "nominal_capacity"),
         "line_capacity": (2, "nominal_capacity"),
-        "battery_capacity": (3, "power_capacity"),
+        # "battery_capacity": (3, "power_capacity"),
     }
 
     layer = DispatchLayer(
@@ -156,20 +156,20 @@ def __(deepcopy, initial_parameters, max_expansion):
 
 @app.cell
 def __(
-    carbon_objective,
     inv_objective,
     layer,
     lower_bounds,
+    op_objective,
     upper_bounds,
     zap,
 ):
     problem = zap.planning.PlanningProblem(
-        operation_objective=carbon_objective,
+        operation_objective=op_objective,
         investment_objective=inv_objective,
         layer=layer,
         lower_bounds=lower_bounds,
         upper_bounds=upper_bounds,
-        regularize=1e-8
+        regularize=1e-6
     )
     return problem,
 
@@ -210,18 +210,26 @@ def __(zap):
 
 
 @app.cell
+def __(initial_parameters):
+    initial_parameters["line_capacity"]
+    return
+
+
+@app.cell
 def __(J0, deepcopy, grad, initial_parameters, problem):
-    _pname = "battery_capacity"
-    _pind = 0
+    _pname = "line_capacity"
     _delta = 0.001
 
-    new_parameters = deepcopy(initial_parameters)
-    new_parameters[_pname][_pind] += _delta
 
-    J1 = problem.forward(**new_parameters)
+    for _pind in range(len(initial_parameters[_pname])):
 
-    print(J1 - J0.detach().numpy())
-    print(grad[_pname][_pind] * _delta)
+        new_parameters = deepcopy(initial_parameters)
+        new_parameters[_pname][_pind] += _delta
+
+        J1 = problem.forward(**new_parameters)
+
+        print(_pind, initial_parameters[_pname][_pind])
+        print(J1 - J0.detach().numpy(), grad[_pname][_pind] * _delta, "\n")
     return J1, new_parameters
 
 
