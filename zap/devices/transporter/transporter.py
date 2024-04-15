@@ -20,6 +20,7 @@ TransporterData = namedtuple(
         "quadratic_cost",
         "nominal_capacity",
         "capital_cost",
+        "slack",
     ],
 )
 
@@ -40,6 +41,7 @@ class Transporter(AbstractDevice):
     quadratic_cost: Optional[NDArray] = None
     nominal_capacity: Optional[NDArray] = None
     capital_cost: Optional[NDArray] = None
+    slack: Optional[NDArray] = None
 
     def __post_init__(self):
         # Reshape arrays
@@ -51,6 +53,7 @@ class Transporter(AbstractDevice):
             replace_none(self.nominal_capacity, np.ones(self.num_devices))
         )
         self.capital_cost = make_dynamic(self.capital_cost)
+        self.slack = 0.0 if self.slack is None else make_dynamic(self.slack)
 
         # TODO - Add dimension checks
         pass
@@ -71,6 +74,7 @@ class Transporter(AbstractDevice):
             self.quadratic_cost,
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
             self.capital_cost,
+            self.slack,
         )
 
     def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
@@ -81,8 +85,8 @@ class Transporter(AbstractDevice):
         base = choose_base_modeler(la)
 
         return [
-            base.multiply(data.min_power, data.nominal_capacity) - power[1],
-            power[1] - base.multiply(data.max_power, data.nominal_capacity),
+            base.multiply(data.min_power, data.nominal_capacity) - power[1] - data.slack,
+            power[1] - base.multiply(data.max_power, data.nominal_capacity) - data.slack,
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
@@ -119,6 +123,7 @@ class Transporter(AbstractDevice):
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
+        self.slack /= scale
 
     def get_investment_cost(self, nominal_capacity=None, la=np):
         # Get original nominal capacity and capital cost
@@ -155,8 +160,8 @@ class Transporter(AbstractDevice):
     ):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
-        pmax = np.multiply(data.max_power, data.nominal_capacity)
-        pmin = np.multiply(data.min_power, data.nominal_capacity)
+        pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
+        pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
 
         Dp2 = [np.power(p, 2) for p in power_weights]
 

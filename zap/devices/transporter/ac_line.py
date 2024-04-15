@@ -17,6 +17,7 @@ ACLineData = namedtuple(
         "nominal_capacity",
         "susceptance",
         "capital_cost",
+        "slack",
     ],
 )
 
@@ -36,6 +37,7 @@ class ACLine(PowerLine):
         quadratic_cost=None,
         nominal_capacity=None,
         capital_cost=None,
+        slack=None,
     ):
         self.susceptance = make_dynamic(susceptance)
 
@@ -48,6 +50,7 @@ class ACLine(PowerLine):
             quadratic_cost=quadratic_cost,
             nominal_capacity=nominal_capacity,
             capital_cost=capital_cost,
+            slack=slack,
         )
 
     @property
@@ -63,6 +66,7 @@ class ACLine(PowerLine):
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
             self.susceptance,
             self.capital_cost,
+            self.slack,
         )
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):
@@ -118,8 +122,8 @@ class ACLine(PowerLine):
 
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
-        pmax = np.multiply(data.max_power, data.nominal_capacity)
-        pmin = np.multiply(data.min_power, data.nominal_capacity)
+        pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
+        pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
         susceptance = la.multiply(data.susceptance, data.nominal_capacity)
 
         assert np.sum(np.abs(data.linear_cost)) == 0.0  # TODO
@@ -160,8 +164,8 @@ class ACLine(PowerLine):
         import cvxpy as cp
 
         data = self.device_data(nominal_capacity=nominal_capacity)
-        pmax = np.multiply(data.max_power, data.nominal_capacity)
-        pmin = np.multiply(data.min_power, data.nominal_capacity)
+        pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
+        pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
         susceptance = np.multiply(data.susceptance, data.nominal_capacity)
 
         p0 = cp.Variable(power[0].shape)

@@ -19,6 +19,7 @@ class PowerLine(Transporter):
         quadratic_cost=None,
         nominal_capacity=None,
         capital_cost=None,
+        slack=None,
     ):
         if linear_cost is None:
             linear_cost = np.zeros(capacity.shape)
@@ -33,6 +34,7 @@ class PowerLine(Transporter):
             replace_none(nominal_capacity, np.ones(self.num_devices))
         )
         self.capital_cost = make_dynamic(capital_cost)
+        self.slack = 0.0 if slack is None else make_dynamic(slack)
 
     @property
     def min_power(self):

@@ -29,11 +29,17 @@ def __(zap):
     # net, devices = zap.importers.load_test_network(
     #     num_nodes=10, line_type=line_type
     # )
-    net, devices = zap.importers.load_garver_network()
+    net, devices = zap.importers.load_garver_network(line_slack=1.0)
 
     time_horizon = devices[0].time_horizon
     num_nodes = net.num_nodes
     return devices, net, num_nodes, time_horizon
+
+
+@app.cell
+def __(devices):
+    devices[2].slack
+    return
 
 
 @app.cell(hide_code=True)
@@ -45,7 +51,7 @@ def __(mo):
 @app.cell
 def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
     parameter_names = {
-        "generator_capacity": (0, "nominal_capacity"),
+        # "generator_capacity": (0, "nominal_capacity"),
         "line_capacity": (2, "nominal_capacity"),
         # "battery_capacity": (3, "power_capacity"),
     }
@@ -63,7 +69,8 @@ def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
     for name, (index, attr) in parameter_names.items():
         initial_parameters[name] = deepcopy(getattr(devices[index], attr))
 
-    initial_parameters
+    initial_parameters["line_capacity"] += 0.1
+    # initial_parameters
     return attr, index, initial_parameters, layer, name, parameter_names
 
 
@@ -71,6 +78,25 @@ def __(DispatchLayer, cp, deepcopy, devices, net, time_horizon):
 def __(initial_parameters, layer):
     y0 = layer(**initial_parameters)
     return y0,
+
+
+@app.cell
+def __(y0):
+    y0.power[0]
+    return
+
+
+@app.cell
+def __(initial_parameters, y0):
+    list(
+        zip(
+            initial_parameters["line_capacity"],
+            y0.power[2][1],
+            y0.local_inequality_duals[2][0],
+            y0.local_inequality_duals[2][1]
+        )
+    )
+    return
 
 
 @app.cell(hide_code=True)
@@ -228,9 +254,34 @@ def __(J0, deepcopy, grad, initial_parameters, problem):
 
         J1 = problem.forward(**new_parameters)
 
-        print(_pind, initial_parameters[_pname][_pind])
-        print(J1 - J0.detach().numpy(), grad[_pname][_pind] * _delta, "\n")
+        print(
+            _pind,
+            initial_parameters[_pname][_pind],
+            J1 - J0.detach().numpy() - grad[_pname][_pind].numpy() * _delta,
+        )
     return J1, new_parameters
+
+
+@app.cell
+def __(mo):
+    mo.md("## Gradient Descent Loop")
+    return
+
+
+@app.cell
+def __():
+    return
+
+
+@app.cell
+def __():
+    return
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md("## Debugging")
+    return
 
 
 @app.cell

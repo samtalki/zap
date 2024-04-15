@@ -60,7 +60,7 @@ def load_test_network(num_nodes: int = 7, line_type=ACLine) -> TestCase:
     return net, devices
 
 
-def load_garver_network(curtailment_cost=500.0, init_solar=360.0) -> TestCase:
+def load_garver_network(curtailment_cost=500.0, init_solar=360.0, line_slack=0.0) -> TestCase:
     """Classic 6-bus network with 3 generators and 5 loads, based on Garver 1970.
 
     The network is augmented with emissions data, fuel costs, and generator capital costs.
@@ -117,6 +117,7 @@ def load_garver_network(curtailment_cost=500.0, init_solar=360.0) -> TestCase:
         capacity=np.ones(num_wires.size),
         nominal_capacity=nominal_capacity,
         capital_cost=cost,
+        slack=line_slack,
     )
 
     # Add some helpful metadata for debugging later
