@@ -259,60 +259,37 @@ def __(mo):
 
 @app.cell
 def __():
-    # import cProfile
-    # import pstats
-    return
+    import zap.planning.trackers as tr
+    return tr,
 
 
 @app.cell
-def __():
-    # _J0 = problem.forward(**initial_parameters, requires_grad=True)
-    # cProfile.run("problem.backward()", sort=pstats.SortKey.CUMULATIVE)
-    return
-
-
-@app.cell
-def __():
-    # stats = cProfile.run("problem.solve(num_iterations=50)", sort=pstats.SortKey.CUMULATIVE)
-    return
-
-
-@app.cell
-def __():
-    # layer(**initial_parameters)
-    # None
-    return
-
-
-@app.cell
-def __(problem, zap):
+def __(problem, tr, zap):
     alg = zap.planning.GradientDescent(step_size=0.1)
 
-    state, history = problem.solve(num_iterations=100, algorithm=alg)
+    state, history = problem.solve(
+        num_iterations=100,
+        algorithm=alg,
+        trackers=[tr.LOSS, tr.PARAM, tr.GRAD_NORM, tr.PROJ_GRAD_NORM],
+    )
     return alg, history, state
 
 
 @app.cell
-def __(history):
+def __(devices, history, yf):
     import matplotlib.pyplot as plt
     import seaborn
 
     seaborn.set_theme(style="whitegrid")
 
-    loss = [h.detach().numpy() for h in history["loss"]]
-
-    print(loss[-1])
+    print("op cost:", devices[0].operation_cost(yf.power[0], yf.angle[0], None))
+    print("total cost:", history["loss"][-1])
 
     plt.figure(figsize=(6, 2))
-    plt.plot(loss)
+    plt.plot(history["loss"])
+    # plt.yscale("log")
     plt.show()
-    return loss, plt, seaborn
-
-
-@app.cell
-def __(devices, yf):
-    devices[0].operation_cost(yf.power[0], yf.angle[0], None)
-    return
+    return plt, seaborn
 
 
 @app.cell(hide_code=True)
@@ -322,9 +299,9 @@ def __(np, plt, problem, state):
     _k = "line_capacity"
     _x = range(len(state[_k]))
 
-    ax.bar(np.array(_x), state[_k].ravel(), width=0.4)
-    ax.bar(np.array(_x) + 0.4, problem.lower_bounds[_k].ravel() + 4, width=0.4)
-
+    ax.bar(np.array(_x) - 0.15, state[_k].ravel(), width=0.3)
+    ax.bar(np.array(_x) + 0.15, problem.lower_bounds[_k].ravel(), width=0.3)
+    ax.set_xticks(_x)
 
     fig
     return ax, fig
@@ -346,14 +323,14 @@ def __(mo):
 
 
 @app.cell
-def __(devices):
-    devices[0].linear_cost
+def __():
+    # devices[0].linear_cost
     return
 
 
 @app.cell
-def __(devices):
-    devices[2].capital_cost * 20.0
+def __():
+    # devices[2].capital_cost * 20.0
     return
 
 
@@ -378,6 +355,14 @@ def __():
     # print(_x.grad
 
     #      )
+    return
+
+
+@app.cell
+def __():
+    # _J, _grad = problem.forward_and_back(**state)
+
+    # _grad["line_capacity"].norm(p=1)
     return
 
 

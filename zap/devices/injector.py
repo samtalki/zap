@@ -185,6 +185,8 @@ class Generator(Injector):
         nominal_capacity=None,
         capital_cost=None,
         emission_rates=None,
+        min_nominal_capacity=None,
+        max_nominal_capacity=None,
     ):
         self.num_nodes = num_nodes
         self.terminal = terminal
@@ -198,6 +200,8 @@ class Generator(Injector):
         self.quadratic_cost = make_dynamic(quadratic_cost)
         self.capital_cost = make_dynamic(capital_cost)
         self.emission_rates = make_dynamic(emission_rates)
+        self.min_nominal_capacity = make_dynamic(min_nominal_capacity)
+        self.max_nominal_capacity = make_dynamic(max_nominal_capacity)
 
         # TODO - Add dimension checks
         pass

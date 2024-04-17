@@ -1,10 +1,12 @@
 import dataclasses
 import numpy as np
+from copy import deepcopy
 
 import zap.util as util
 from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
 from zap.planning.operation_objectives import AbstractOperationObjective
+from .trackers import DEFAULT_TRACKERS, TRACKER_MAPS
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -109,22 +111,27 @@ class PlanningProblem:
 
         return J, grad
 
-    def solve(self, algorithm=None, initial_state=None, num_iterations=100):
+    def solve(self, algorithm=None, initial_state=None, num_iterations=100, trackers=None):
         if algorithm is None:
             algorithm = GradientDescent()
 
+        if trackers is None:
+            trackers = DEFAULT_TRACKERS
+
+        assert all([t in TRACKER_MAPS for t in trackers])
+
         # Setup initial state and history
         state = self.initialize_parameters(initial_state)
-        history = {
-            "loss": [],
-        }  # TODO(later) Add other trackers
+        history = self.initialize_history(trackers)
 
         # Initialize loop
         J, grad = self.forward_and_back(**state)
-        history = self.update_history(history, J, grad, state)
+        history = self.update_history(history, trackers, J, grad, state, None)
 
         # Gradient descent loop
         for iteration in range(num_iterations):
+            last_state = deepcopy(state)
+
             # Gradient step and project
             state = algorithm.step(state, grad)
             state = self.project(state)
@@ -133,7 +140,7 @@ class PlanningProblem:
             J, grad = self.forward_and_back(**state)
 
             # Record stuff
-            history = self.update_history(history, J, grad, state)
+            history = self.update_history(history, trackers, J, grad, state, last_state)
 
         return state, history
 
@@ -143,8 +150,14 @@ class PlanningProblem:
         else:
             return initial_state
 
-    def update_history(self, history: dict, J, grad, state):
-        history["loss"] += [J]
+    def initialize_history(self, trackers):
+        return {k: [] for k in trackers}
+
+    def update_history(self, history: dict, trackers: dict, J, grad, state, last_state):
+        for tracker in trackers:
+            f = TRACKER_MAPS[tracker]
+            history[tracker] += [f(J, grad, state, last_state)]
+
         return history
 
     def project(self, state: dict):
