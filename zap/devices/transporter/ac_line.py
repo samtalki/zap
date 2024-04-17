@@ -38,6 +38,8 @@ class ACLine(PowerLine):
         nominal_capacity=None,
         capital_cost=None,
         slack=None,
+        min_nominal_capacity=None,
+        max_nominal_capacity=None,
     ):
         self.susceptance = make_dynamic(susceptance)
 
@@ -51,6 +53,8 @@ class ACLine(PowerLine):
             nominal_capacity=nominal_capacity,
             capital_cost=capital_cost,
             slack=slack,
+            min_nominal_capacity=min_nominal_capacity,
+            max_nominal_capacity=max_nominal_capacity,
         )
 
     @property

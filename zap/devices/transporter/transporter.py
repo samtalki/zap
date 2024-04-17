@@ -42,6 +42,8 @@ class Transporter(AbstractDevice):
     nominal_capacity: Optional[NDArray] = None
     capital_cost: Optional[NDArray] = None
     slack: Optional[NDArray] = None
+    min_nominal_capacity: Optional[NDArray] = None
+    max_nominal_capacity: Optional[NDArray] = None
 
     def __post_init__(self):
         # Reshape arrays
@@ -54,6 +56,8 @@ class Transporter(AbstractDevice):
         )
         self.capital_cost = make_dynamic(self.capital_cost)
         self.slack = 0.0 if self.slack is None else make_dynamic(self.slack)
+        self.min_nominal_capacity = make_dynamic(self.min_nominal_capacity)
+        self.max_nominal_capacity = make_dynamic(self.max_nominal_capacity)
 
         # TODO - Add dimension checks
         pass

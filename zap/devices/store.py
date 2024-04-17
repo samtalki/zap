@@ -52,6 +52,8 @@ class Battery(AbstractDevice):
         linear_cost: Optional[NDArray] = None,
         quadratic_cost: Optional[NDArray] = None,
         capital_cost: Optional[NDArray] = None,
+        min_power_capacity=None,
+        max_power_capacity=None,
     ):
         if linear_cost is None:
             linear_cost = np.zeros(power_capacity.shape)
@@ -75,6 +77,8 @@ class Battery(AbstractDevice):
         self.linear_cost = make_dynamic(linear_cost)
         self.quadratic_cost = make_dynamic(quadratic_cost)
         self.capital_cost = make_dynamic(capital_cost)
+        self.min_power_capacity = make_dynamic(min_power_capacity)
+        self.max_power_capacity = make_dynamic(max_power_capacity)
 
     @property
     def terminals(self):

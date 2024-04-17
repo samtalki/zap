@@ -366,5 +366,25 @@ def __():
     return
 
 
+@app.cell
+def __():
+    # import pypsa
+    # import pandas as pd
+    # import datetime as dt
+
+    # pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100_ec.nc")
+    # _net, _dev = zap.importers.load_pypsa_network(
+    #     pn,
+    #     pd.date_range(
+    #         dt.datetime(2019, 1, 2, 0),
+    #         dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=4),
+    #         freq="1h",
+    #         inclusive="left",
+    #     ),
+    # )
+    # # _dev[0].max_nominal_capacity
+    return
+
+
 if __name__ == "__main__":
     app.run()

@@ -58,6 +58,8 @@ def parse_generators(
 
     # Build nominal capacities
     nominal_capacities = net.generators.p_nom.values
+    min_nominal_capacities = net.generators.p_nom.values
+    max_nominal_capacities = net.generators.p_nom_max.values
 
     # Build capital costs
     capital_costs = net.generators.capital_cost.values * (len(dates) / HOURS_PER_YEAR)
@@ -69,6 +71,9 @@ def parse_generators(
         dynamic_costs = dynamic_costs[mask]
         nominal_capacities = nominal_capacities[mask]
         capital_costs = capital_costs[mask]
+        min_nominal_capacities = min_nominal_capacities[mask]
+        max_nominal_capacities = max_nominal_capacities[mask]
+
     else:
         nominal_capacities += expand_empty_generators
 
@@ -79,6 +84,8 @@ def parse_generators(
         dynamic_capacity=dynamic_capacities,
         linear_cost=dynamic_costs,
         capital_cost=capital_costs,
+        min_nominal_capacity=min_nominal_capacities,
+        max_nominal_capacity=max_nominal_capacities,
     )
 
 
