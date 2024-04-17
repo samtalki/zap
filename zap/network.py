@@ -255,6 +255,7 @@ class PowerNetwork:
         solver=cp.ECOS,
         parameters=None,
         add_ground=True,
+        dual=False,
         solver_kwargs={},
     ) -> DispatchOutcome:
         # Compute time horizon automatically
@@ -282,9 +283,16 @@ class PowerNetwork:
         local_variables = [d.model_local_variables(time_horizon) for d in devices]
 
         # Model constraints
-        net_power = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, power)])
+        if dual:
+            # Swap constraints
+            net_power = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, angle)])
+            phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, power)]
+
+        else:  # Primal
+            net_power = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, power)])
+            phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, angle)]
+
         power_balance = net_power == 0
-        phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, angle)]
 
         local_equalities = [
             [hi == 0 for hi in d.equality_constraints(p, v, u, **param, la=cp)]
@@ -327,7 +335,7 @@ class PowerNetwork:
             power=power,
             angle=angle,
             local_variables=local_variables,
-            prices=-power_balance.dual_value,
+            prices=None if isinstance(power_balance, bool) else -power_balance.dual_value,
             phase_duals=[
                 [pci.dual_value for pci in pc] if len(pc) > 0 else None for pc in phase_consistency
             ],
@@ -705,7 +713,10 @@ def apply_incidence_transpose(device: AbstractDevice, x, la=np):
 
 
 def get_net_power(device: AbstractDevice, p: list[cp.Variable], la=np):
-    return sum(apply_incidence(device, p, la=la))
+    if p is not None:
+        return sum(apply_incidence(device, p, la=la))
+    else:
+        return 0.0
 
 
 def match_phases(device: AbstractDevice, v, global_v):
