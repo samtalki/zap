@@ -60,7 +60,12 @@ def load_test_network(num_nodes: int = 7, line_type=ACLine) -> TestCase:
     return net, devices
 
 
-def load_garver_network(curtailment_cost=500.0, init_solar=360.0, line_slack=0.0) -> TestCase:
+def load_garver_network(
+    curtailment_cost=500.0,
+    init_solar=360.0,
+    line_slack=0.0,
+    line_cost_scale=1.0,
+) -> TestCase:
     """Classic 6-bus network with 3 generators and 5 loads, based on Garver 1970.
 
     The network is augmented with emissions data, fuel costs, and generator capital costs.
@@ -84,10 +89,10 @@ def load_garver_network(curtailment_cost=500.0, init_solar=360.0, line_slack=0.0
     # A (gas) peaker, a solar farm, and a (coal) base load plant
     generators = Generator(
         num_nodes=net.num_nodes,
-        terminal=np.array([0, 2, 5]),
+        terminal=np.array([0, 5, 2]),
         nominal_capacity=np.array([150.0, init_solar, 600.0]),
         dynamic_capacity=np.ones(3),
-        linear_cost=np.array([36.8, 0.1, 22.4]),
+        linear_cost=np.array([22.4, 0.1, 36.8]),
         emission_rates=np.array([0.440, 0.00, 1.03]),
         capital_cost=np.array([5.0, 15.0, 30.0]),  # TODO - Pick better numbers
     )
@@ -116,7 +121,7 @@ def load_garver_network(curtailment_cost=500.0, init_solar=360.0, line_slack=0.0
         susceptance=susceptance,
         capacity=np.ones(num_wires.size),
         nominal_capacity=nominal_capacity,
-        capital_cost=cost,
+        capital_cost=cost * line_cost_scale,
         slack=line_slack,
     )
 

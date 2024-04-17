@@ -29,17 +29,11 @@ def __(zap):
     # net, devices = zap.importers.load_test_network(
     #     num_nodes=10, line_type=line_type
     # )
-    net, devices = zap.importers.load_garver_network(line_slack=1.0)
+    net, devices = zap.importers.load_garver_network(line_slack=1.0, line_cost_scale=20.0)
 
     time_horizon = devices[0].time_horizon
     num_nodes = net.num_nodes
     return devices, net, num_nodes, time_horizon
-
-
-@app.cell
-def __(devices):
-    devices[2].slack
-    return
 
 
 @app.cell(hide_code=True)
@@ -171,12 +165,12 @@ def __():
 
 
 @app.cell
-def __(deepcopy, initial_parameters, max_expansion):
+def __(deepcopy, initial_parameters):
     lower_bounds = deepcopy(initial_parameters)
     upper_bounds = deepcopy(lower_bounds)
 
     for param, v in upper_bounds.items():
-        upper_bounds[param] = v * max_expansion
+        upper_bounds[param] = 1000.0
     return lower_bounds, param, upper_bounds, v
 
 
@@ -236,12 +230,6 @@ def __(zap):
 
 
 @app.cell
-def __(initial_parameters):
-    initial_parameters["line_capacity"]
-    return
-
-
-@app.cell
 def __(J0, deepcopy, grad, initial_parameters, problem):
     _pname = "line_capacity"
     _delta = 0.001
@@ -257,7 +245,8 @@ def __(J0, deepcopy, grad, initial_parameters, problem):
         print(
             _pind,
             initial_parameters[_pname][_pind],
-            J1 - J0.detach().numpy() - grad[_pname][_pind].numpy() * _delta,
+            J1 - J0.detach().numpy(),
+            grad[_pname][_pind].numpy() * _delta,
         )
     return J1, new_parameters
 
@@ -270,9 +259,9 @@ def __(mo):
 
 @app.cell
 def __():
-    import cProfile
-    import pstats
-    return cProfile, pstats
+    # import cProfile
+    # import pstats
+    return
 
 
 @app.cell
@@ -289,17 +278,17 @@ def __():
 
 
 @app.cell
-def __(initial_parameters, layer):
-    layer(**initial_parameters)
-    None
+def __():
+    # layer(**initial_parameters)
+    # None
     return
 
 
 @app.cell
 def __(problem, zap):
-    alg = zap.planning.GradientDescent(step_size=1e-2)
+    alg = zap.planning.GradientDescent(step_size=0.1)
 
-    state, history = problem.solve(num_iterations=50, algorithm=alg)
+    state, history = problem.solve(num_iterations=100, algorithm=alg)
     return alg, history, state
 
 
@@ -320,9 +309,51 @@ def __(history):
     return loss, plt, seaborn
 
 
+@app.cell
+def __(devices, yf):
+    devices[0].operation_cost(yf.power[0], yf.angle[0], None)
+    return
+
+
+@app.cell(hide_code=True)
+def __(np, plt, problem, state):
+    fig, ax = plt.subplots(figsize=(7, 3))
+
+    _k = "line_capacity"
+    _x = range(len(state[_k]))
+
+    ax.bar(np.array(_x), state[_k].ravel(), width=0.4)
+    ax.bar(np.array(_x) + 0.4, problem.lower_bounds[_k].ravel() + 4, width=0.4)
+
+
+    fig
+    return ax, fig
+
+
+@app.cell
+def __(layer, np, state):
+    yf = layer(**state)
+
+    print(np.sum(yf.power[1]), np.sum(yf.power[0]))
+    print(layer(**state).power[0])
+    return yf,
+
+
 @app.cell(hide_code=True)
 def __(mo):
     mo.md("## Debugging")
+    return
+
+
+@app.cell
+def __(devices):
+    devices[0].linear_cost
+    return
+
+
+@app.cell
+def __(devices):
+    devices[2].capital_cost * 20.0
     return
 
 
