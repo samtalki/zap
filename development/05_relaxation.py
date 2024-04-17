@@ -19,12 +19,13 @@ def __():
 
 
 @app.cell
-def __(zap):
-    net, devices = zap.importers.load_test_network(
-        num_nodes=10, line_type=zap.DCLine
-    )
+def __(np, zap):
+    net, devices = zap.importers.load_test_network(num_nodes=10, line_type=zap.DCLine)
 
     devices = devices[:2]
+    devices += [zap.Ground(
+        num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([7.0])
+    )]
 
     print([type(d) for d in devices])
     return devices, net
@@ -65,6 +66,12 @@ def __(dual_devices, net):
 @app.cell
 def __(y_dual, y_primal):
     y_dual.global_angle, y_primal.prices
+    return
+
+
+@app.cell
+def __(y_dual, y_primal):
+    y_primal.global_angle, -y_dual.prices
     return
 
 

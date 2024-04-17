@@ -1,10 +1,11 @@
 import zap.devices as dev
-from zap.devices.dual import DualInjector
+from zap.devices.dual import DualInjector, DualGround
 
 DUAL_CLASS = {
     dev.Injector: DualInjector,
     dev.Generator: DualInjector,
     dev.Load: DualInjector,
+    dev.Ground: DualGround,
 }
 
 
