@@ -1,6 +1,7 @@
 import pypsa
 import numpy as np
 import pandas as pd
+from copy import deepcopy
 
 from zap.network import PowerNetwork
 from zap.devices.injector import Generator, Load
@@ -193,6 +194,7 @@ def load_pypsa_network(
     cost_unit=1.0,  # $
     susceptance_unit="auto",
 ):
+    net = deepcopy(net)
     network = PowerNetwork(len(net.buses))
 
     rng = np.random.default_rng(seed)
