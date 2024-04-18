@@ -247,35 +247,7 @@ class PowerNetwork:
         ]
         return sum(costs)
 
-    def dispatch(
-        self,
-        devices: list[AbstractDevice],
-        time_horizon=None,
-        *,
-        solver=cp.ECOS,
-        parameters=None,
-        add_ground=True,
-        dual=False,
-        solver_kwargs={},
-    ) -> DispatchOutcome:
-        # Compute time horizon automatically
-        if time_horizon is None:
-            time_horizon = max([d.time_horizon for d in devices])
-
-        parameters = expand_params(parameters, devices)
-
-        # Add ground if necessary
-        ground = None
-        if add_ground:
-            ground = Ground(num_nodes=self.num_nodes, terminal=np.array([0]))
-            devices = devices + [ground]
-            parameters = parameters + [{}]
-
-        # Type checks
-        assert all([d.num_nodes == self.num_nodes for d in devices])
-        assert time_horizon > 0
-        assert all([d.time_horizon in [0, time_horizon] for d in devices])
-
+    def model_dispatch_problem(self, devices, time_horizon, *, parameters=None, dual=False):
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))
         power = [d.initialize_power(time_horizon) for d in devices]
@@ -310,17 +282,65 @@ class PowerNetwork:
             for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
         ]
 
+        constraints = itertools.chain(
+            [power_balance], *phase_consistency, *local_equalities, *local_inequalities
+        )
+
+        data = {
+            "global_angle": global_angle,
+            "power": power,
+            "angle": angle,
+            "local_variables": local_variables,
+            "phase_consistency": phase_consistency,
+            "power_balance": power_balance,
+            "local_equalities": local_equalities,
+            "local_inequalities": local_inequalities,
+        }
+
+        return costs, constraints, data
+
+    def dispatch(
+        self,
+        devices: list[AbstractDevice],
+        time_horizon=None,
+        *,
+        solver=cp.ECOS,
+        parameters=None,
+        add_ground=True,
+        dual=False,
+        solver_kwargs={},
+    ) -> DispatchOutcome:
+        # Compute time horizon automatically
+        if time_horizon is None:
+            time_horizon = max([d.time_horizon for d in devices])
+
+        parameters = expand_params(parameters, devices)
+
+        # Add ground if necessary
+        ground = None
+        if add_ground:
+            ground = Ground(num_nodes=self.num_nodes, terminal=np.array([0]))
+            devices = devices + [ground]
+            parameters = parameters + [{}]
+
+        # Type checks
+        assert all([d.num_nodes == self.num_nodes for d in devices])
+        assert time_horizon > 0
+        assert all([d.time_horizon in [0, time_horizon] for d in devices])
+
+        costs, constraints, data = self.model_dispatch_problem(
+            devices, time_horizon, parameters=parameters, dual=dual
+        )
+
+        # Unpack data
+        power, angle, local_variables = data["power"], data["angle"], data["local_variables"]
+        global_angle = data["global_angle"]
+        power_balance, phase_consistency = data["power_balance"], data["phase_consistency"]
+        local_equalities, local_inequalities = data["local_equalities"], data["local_inequalities"]
+
         # Formulate and solve cvxpy problem
         objective = cp.Minimize(cp.sum(costs))
-        problem = cp.Problem(
-            objective,
-            itertools.chain(
-                [power_balance],
-                *phase_consistency,
-                *local_equalities,
-                *local_inequalities,
-            ),
-        )
+        problem = cp.Problem(objective, constraints)
         problem.solve(solver=solver, **solver_kwargs)
         assert problem.status in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]
 
