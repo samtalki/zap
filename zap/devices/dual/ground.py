@@ -23,4 +23,4 @@ class DualGround(Ground):
         mu = angle[0]
         v = data.voltage
 
-        return -la.sum(la.multiply(mu, v))
+        return la.sum(la.multiply(mu, v))

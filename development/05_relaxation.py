@@ -9,26 +9,48 @@ def __():
     import marimo as mo
     import numpy as np
     import cvxpy as cp
+    import pandas as pd
+    import datetime as dt
     import torch
+    import pypsa
 
     from copy import deepcopy
 
     import zap
     from zap import DispatchLayer
-    return DispatchLayer, cp, deepcopy, mo, np, torch, zap
+    return DispatchLayer, cp, deepcopy, dt, mo, np, pd, pypsa, torch, zap
 
 
 @app.cell
-def __(np, zap):
-    net, devices = zap.importers.load_test_network(num_nodes=10, line_type=zap.DCLine)
+def __(dt, pd, pypsa):
+    pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
+    pn_dates = pd.date_range(
+        dt.datetime(2019, 1, 2, 0),
+        dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=4),
+        freq="1h",
+        inclusive="left",
+    )
+    return pn, pn_dates
 
-    devices = devices[:2]
+
+@app.cell
+def __(np, pn, pn_dates, zap):
+    # Classic settings
+    # net, devices = zap.importers.load_test_network(num_nodes=10, line_type=zap.ACLine)
+    # devices[2].linear_cost *= 0.0
+    # devices = devices[:3]
+
+    # PyPSA settings
+    net, devices = zap.importers.load_pypsa_network(pn, pn_dates)
+    devices = devices[:4]
+
     devices += [zap.Ground(
         num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([7.0])
     )]
 
-    print([type(d) for d in devices])
-    return devices, net
+    for d in devices:
+        print(type(d))
+    return d, devices, net
 
 
 @app.cell
@@ -64,14 +86,9 @@ def __(dual_devices, net):
 
 
 @app.cell
-def __(y_dual, y_primal):
-    y_dual.global_angle, y_primal.prices
-    return
-
-
-@app.cell
-def __(y_dual, y_primal):
-    y_primal.global_angle, -y_dual.prices
+def __(np, y_dual, y_primal):
+    print(np.linalg.norm(y_dual.global_angle - y_primal.prices))
+    print(np.linalg.norm(y_primal.global_angle - y_dual.prices))
     return
 
 
