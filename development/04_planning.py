@@ -368,6 +368,17 @@ def __():
 
 @app.cell
 def __():
+    foo = lambda x, y: x + y + 2
+
+    def foo(x, y):
+        return x + y + 2
+
+    foo(3, 4)
+    return foo,
+
+
+@app.cell
+def __():
     # import pypsa
     # import pandas as pd
     # import datetime as dt

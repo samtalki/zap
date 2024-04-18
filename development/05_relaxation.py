@@ -22,35 +22,41 @@ def __():
 
 
 @app.cell
-def __(dt, pd, pypsa):
-    pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
+def __(dt, pd):
     pn_dates = pd.date_range(
         dt.datetime(2019, 1, 2, 0),
-        dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=4),
+        dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=12),
         freq="1h",
         inclusive="left",
     )
-    return pn, pn_dates
+    return pn_dates,
 
 
 @app.cell
-def __(np, pn, pn_dates, zap):
-    # Classic settings
-    # net, devices = zap.importers.load_test_network(num_nodes=10, line_type=zap.ACLine)
-    # devices[2].linear_cost *= 0.0
-    # devices = devices[:3]
+def __(np, pn_dates, pypsa, zap):
+    mode = "pypsa"
 
-    # PyPSA settings
-    net, devices = zap.importers.load_pypsa_network(pn, pn_dates)
-    devices = devices[:4]
+    if mode == "classic":  # Classic settings
+        net, devices = zap.importers.load_test_network(
+            num_nodes=10, line_type=zap.ACLine
+        )
+        devices[2].linear_cost *= 0.0
 
-    devices += [zap.Ground(
-        num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([7.0])
-    )]
+    else:  # PyPSA settings
+        pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
+        net, devices = zap.importers.load_pypsa_network(
+            pn, pn_dates, power_unit=1e3, cost_unit=1e3
+        )
+
+    devices = devices + [
+        zap.Ground(
+            num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([7.0])
+        )
+    ]
 
     for d in devices:
         print(type(d))
-    return d, devices, net
+    return d, devices, mode, net, pn
 
 
 @app.cell
@@ -60,8 +66,8 @@ def __(mo):
 
 
 @app.cell
-def __(devices, net):
-    y_primal = net.dispatch(devices, add_ground=False)
+def __(cp, devices, net):
+    y_primal = net.dispatch(devices, add_ground=False, solver=cp.MOSEK)
     print(y_primal.problem.value)
     return y_primal,
 
@@ -79,14 +85,15 @@ def __(devices, zap):
 
 
 @app.cell
-def __(dual_devices, net):
-    y_dual = net.dispatch(dual_devices, dual=True, add_ground=False)
+def __(cp, dual_devices, net):
+    y_dual = net.dispatch(dual_devices, dual=True, add_ground=False, solver=cp.MOSEK)
     print(y_dual.problem.value)
     return y_dual,
 
 
 @app.cell
 def __(np, y_dual, y_primal):
+    print(y_primal.problem.value + y_dual.problem.value)
     print(np.linalg.norm(y_dual.global_angle - y_primal.prices))
     print(np.linalg.norm(y_primal.global_angle - y_dual.prices))
     return

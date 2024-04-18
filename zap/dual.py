@@ -1,5 +1,5 @@
 import zap.devices as dev
-from zap.devices.dual import DualInjector, DualGround, DualDCLine, DualACLine
+from zap.devices.dual import DualInjector, DualGround, DualDCLine, DualACLine, DualBattery
 
 DUAL_CLASS = {
     dev.Injector: DualInjector,
@@ -8,6 +8,7 @@ DUAL_CLASS = {
     dev.Ground: DualGround,
     dev.DCLine: DualDCLine,
     dev.ACLine: DualACLine,
+    dev.Battery: DualBattery,
 }
 
 
