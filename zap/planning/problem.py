@@ -101,9 +101,7 @@ class PlanningProblem:
         else:
             self.torch_state = self.state
 
-        op_cost = self.operation_objective(
-            self.torch_state, parameters=params, use_torch=requires_grad
-        )
+        op_cost = self.operation_objective(self.torch_state, parameters=params, la=la)
         inv_cost = self.investment_objective(**torch_kwargs, la=la)
 
         self.op_cost = op_cost
