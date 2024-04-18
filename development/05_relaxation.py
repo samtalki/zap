@@ -22,18 +22,19 @@ def __():
 
 
 @app.cell
-def __(dt, pd):
+def __(dt, pd, pypsa):
+    pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
     pn_dates = pd.date_range(
         dt.datetime(2019, 1, 2, 0),
         dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=12),
         freq="1h",
         inclusive="left",
     )
-    return pn_dates,
+    return pn, pn_dates
 
 
 @app.cell
-def __(np, pn_dates, pypsa, zap):
+def __(np, pn, pn_dates, zap):
     mode = "pypsa"
 
     if mode == "classic":  # Classic settings
@@ -43,9 +44,8 @@ def __(np, pn_dates, pypsa, zap):
         devices[2].linear_cost *= 0.0
 
     else:  # PyPSA settings
-        pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
         net, devices = zap.importers.load_pypsa_network(
-            pn, pn_dates, power_unit=1e3, cost_unit=1e3
+            pn, pn_dates, power_unit=1e3, cost_unit=10.0
         )
 
     devices = devices + [
@@ -56,7 +56,7 @@ def __(np, pn_dates, pypsa, zap):
 
     for d in devices:
         print(type(d))
-    return d, devices, mode, net, pn
+    return d, devices, mode, net
 
 
 @app.cell
@@ -96,6 +96,12 @@ def __(np, y_dual, y_primal):
     print(y_primal.problem.value + y_dual.problem.value)
     print(np.linalg.norm(y_dual.global_angle - y_primal.prices))
     print(np.linalg.norm(y_primal.global_angle - y_dual.prices))
+    return
+
+
+@app.cell
+def __(np, y_primal):
+    np.linalg.norm(y_primal.prices)
     return
 
 

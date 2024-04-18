@@ -23,7 +23,13 @@ def load_pypsa_network(num_hours=1, num_nodes=100):
     # TODO - Remove explicit path
     pn = pypsa.Network(f"../Epsilon/.pypsa/workflow/resources/western/elec_s_{num_nodes}.nc")
 
-    net, devices = zap.load_pypsa_network(pn, dates)
+    net, devices = zap.importers.load_pypsa_network(pn, dates, power_unit=1e3, cost_unit=10.0)
+    parameters = None
+    return net, devices, parameters
+
+
+def load_test_network():
+    net, devices = zap.importers.load_test_network()
     parameters = None
     return net, devices, parameters
 
