@@ -41,7 +41,7 @@ def __(mo):
 
 @app.cell
 def __(np, pn, pn_dates, zap):
-    mode = "classic"
+    mode = "pypsa"
 
     if mode == "classic":  # Classic settings
         net, devices = zap.importers.load_test_network(
@@ -142,7 +142,7 @@ def __(DispatchLayer, cp, deepcopy, devices, net, zap):
         solver_kwargs={"verbose": False, "accept_unknown": True},
     )
 
-    initial_parameters
+    # initial_parameters
     return attr, index, initial_parameters, layer, name, parameter_names
 
 
@@ -167,9 +167,25 @@ def __(inv_objective, layer, op_objective, zap):
 
 
 @app.cell
-def __(problem):
-    problem.upper_bounds
-    return
+def __(cp, problem):
+    net_var = {p: cp.Variable(lower.shape) for p, lower in problem.lower_bounds.items()}
+
+    lower_bounds = [
+        net_var[p] <= problem.upper_bounds[p]
+        for p in sorted(net_var.keys())
+    ]
+
+    print(sorted(net_var.keys()))
+    return lower_bounds, net_var
+
+
+@app.cell
+def __(problem, zap):
+    relaxation = zap.planning.RelaxedPlanningProblem(problem)
+    out = relaxation.solve()
+
+    out["problem"].value
+    return out, relaxation
 
 
 if __name__ == "__main__":

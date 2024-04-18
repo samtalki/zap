@@ -243,6 +243,10 @@ class Battery(AbstractDevice):
 
     def scale_power(self, scale):
         self.power_capacity /= scale
+        if self.min_power_capacity is not None:
+            self.min_power_capacity /= scale
+        if self.max_power_capacity is not None:
+            self.max_power_capacity /= scale
 
     def get_investment_cost(self, power_capacity=None, la=np):
         # Get original nominal capacity and capital cost
@@ -255,4 +259,4 @@ class Battery(AbstractDevice):
         pnom_min = data.power_capacity
         capital_cost = data.capital_cost
 
-        return la.sum(capital_cost * (power_capacity - pnom_min))
+        return la.sum(la.multiply(capital_cost, (power_capacity - pnom_min)))

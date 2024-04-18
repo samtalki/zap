@@ -214,6 +214,13 @@ class Generator(Injector):
     def max_power(self):
         return self.dynamic_capacity
 
+    def scale_power(self, scale):
+        if self.min_nominal_capacity is not None:
+            self.min_nominal_capacity /= scale
+        if self.max_nominal_capacity is not None:
+            self.max_nominal_capacity /= scale
+        return super().scale_power(scale)
+
     def get_investment_cost(self, nominal_capacity=None, la=np):
         # Get nominal capacity and capital cost
         data = self.device_data(la=la)
@@ -224,7 +231,7 @@ class Generator(Injector):
         pnom_min = data.nominal_capacity
         capital_cost = data.capital_cost
 
-        return la.sum(capital_cost * (nominal_capacity - pnom_min))
+        return la.sum(la.multiply(capital_cost, (nominal_capacity - pnom_min)))
 
     def get_emissions(self, power, nominal_capacity=None, la=np):
         data = self.device_data(la=la)

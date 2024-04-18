@@ -1,4 +1,5 @@
 import dataclasses
+import torch
 import numpy as np
 from copy import deepcopy
 
@@ -6,6 +7,7 @@ import zap.util as util
 from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
 from zap.planning.operation_objectives import AbstractOperationObjective
+from zap.planning.investment_objectives import AbstractInvestmentObjective
 from .trackers import DEFAULT_TRACKERS, TRACKER_MAPS
 
 
@@ -28,7 +30,7 @@ class PlanningProblem:
     def __init__(
         self,
         operation_objective: AbstractOperationObjective,
-        investment_objective,
+        investment_objective: AbstractInvestmentObjective,
         layer: DispatchLayer,
         lower_bounds: dict = None,
         upper_bounds: dict = None,
@@ -76,6 +78,12 @@ class PlanningProblem:
 
     def forward(self, requires_grad: bool = False, **kwargs):
         torch_kwargs = {}
+
+        if requires_grad:
+            la = torch
+        else:
+            la = np
+
         for p, v in kwargs.items():
             if requires_grad:
                 torch_kwargs[p] = util.torchify(v, requires_grad=True)
@@ -96,7 +104,7 @@ class PlanningProblem:
         op_cost = self.operation_objective(
             self.torch_state, parameters=params, use_torch=requires_grad
         )
-        inv_cost = self.investment_objective(**torch_kwargs, use_torch=requires_grad)
+        inv_cost = self.investment_objective(**torch_kwargs, la=la)
 
         self.op_cost = op_cost
         self.inv_cost = inv_cost

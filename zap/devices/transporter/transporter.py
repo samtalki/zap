@@ -127,6 +127,10 @@ class Transporter(AbstractDevice):
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
+        if self.min_nominal_capacity is not None:
+            self.min_nominal_capacity /= scale
+        if self.max_nominal_capacity is not None:
+            self.max_nominal_capacity /= scale
         self.slack /= scale
 
     def get_investment_cost(self, nominal_capacity=None, la=np):
@@ -140,7 +144,7 @@ class Transporter(AbstractDevice):
         pnom_min = data.nominal_capacity
         capital_cost = data.capital_cost
 
-        return la.sum(capital_cost * (nominal_capacity - pnom_min))
+        return la.sum(la.multiply(capital_cost, (nominal_capacity - pnom_min)))
 
     def admm_initialize_power_variables(self, time_horizon: int):
         return [
