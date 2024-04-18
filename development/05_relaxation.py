@@ -184,8 +184,14 @@ def __(problem, zap):
     relaxation = zap.planning.RelaxedPlanningProblem(problem)
     out = relaxation.solve()
 
-    out["problem"].value
+    out["problem"]
     return out, relaxation
+
+
+@app.cell
+def __(out):
+    out["primal_data"]["power"][0][0].value
+    return
 
 
 if __name__ == "__main__":
