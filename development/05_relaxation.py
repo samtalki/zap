@@ -26,7 +26,7 @@ def __(dt, pd, pypsa):
     pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
     pn_dates = pd.date_range(
         dt.datetime(2019, 1, 2, 0),
-        dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=12),
+        dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=6),
         freq="1h",
         inclusive="left",
     )
@@ -34,8 +34,14 @@ def __(dt, pd, pypsa):
 
 
 @app.cell
+def __(mo):
+    mo.md("## Dual Dispatch")
+    return
+
+
+@app.cell
 def __(np, pn, pn_dates, zap):
-    mode = "pypsa"
+    mode = "classic"
 
     if mode == "classic":  # Classic settings
         net, devices = zap.importers.load_test_network(
@@ -102,6 +108,67 @@ def __(np, y_dual, y_primal):
 @app.cell
 def __(np, y_primal):
     np.linalg.norm(y_primal.prices)
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md("## Relaxation")
+    return
+
+
+@app.cell
+def __(DispatchLayer, cp, deepcopy, devices, net, zap):
+    _gind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Generator))
+    _lind = next(i for i, d in enumerate(devices) if isinstance(d, zap.ACLine))
+    _bind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Battery))
+
+    parameter_names = {
+        "generator_capacity": (_gind, "nominal_capacity"),
+        "line_capacity": (_lind, "nominal_capacity"),
+        "battery_capacity": (_bind, "power_capacity"),
+    }
+
+    initial_parameters = {}
+    for name, (index, attr) in parameter_names.items():
+        initial_parameters[name] = deepcopy(getattr(devices[index], attr))
+
+    layer = DispatchLayer(
+        net,
+        devices,
+        parameter_names=parameter_names,
+        time_horizon=devices[0].time_horizon,
+        solver=cp.MOSEK,
+        solver_kwargs={"verbose": False, "accept_unknown": True},
+    )
+
+    initial_parameters
+    return attr, index, initial_parameters, layer, name, parameter_names
+
+
+@app.cell
+def __(devices, layer, zap):
+    op_objective = zap.planning.EmissionsObjective(devices)
+    inv_objective = zap.planning.InvestmentObjective(devices, layer)
+    return inv_objective, op_objective
+
+
+@app.cell
+def __(inv_objective, layer, op_objective, zap):
+    problem = zap.planning.PlanningProblem(
+        operation_objective=op_objective,
+        investment_objective=inv_objective,
+        layer=layer,
+        lower_bounds=None,
+        upper_bounds=None,
+        regularize=1e-6,
+    )
+    return problem,
+
+
+@app.cell
+def __(problem):
+    problem.upper_bounds
     return
 
 

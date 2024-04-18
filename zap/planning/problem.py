@@ -30,8 +30,8 @@ class PlanningProblem:
         operation_objective: AbstractOperationObjective,
         investment_objective,
         layer: DispatchLayer,
-        lower_bounds: dict,
-        upper_bounds: dict,
+        lower_bounds: dict = None,
+        upper_bounds: dict = None,
         regularize=1e-6,
     ):
         self.operation_objective = operation_objective
@@ -40,6 +40,28 @@ class PlanningProblem:
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
         self.regularize = regularize
+
+        if self.lower_bounds is None:
+            self.lower_bounds = {
+                p: getattr(layer.devices[ind], "min_" + pname, None)
+                for p, (ind, pname) in self.parameter_names.items()
+            }
+
+            # Fallback: use existing device parameter value
+            for p, (ind, pname) in self.parameter_names.items():
+                if self.lower_bounds[p] is None:
+                    self.lower_bounds[p] = getattr(layer.devices[ind], pname)
+
+        if self.upper_bounds is None:
+            self.upper_bounds = {
+                p: getattr(layer.devices[ind], "max_" + pname, None)
+                for p, (ind, pname) in self.parameter_names.items()
+            }
+
+            # Fallback: set to infinity
+            for p, (ind, pname) in self.parameter_names.items():
+                if self.upper_bounds[p] is None:
+                    self.upper_bounds[p] = np.inf
 
     @property
     def parameter_names(self):
