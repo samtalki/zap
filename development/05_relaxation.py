@@ -55,15 +55,11 @@ def __(np, pn, pn_dates, zap):
             pn, pn_dates, power_unit=1e3, cost_unit=10.0
         )
 
-    devices = devices[:3]
-
     devices = devices + [
         zap.Ground(
             num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([7.0])
         )
     ]
-
-
 
     for d in devices:
         print(type(d))
@@ -126,12 +122,12 @@ def __(mo):
 def __(DispatchLayer, classic_line_type, cp, deepcopy, devices, net, zap):
     _gind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Generator))
     _lind = next(i for i, d in enumerate(devices) if isinstance(d, classic_line_type))
-    # _bind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Battery))
+    _bind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Battery))
 
     parameter_names = {
         "generator_capacity": (_gind, "nominal_capacity"),
         "line_capacity": (_lind, "nominal_capacity"),
-        # "battery_capacity": (_bind, "power_capacity"),
+        "battery_capacity": (_bind, "power_capacity"),
     }
 
     initial_parameters = {}
@@ -203,8 +199,14 @@ def __(out):
 
 
 @app.cell
-def __(out, relaxation):
-    relaxation.problem.layer.setup_parameters(**out["lower_bounds"])
+def __(initial_parameters, out):
+    initial_parameters, {k: v.value for k,v in out["network_parameters"].items()}
+    return
+
+
+@app.cell
+def __(devices):
+    devices[-2].capital_cost
     return
 
 

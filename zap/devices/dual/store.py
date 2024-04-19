@@ -2,11 +2,13 @@ import numpy as np
 import cvxpy as cp
 
 from zap.devices.store import Battery
+from zap.util import envelope_variable, use_envelope
 
 
 class DualBattery(Battery):
-    def __init__(self, battery: Battery, **kwargs):
+    def __init__(self, battery: Battery, max_price=None, **kwargs):
         self.primal = battery
+        self.max_price = max_price
 
         self.num_nodes = battery.num_nodes
         self.terminal = battery.terminal
@@ -39,19 +41,50 @@ class DualBattery(Battery):
         lamb = state[0]
 
         # Parameters
-        pmax = data.power_capacity
-        smax = pmax * data.duration
         rho = data.charge_efficiency
+        pmax = data.power_capacity
 
-        # Charge and discharge terms
-        c_term = la.maximum(0.0, la.multiply(z - la.multiply(rho, lamb), pmax))
-        d_term = la.maximum(0.0, la.multiply(lamb - z - data.linear_cost, pmax))
+        if not use_envelope(envelope):
+            smax = pmax * data.duration
 
-        # Energy terms
-        s1_term = la.multiply(-lamb[:, [0]], data.initial_soc * smax)
-        sT_term = la.multiply(lamb[:, [-1]], data.final_soc * smax)
+            # Charge and discharge terms
+            c_term = la.multiply(z - la.multiply(rho, lamb), pmax)
+            d_term = la.multiply(lamb - z - data.linear_cost, pmax)
 
-        # Note - this should have (T-1) columns
-        s_term = la.maximum(0.0, la.multiply(lamb[:, :-1] - lamb[:, 1:], smax))
+            # Energy terms
+            s1_term = la.multiply(-lamb[:, [0]], data.initial_soc * smax)
+            sT_term = la.multiply(lamb[:, [-1]], data.final_soc * smax)
 
-        return la.sum(c_term) + la.sum(d_term) + la.sum(s1_term) + la.sum(sT_term) + la.sum(s_term)
+            # Note - this should have (T-1) columns
+            s_term = la.multiply(lamb[:, :-1] - lamb[:, 1:], smax)
+
+        else:
+            print("Envelope relaxation applied to battery.")
+            env, lower, upper = envelope
+
+            # Create envelope variables
+            lb, ub = lower["power_capacity"], upper["power_capacity"]
+            max_z = self.max_price
+
+            z_pmax = envelope_variable(pmax, z, lb, ub, -max_z, max_z, *env)
+            lamb_pmax = envelope_variable(pmax, lamb, lb, ub, -max_z, max_z, *env)
+            lamb_smax = la.multiply(data.duration, lamb_pmax)
+
+            # Charge and discharge terms
+            # c = z * pmax - rho * lamb * lmax
+            # d = lamb * pmax - z * pmax - c_lin * pmax
+            c_term = z_pmax - la.multiply(rho, lamb_pmax)
+            d_term = lamb_pmax - z_pmax - la.multiply(data.linear_cost, pmax)
+
+            # Energy terms
+            s1_term = la.multiply(-lamb_pmax[:, [0]], data.initial_soc)
+            sT_term = la.multiply(lamb_pmax[:, [-1]], data.final_soc)
+            s_term = lamb_smax[:, :-1] - lamb_smax[:, 1:]
+
+        op_cost = la.sum(la.maximum(0.0, c_term))
+        op_cost += la.sum(la.maximum(0.0, d_term))
+        op_cost += la.sum(la.maximum(0.0, s_term))
+        op_cost += la.sum(s1_term)
+        op_cost += la.sum(sT_term)
+
+        return op_cost

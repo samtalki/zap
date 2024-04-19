@@ -54,6 +54,7 @@ def load_test_network(num_nodes: int = 7, line_type=ACLine) -> TestCase:
         power_capacity=np.array([5.0]),
         duration=np.array([4.0]),
         linear_cost=np.array([0.01]),
+        capital_cost=np.array([10.0]),
     )
 
     devices = [generators, loads, lines, batteries]
