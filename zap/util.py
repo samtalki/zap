@@ -98,4 +98,4 @@ def envelope_variable(
     if envelope_constraints is not None:
         envelope_constraints += constraints
 
-    return z, envelope_constraints
+    return z

@@ -248,8 +248,28 @@ class PowerNetwork:
         return sum(costs)
 
     def model_dispatch_problem(
-        self, devices, time_horizon, *, parameters=None, dual=False, envelope=None
+        self,
+        devices,
+        time_horizon,
+        *,
+        parameters=None,
+        dual=False,
+        envelope=None,
+        lower_param=None,
+        upper_param=None,
     ):
+        if envelope is not None:
+            assert len(envelope) == 2
+            assert lower_param is not None
+            assert upper_param is not None
+
+            device_envelopes = [(envelope, lb, ub) for lb, ub in zip(lower_param, upper_param)]
+        else:
+            lower_param = [None for _ in devices]
+            upper_param = [None for _ in devices]
+
+            device_envelopes = [None for _ in devices]
+
         # Initialize variables
         global_angle = cp.Variable((self.num_nodes, time_horizon))
         power = [d.initialize_power(time_horizon) for d in devices]
@@ -269,19 +289,25 @@ class PowerNetwork:
         power_balance = net_power == 0
 
         local_equalities = [
-            [hi == 0 for hi in d.equality_constraints(p, v, u, **param, la=cp, envelope=envelope)]
-            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
+            [hi == 0 for hi in d.equality_constraints(p, v, u, **param, la=cp, envelope=env)]
+            for d, p, v, u, param, env in zip(
+                devices, power, angle, local_variables, parameters, device_envelopes
+            )
         ]
 
         local_inequalities = [
-            [gi <= 0 for gi in d.inequality_constraints(p, v, u, **param, la=cp, envelope=envelope)]
-            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
+            [gi <= 0 for gi in d.inequality_constraints(p, v, u, **param, la=cp, envelope=env)]
+            for d, p, v, u, param, env in zip(
+                devices, power, angle, local_variables, parameters, device_envelopes
+            )
         ]
 
         # Model objective
         costs = [
-            d.operation_cost(p, v, u, **param, la=cp)
-            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
+            d.operation_cost(p, v, u, **param, la=cp, envelope=env)
+            for d, p, v, u, param, env in zip(
+                devices, power, angle, local_variables, parameters, device_envelopes
+            )
         ]
 
         constraints = itertools.chain(

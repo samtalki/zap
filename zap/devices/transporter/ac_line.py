@@ -89,18 +89,32 @@ class ACLine(PowerLine):
         angle_diff = angle[0] - angle[1]
         pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
 
-        # if envelope is None:
-        #     pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
-
-        # else:
-        #     # TODO - Fill in the lower and upper bounds
-        #     pnom_dtheta = envelope_variable(
-        #         nominal_capacity, angle_diff, None, None, None, None, envelope
-        #     )
+        # Envelope of product pnom * dtheta (when line is plannable)
+        if envelope is not None:
+            (env, lb, ub) = envelope
+            if "nominal_capacity" in lb:  # Check if the parameter is being planned (has bounds)
+                print("Envelope relaxation applied to AC line.")
+                pnom_dtheta = self.get_envelope_variable(env, lb, ub, data, angle_diff)
 
         eq_constraints += [power[1] - la.multiply(data.susceptance, pnom_dtheta)]
 
         return eq_constraints
+
+    def get_envelope_variable(self, env, lb, ub, data, angle_diff):
+        # Get lower and upper bounds for the angle difference
+        # dtheta_max = fmax / b = pnom * pmax / b
+        ub_angle_diff = ub["nominal_capacity"] * data.max_power / data.susceptance
+        lb_angle_diff = -ub_angle_diff
+
+        return envelope_variable(
+            data.nominal_capacity,
+            angle_diff,
+            lb["nominal_capacity"],
+            ub["nominal_capacity"],
+            lb_angle_diff,
+            ub_angle_diff,
+            *env,
+        )
 
     # ====
     # DIFFERENTIATION

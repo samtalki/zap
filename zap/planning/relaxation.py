@@ -31,10 +31,10 @@ class RelaxedPlanningProblem:
             p: cp.Variable(lower.shape) for p, lower in self.problem.lower_bounds.items()
         }
 
-        lower_bounds = []
-        upper_bounds = []
+        lower_bounds = {}
+        upper_bounds = {}
 
-        for p in sorted(network_parameters.keys()):
+        for p in network_parameters.keys():
             lower = self.problem.lower_bounds[p]
             upper = self.problem.upper_bounds[p]
 
@@ -42,8 +42,8 @@ class RelaxedPlanningProblem:
             inf_param = self.inf_value * np.max(lower)
             upper = np.where(upper == np.inf, inf_param, upper)
 
-            lower_bounds.append(network_parameters[p] >= lower)
-            upper_bounds.append(network_parameters[p] <= upper)
+            lower_bounds[p] = lower
+            upper_bounds[p] = upper
 
         investment_objective = self.problem.investment_objective(la=cp, **network_parameters)
 
@@ -53,15 +53,15 @@ class RelaxedPlanningProblem:
         """Solve strong-duality relaxed planning problem."""
 
         # Define outer variables, constraints, and costs
-        network_parameters, lower_bounds, upper_bounds, investment_objective = (
-            self.model_outer_problem()
-        )
+        net_params, lower, upper, investment_objective = self.model_outer_problem()
+        box_constraints = [lower[p] <= net_params[p] for p in sorted(net_params.keys())]
+        box_constraints += [net_params[p] <= upper[p] for p in sorted(net_params.keys())]
 
         # Define primal and dual problems
         net, devices = self.problem.layer.network, self.problem.layer.devices
         dual_devices = zap.dual.dualize(devices)
 
-        parameters = self.setup_parameters(**network_parameters)
+        parameters = self.setup_parameters(**net_params)
         envelope_constraints = []
         envelope_variables = []
 
@@ -71,6 +71,8 @@ class RelaxedPlanningProblem:
             dual=False,
             parameters=parameters,
             envelope=(envelope_variables, envelope_constraints),
+            lower_param=self.setup_parameters(**lower),
+            upper_param=self.setup_parameters(**upper),
         )
         dual_costs, dual_constraints, dual_data = net.model_dispatch_problem(
             dual_devices,
@@ -100,18 +102,15 @@ class RelaxedPlanningProblem:
         # Create full problem and solve
         problem = cp.Problem(
             cp.Minimize(investment_objective + operation_objective),
-            lower_bounds
-            + upper_bounds
-            + [sd_constraint]
-            + list(primal_constraints)
-            + list(dual_constraints),
+            box_constraints + [sd_constraint] + list(primal_constraints) + list(dual_constraints),
         )
         problem.solve(solver=self.solver, **self.solver_kwargs)
 
         return {
-            "network_parameters": network_parameters,
-            "lower_bounds": lower_bounds,
-            "upper_bounds": upper_bounds,
+            "network_parameters": net_params,
+            "lower_bounds": lower,
+            "upper_bounds": upper,
+            "box_constraints": box_constraints,
             "investment_objective": investment_objective,
             "problem": problem,
             "sd_constraint": sd_constraint,
