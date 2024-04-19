@@ -52,29 +52,31 @@ class RelaxedPlanningProblem:
     def solve(self):
         """Solve strong-duality relaxed planning problem."""
 
+        # Define outer variables, constraints, and costs
         network_parameters, lower_bounds, upper_bounds, investment_objective = (
             self.model_outer_problem()
         )
-        envelope_constraints = []
 
         # Define primal and dual problems
         net, devices = self.problem.layer.network, self.problem.layer.devices
         dual_devices = zap.dual.dualize(devices)
 
-        # TODO Incorporate true parameters
         parameters = self.setup_parameters(**network_parameters)
+        envelope_constraints = []
+        envelope_variables = []
+
         primal_costs, primal_constraints, primal_data = net.model_dispatch_problem(
             devices,
             self.problem.time_horizon,
             dual=False,
             parameters=parameters,
-            envelope=envelope_constraints,
+            envelope=(envelope_variables, envelope_constraints),
         )
         dual_costs, dual_constraints, dual_data = net.model_dispatch_problem(
             dual_devices,
             self.problem.time_horizon,
             dual=True,
-            parameters=[{} for _ in dual_devices],
+            parameters=[{} for _ in dual_devices],  # TODO Incorporate true parameters
         )
 
         # Define strong duality coupling constraint
