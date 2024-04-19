@@ -100,6 +100,20 @@ class Battery(AbstractDevice):
             self.capital_cost,
         )
 
+    def scale_costs(self, scale):
+        self.linear_cost /= scale
+        if self.quadratic_cost is not None:
+            self.quadratic_cost /= scale
+        if self.capital_cost is not None:
+            self.capital_cost /= scale
+
+    def scale_power(self, scale):
+        self.power_capacity /= scale
+        if self.min_power_capacity is not None:
+            self.min_power_capacity /= scale
+        if self.max_power_capacity is not None:
+            self.max_power_capacity /= scale
+
     # ====
     # CORE MODELING FUNCTIONS
     # ====
@@ -242,19 +256,9 @@ class Battery(AbstractDevice):
 
         return inequalities
 
-    def scale_costs(self, scale):
-        self.linear_cost /= scale
-        if self.quadratic_cost is not None:
-            self.quadratic_cost /= scale
-        if self.capital_cost is not None:
-            self.capital_cost /= scale
-
-    def scale_power(self, scale):
-        self.power_capacity /= scale
-        if self.min_power_capacity is not None:
-            self.min_power_capacity /= scale
-        if self.max_power_capacity is not None:
-            self.max_power_capacity /= scale
+    # ====
+    # PLANNING FUNCTIONS
+    # ====
 
     def get_investment_cost(self, power_capacity=None, la=np):
         # Get original nominal capacity and capital cost

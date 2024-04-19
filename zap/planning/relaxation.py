@@ -1,9 +1,10 @@
 import cvxpy as cp
 import numpy as np
+from copy import deepcopy
 
 import zap.dual
 from zap.network import DispatchOutcome
-from .problem import PlanningProblem
+from zap.planning.problem import PlanningProblem
 
 
 class RelaxedPlanningProblem:
@@ -15,7 +16,7 @@ class RelaxedPlanningProblem:
         sd_tolerance=1.0,
         solver_kwargs={"verbose": False, "accept_unknown": True},
     ):
-        self.problem = problem
+        self.problem = deepcopy(problem)
         self.inf_value = inf_value
         self.solver = solver
         self.solver_kwargs = solver_kwargs

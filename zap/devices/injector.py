@@ -72,6 +72,16 @@ class Injector(AbstractDevice):
             self.emission_rates,
         )
 
+    def scale_costs(self, scale):
+        self.linear_cost /= scale
+        if self.quadratic_cost is not None:
+            self.quadratic_cost /= scale
+        if self.capital_cost is not None:
+            self.capital_cost /= scale
+
+    def scale_power(self, scale):
+        self.nominal_capacity /= scale
+
     # ====
     # CORE MODELING FUNCTIONS
     # ====
@@ -111,16 +121,6 @@ class Injector(AbstractDevice):
         inequalities[0].power[0] += -sp.eye(size)
         inequalities[1].power[0] += sp.eye(size)
         return inequalities
-
-    def scale_costs(self, scale):
-        self.linear_cost /= scale
-        if self.quadratic_cost is not None:
-            self.quadratic_cost /= scale
-        if self.capital_cost is not None:
-            self.capital_cost /= scale
-
-    def scale_power(self, scale):
-        self.nominal_capacity /= scale
 
     # ====
     # ADMM FUNCTIONS
@@ -230,6 +230,10 @@ class Generator(Injector):
         if self.max_nominal_capacity is not None:
             self.max_nominal_capacity /= scale
         return super().scale_power(scale)
+
+    # ====
+    # PLANNING FUNCTIONS
+    # ====
 
     def get_investment_cost(self, nominal_capacity=None, la=np):
         # Get nominal capacity and capital cost

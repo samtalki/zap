@@ -87,15 +87,16 @@ class ACLine(PowerLine):
 
         # Linearized power flow constraints
         angle_diff = angle[0] - angle[1]
+        pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
 
-        if envelope is None:
-            pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
+        # if envelope is None:
+        #     pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
 
-        else:
-            # TODO - Fill in the lower and upper bounds
-            pnom_dtheta = envelope_variable(
-                nominal_capacity, angle_diff, None, None, None, None, envelope
-            )
+        # else:
+        #     # TODO - Fill in the lower and upper bounds
+        #     pnom_dtheta = envelope_variable(
+        #         nominal_capacity, angle_diff, None, None, None, None, envelope
+        #     )
 
         eq_constraints += [power[1] - la.multiply(data.susceptance, pnom_dtheta)]
 

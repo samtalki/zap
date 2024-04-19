@@ -81,6 +81,21 @@ class Transporter(AbstractDevice):
             self.slack,
         )
 
+    def scale_costs(self, scale):
+        self.linear_cost /= scale
+        if self.quadratic_cost is not None:
+            self.quadratic_cost /= scale
+        if self.capital_cost is not None:
+            self.capital_cost /= scale
+
+    def scale_power(self, scale):
+        self.nominal_capacity /= scale
+        if self.min_nominal_capacity is not None:
+            self.min_nominal_capacity /= scale
+        if self.max_nominal_capacity is not None:
+            self.max_nominal_capacity /= scale
+        self.slack /= scale
+
     # ====
     # CORE MODELING FUNCTIONS
     # ====
@@ -125,20 +140,9 @@ class Transporter(AbstractDevice):
 
         return inequalities
 
-    def scale_costs(self, scale):
-        self.linear_cost /= scale
-        if self.quadratic_cost is not None:
-            self.quadratic_cost /= scale
-        if self.capital_cost is not None:
-            self.capital_cost /= scale
-
-    def scale_power(self, scale):
-        self.nominal_capacity /= scale
-        if self.min_nominal_capacity is not None:
-            self.min_nominal_capacity /= scale
-        if self.max_nominal_capacity is not None:
-            self.max_nominal_capacity /= scale
-        self.slack /= scale
+    # ====
+    # PLANNING
+    # ====
 
     def get_investment_cost(self, nominal_capacity=None, la=np):
         # Get original nominal capacity and capital cost
