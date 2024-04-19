@@ -12,5 +12,5 @@ DUAL_CLASS = {
 }
 
 
-def dualize(devices: list[dev.AbstractDevice]):
-    return [DUAL_CLASS[type(d)](d) for d in devices]
+def dualize(devices: list[dev.AbstractDevice], **kwargs):
+    return [DUAL_CLASS[type(d)](d, **kwargs) for d in devices]

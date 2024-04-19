@@ -1,11 +1,13 @@
 import numpy as np
 
 from zap.devices.injector import Injector
+from zap.util import envelope_variable, use_envelope
 
 
 class DualInjector(Injector):
-    def __init__(self, injector: Injector):
+    def __init__(self, injector: Injector, max_price=None, **kwargs):
         self.primal = injector
+        self.max_price = max_price
 
         self.num_nodes = injector.num_nodes
         self.terminal = injector.terminal
@@ -38,8 +40,16 @@ class DualInjector(Injector):
         pmax = data.max_power
         c = data.linear_cost
 
-        f1 = la.multiply(la.multiply(z, pnom), pmin)
-        f2 = la.multiply(la.multiply(z, pnom), pmax)
+        if use_envelope(envelope):
+            print("Envelope relaxation applied to dual injector.")
+            env, lower, upper = envelope
+            lb, ub = lower["nominal_capacity"], upper["nominal_capacity"]
+            z_pnom = envelope_variable(pnom, z, lb, ub, -self.max_price, self.max_price, *env)
+        else:
+            z_pnom = la.multiply(z, pnom)
+
+        f1 = la.multiply(z_pnom, pmin)
+        f2 = la.multiply(z_pnom, pmax)
         f2 -= la.multiply(c, la.multiply(pnom, (pmax - pmin)))
 
         return la.sum(la.maximum(f1, f2))

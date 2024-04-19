@@ -12,6 +12,7 @@ class RelaxedPlanningProblem:
         self,
         problem: PlanningProblem,
         inf_value=100.0,
+        max_price=100.0,
         solver=cp.MOSEK,
         sd_tolerance=1.0,
         solver_kwargs={"verbose": False, "accept_unknown": True},
@@ -21,6 +22,7 @@ class RelaxedPlanningProblem:
         self.solver = solver
         self.solver_kwargs = solver_kwargs
         self.sd_tolerance = sd_tolerance
+        self.max_price = max_price
 
     def setup_parameters(self, **kwargs):
         return self.problem.layer.setup_parameters(**kwargs)
@@ -59,7 +61,7 @@ class RelaxedPlanningProblem:
 
         # Define primal and dual problems
         net, devices = self.problem.layer.network, self.problem.layer.devices
-        dual_devices = zap.dual.dualize(devices)
+        dual_devices = zap.dual.dualize(devices, max_price=self.max_price)
 
         parameters = self.setup_parameters(**net_params)
         envelope_constraints = []

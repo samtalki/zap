@@ -4,7 +4,7 @@ from zap.devices.ground import Ground
 
 
 class DualGround(Ground):
-    def __init__(self, ground: Ground):
+    def __init__(self, ground: Ground, **kwargs):
         self.primal = ground
 
         self.num_nodes = ground.num_nodes

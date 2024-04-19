@@ -87,12 +87,12 @@ class ACLine(PowerLine):
 
         # Linearized power flow constraints
         angle_diff = angle[0] - angle[1]
-        pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
 
-        # Envelope of product pnom * dtheta (when line is plannable)
-        if use_envelope(envelope):
+        if use_envelope(envelope):  # When line is plannable
             print("Envelope relaxation applied to AC line.")
             pnom_dtheta = self.get_envelope_variable(*envelope, data, angle_diff)
+        else:
+            pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
 
         eq_constraints += [power[1] - la.multiply(data.susceptance, pnom_dtheta)]
 

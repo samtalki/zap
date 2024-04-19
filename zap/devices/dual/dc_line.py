@@ -4,7 +4,7 @@ from zap.devices.transporter import DCLine
 
 
 class DualDCLine(DCLine):
-    def __init__(self, line: DCLine):
+    def __init__(self, line: DCLine, **kwargs):
         self.primal = line
 
         self.num_nodes = line.num_nodes

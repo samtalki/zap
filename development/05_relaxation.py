@@ -60,6 +60,8 @@ def __(np, pn, pn_dates, zap):
         )
     ]
 
+    devices = devices[:2]
+
     for d in devices:
         print(type(d))
     return d, devices, mode, net
@@ -120,13 +122,13 @@ def __(mo):
 @app.cell
 def __(DispatchLayer, cp, deepcopy, devices, net, zap):
     _gind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Generator))
-    _lind = next(i for i, d in enumerate(devices) if isinstance(d, zap.ACLine))
-    _bind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Battery))
+    # _lind = next(i for i, d in enumerate(devices) if isinstance(d, zap.ACLine))
+    # _bind = next(i for i, d in enumerate(devices) if isinstance(d, zap.Battery))
 
     parameter_names = {
         "generator_capacity": (_gind, "nominal_capacity"),
-        "line_capacity": (_lind, "nominal_capacity"),
-        "battery_capacity": (_bind, "power_capacity"),
+        # "line_capacity": (_lind, "nominal_capacity"),
+        # "battery_capacity": (_bind, "power_capacity"),
     }
 
     initial_parameters = {}

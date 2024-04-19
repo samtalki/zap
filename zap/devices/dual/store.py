@@ -5,7 +5,7 @@ from zap.devices.store import Battery
 
 
 class DualBattery(Battery):
-    def __init__(self, battery: Battery):
+    def __init__(self, battery: Battery, **kwargs):
         self.primal = battery
 
         self.num_nodes = battery.num_nodes
