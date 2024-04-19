@@ -3,7 +3,7 @@ import scipy.sparse as sp
 from collections import namedtuple
 
 from zap.devices.abstract import make_dynamic
-from zap.util import replace_none, choose_base_modeler
+from zap.util import replace_none, envelope_variable
 from .dc_line import PowerLine
 
 
@@ -79,14 +79,26 @@ class ACLine(PowerLine):
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
-        base = choose_base_modeler(la)
 
-        susceptance = base.multiply(data.susceptance, data.nominal_capacity)
-
+        # Regular transporter constraints
         eq_constraints = super().equality_constraints(
             power, angle, u, nominal_capacity=nominal_capacity, la=la
         )
-        eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
+
+        # Linearized power flow constraints
+        angle_diff = angle[0] - angle[1]
+
+        if envelope is None:
+            pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
+
+        else:
+            # TODO - Fill in the lower and upper bounds
+            pnom_dtheta = envelope_variable(
+                nominal_capacity, angle_diff, None, None, None, None, envelope
+            )
+
+        eq_constraints += [power[1] - la.multiply(data.susceptance, pnom_dtheta)]
+
         return eq_constraints
 
     # ====

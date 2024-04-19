@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import replace_none, choose_base_modeler
+from zap.util import replace_none
 from .abstract import AbstractDevice, get_time_horizon, make_dynamic
 
 InjectorData = namedtuple(
@@ -81,19 +81,17 @@ class Injector(AbstractDevice):
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
-        base = choose_base_modeler(la)
         power = power[0]
 
         return [
-            base.multiply(data.min_power, data.nominal_capacity) - power,
-            power - base.multiply(data.max_power, data.nominal_capacity),
+            la.multiply(data.min_power, data.nominal_capacity) - power,
+            power - la.multiply(data.max_power, data.nominal_capacity),
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
-        base = choose_base_modeler(la)
 
-        power = power[0] - base.multiply(data.min_power, data.nominal_capacity)
+        power = power[0] - la.multiply(data.min_power, data.nominal_capacity)
 
         cost = la.sum(la.multiply(data.linear_cost, power))
         if data.quadratic_cost is not None:

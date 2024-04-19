@@ -67,3 +67,28 @@ def choose_base_modeler(la):
         return np
     else:
         raise ValueError(f"Unknown la: {la}")
+
+
+def envelope_variable(x, y, xmin, xmax, ymin, ymax, envelope_constraints):
+    """Define a new variable `z = envelope(x * y)`.
+
+    Here `envelope` is the convex (McCormick) envelope of the product `x * y`.
+    """
+    # Create product variable
+    z_shape = np.maximum(x.shape, y.shape)
+    z = cp.Variable(z_shape)
+
+    # Add constraints
+    #     z >= xmin * y + x * ymin - xmin * ymin,
+    #     z >= xmax * y + x * ymax - xmax * ymax,
+    #     z <= xmax * y + x * ymin - xmax * ymin,
+    #     z <= xmin * y + x * ymax - xmin * ymax,
+    constraints = [
+        z >= cp.multiply(xmin, y) + cp.multiply(x, ymin) - cp.multiply(xmin, ymin),
+        z >= cp.multiply(xmax, y) + cp.multiply(x, ymax) - cp.multiply(xmax, ymax),
+        z <= cp.multiply(xmax, y) + cp.multiply(x, ymin) - cp.multiply(xmax, ymin),
+        z <= cp.multiply(xmin, y) + cp.multiply(x, ymax) - cp.multiply(xmin, ymax),
+    ]
+    envelope_constraints += constraints
+
+    return z, envelope_constraints

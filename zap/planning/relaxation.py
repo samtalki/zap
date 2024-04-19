@@ -6,27 +6,6 @@ from zap.network import DispatchOutcome
 from .problem import PlanningProblem
 
 
-def envelope_variable(x, y, xmin, xmax, ymin, ymax, envelope_constraints):
-    """Define a new variable `z = envelope(x * y)`.
-
-    Here `envelope` is the convex (McCormick) envelope of the product `x * y`.
-    """
-    # Create product variable
-    z_shape = np.maximum(x.shape, y.shape)
-    z = cp.Variable(z_shape)
-
-    # Add constraints
-    constraints = [
-        z >= xmin * y + x * ymin - xmin * ymin,
-        z >= xmax * y + x * ymax - xmax * ymax,
-        z <= xmax * y + x * ymin - xmax * ymin,
-        z <= xmin * y + x * ymax - xmin * ymax,
-    ]
-    envelope_constraints += constraints
-
-    return z, envelope_constraints
-
-
 class RelaxedPlanningProblem:
     def __init__(
         self,
@@ -87,7 +66,7 @@ class RelaxedPlanningProblem:
             devices,
             self.problem.time_horizon,
             dual=False,
-            parameters=[{} for _ in devices],
+            parameters=parameters,
             envelope=envelope_constraints,
         )
         dual_costs, dual_constraints, dual_data = net.model_dispatch_problem(
@@ -113,9 +92,7 @@ class RelaxedPlanningProblem:
         )
 
         # TODO Incorporate true parameters
-        operation_objective = self.problem.operation_objective(
-            y, parameters=[{} for _ in devices], la=cp
-        )
+        operation_objective = self.problem.operation_objective(y, parameters=parameters, la=cp)
 
         # Create full problem and solve
         problem = cp.Problem(

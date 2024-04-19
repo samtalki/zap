@@ -41,7 +41,7 @@ def __(mo):
 
 @app.cell
 def __(np, pn, pn_dates, zap):
-    mode = "pypsa"
+    mode = "classic"
 
     if mode == "classic":  # Classic settings
         net, devices = zap.importers.load_test_network(
@@ -191,13 +191,9 @@ def __(problem, zap):
 
 @app.cell
 def __(out):
-    out["problem"].value
-    return
-
-
-@app.cell
-def __(out):
-    out["operation_objective"].value
+    print(out["operation_objective"].value, out["investment_objective"].value)
+    print(out["operation_objective"].value + out["investment_objective"].value)
+    print(out["problem"].value)
     return
 
 

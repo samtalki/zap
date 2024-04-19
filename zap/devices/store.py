@@ -7,7 +7,7 @@ from collections import namedtuple
 from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
-from zap.util import replace_none, choose_base_modeler
+from zap.util import replace_none
 
 BatteryVariable = namedtuple(
     "BatteryVariable",
@@ -113,13 +113,12 @@ class Battery(AbstractDevice):
 
     def equality_constraints(self, power, angle, state, power_capacity=None, la=np, envelope=None):
         data = self.device_data(power_capacity=power_capacity, la=la)
-        base = choose_base_modeler(la)
 
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
         T = power[0].shape[1]
-        energy_capacity = base.multiply(data.power_capacity, data.duration)
+        energy_capacity = la.multiply(data.power_capacity, data.duration)
 
         soc_evolution = (
             state.energy[:, :-1]
@@ -129,20 +128,19 @@ class Battery(AbstractDevice):
         return [
             power[0] - (state.charge - state.discharge),
             state.energy[:, 1:] - soc_evolution,
-            state.energy[:, 0:1] - base.multiply(data.initial_soc, energy_capacity),
-            state.energy[:, T : (T + 1)] - base.multiply(data.final_soc, energy_capacity),
+            state.energy[:, 0:1] - la.multiply(data.initial_soc, energy_capacity),
+            state.energy[:, T : (T + 1)] - la.multiply(data.final_soc, energy_capacity),
         ]
 
     def inequality_constraints(
         self, power, angle, state, power_capacity=None, la=np, envelope=None
     ):
         data = self.device_data(power_capacity=power_capacity, la=la)
-        base = choose_base_modeler(la)
 
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
-        energy_capacity = base.multiply(data.power_capacity, data.duration)
+        energy_capacity = la.multiply(data.power_capacity, data.duration)
 
         return [
             -state.energy,

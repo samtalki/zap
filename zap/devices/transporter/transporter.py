@@ -8,7 +8,7 @@ from typing import Optional
 from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
-from zap.util import replace_none, choose_base_modeler
+from zap.util import replace_none
 
 
 TransporterData = namedtuple(
@@ -90,11 +90,10 @@ class Transporter(AbstractDevice):
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
-        base = choose_base_modeler(la)
 
         return [
-            base.multiply(data.min_power, data.nominal_capacity) - power[1] - data.slack,
-            power[1] - base.multiply(data.max_power, data.nominal_capacity) - data.slack,
+            la.multiply(data.min_power, data.nominal_capacity) - power[1] - data.slack,
+            power[1] - la.multiply(data.max_power, data.nominal_capacity) - data.slack,
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
