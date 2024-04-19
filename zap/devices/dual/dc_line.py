@@ -1,11 +1,13 @@
 import numpy as np
 
 from zap.devices.transporter import DCLine
+from zap.util import envelope_variable, use_envelope
 
 
 class DualDCLine(DCLine):
-    def __init__(self, line: DCLine, **kwargs):
+    def __init__(self, line: DCLine, max_price=None, **kwargs):
         self.primal = line
+        self.max_price = max_price
 
         self.num_nodes = line.num_nodes
         self.source_terminal = line.source_terminal
@@ -38,6 +40,20 @@ class DualDCLine(DCLine):
         pmax = data.max_power
         slack = data.slack
 
-        u = pnom * pmax + slack
+        # Cost function is
+        # = (pnom*pmax + slack) * |z2 - z1|
+        # = slack * |z_diff| + pmax * |pnom * z_diff|
 
-        return la.sum(la.multiply(u, la.abs(z2 - z1)))
+        z_diff = z2 - z1
+
+        if use_envelope(envelope):
+            print("Envelope relaxation applied to dual DC line.")
+            env, lower, upper = envelope
+            lb, ub = lower["nominal_capacity"], upper["nominal_capacity"]
+            max_z_diff = 2 * self.max_price
+            z_diff_pnom = envelope_variable(pnom, z_diff, lb, ub, -max_z_diff, max_z_diff, *env)
+
+        else:
+            z_diff_pnom = la.multiply(z_diff, pnom)
+
+        return la.sum(la.multiply(slack, la.abs(z_diff)) + la.multiply(pmax, la.abs(z_diff_pnom)))
