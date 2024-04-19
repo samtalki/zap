@@ -100,6 +100,10 @@ class Battery(AbstractDevice):
             self.capital_cost,
         )
 
+    # ====
+    # CORE MODELING FUNCTIONS
+    # ====
+
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return BatteryVariable(
             cp.Variable((self.num_devices, time_horizon + 1)),
@@ -107,7 +111,7 @@ class Battery(AbstractDevice):
             cp.Variable((self.num_devices, time_horizon)),
         )
 
-    def equality_constraints(self, power, angle, state, power_capacity=None, la=np):
+    def equality_constraints(self, power, angle, state, power_capacity=None, la=np, envelope=None):
         data = self.device_data(power_capacity=power_capacity, la=la)
         base = choose_base_modeler(la)
 
@@ -129,7 +133,9 @@ class Battery(AbstractDevice):
             state.energy[:, T : (T + 1)] - base.multiply(data.final_soc, energy_capacity),
         ]
 
-    def inequality_constraints(self, power, angle, state, power_capacity=None, la=np):
+    def inequality_constraints(
+        self, power, angle, state, power_capacity=None, la=np, envelope=None
+    ):
         data = self.device_data(power_capacity=power_capacity, la=la)
         base = choose_base_modeler(la)
 
@@ -147,7 +153,7 @@ class Battery(AbstractDevice):
             state.discharge - data.power_capacity,
         ]
 
-    def operation_cost(self, power, angle, state, power_capacity=None, la=np):
+    def operation_cost(self, power, angle, state, power_capacity=None, la=np, envelope=None):
         data = self.device_data(power_capacity=power_capacity, la=la)
 
         if not isinstance(state, BatteryVariable):
@@ -158,6 +164,10 @@ class Battery(AbstractDevice):
             cost += la.sum(la.multiply(data.quadratic_cost, la.square(state.discharge)))
 
         return cost
+
+    # ====
+    # DIFFERENTIATION
+    # ====
 
     def _soc_boundary_matrix(self, num_devices, time_horizon, index=0):
         soc_first = np.zeros((num_devices, time_horizon + 1))

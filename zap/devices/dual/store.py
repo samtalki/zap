@@ -24,13 +24,13 @@ class DualBattery(Battery):
     def model_local_variables(self, time_horizon: int) -> list[cp.Variable]:
         return [cp.Variable((self.num_devices, time_horizon))]
 
-    def equality_constraints(self, power, angle, _, power_capacity=None, la=np):
+    def equality_constraints(self, power, angle, _, power_capacity=None, la=np, envelope=None):
         return []
 
-    def inequality_constraints(self, power, angle, _, power_capacity=None, la=np):
+    def inequality_constraints(self, power, angle, _, power_capacity=None, la=np, envelope=None):
         return []
 
-    def operation_cost(self, power, angle, state, power_capacity=None, la=np):
+    def operation_cost(self, power, angle, state, power_capacity=None, la=np, envelope=None):
         data = self.device_data(power_capacity=power_capacity, la=la)
         assert data.quadratic_cost is None
 

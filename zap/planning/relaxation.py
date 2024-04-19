@@ -6,8 +6,25 @@ from zap.network import DispatchOutcome
 from .problem import PlanningProblem
 
 
-def envelope_variable():
-    pass
+def envelope_variable(x, y, xmin, xmax, ymin, ymax, envelope_constraints):
+    """Define a new variable `z = envelope(x * y)`.
+
+    Here `envelope` is the convex (McCormick) envelope of the product `x * y`.
+    """
+    # Create product variable
+    z_shape = np.maximum(x.shape, y.shape)
+    z = cp.Variable(z_shape)
+
+    # Add constraints
+    constraints = [
+        z >= xmin * y + x * ymin - xmin * ymin,
+        z >= xmax * y + x * ymax - xmax * ymax,
+        z <= xmax * y + x * ymin - xmax * ymin,
+        z <= xmin * y + x * ymax - xmin * ymax,
+    ]
+    envelope_constraints += constraints
+
+    return z, envelope_constraints
 
 
 class RelaxedPlanningProblem:
@@ -17,13 +34,16 @@ class RelaxedPlanningProblem:
         inf_value=100.0,
         solver=cp.MOSEK,
         sd_tolerance=1.0,
-        solver_kwargs={},
+        solver_kwargs={"verbose": False, "accept_unknown": True},
     ):
         self.problem = problem
         self.inf_value = inf_value
         self.solver = solver
         self.solver_kwargs = solver_kwargs
         self.sd_tolerance = sd_tolerance
+
+    def setup_parameters(self, **kwargs):
+        return self.problem.layer.setup_parameters(**kwargs)
 
     def model_outer_problem(self):
         """Define outer variables, constraints, and costs."""
@@ -55,14 +75,20 @@ class RelaxedPlanningProblem:
         network_parameters, lower_bounds, upper_bounds, investment_objective = (
             self.model_outer_problem()
         )
+        envelope_constraints = []
 
         # Define primal and dual problems
         net, devices = self.problem.layer.network, self.problem.layer.devices
         dual_devices = zap.dual.dualize(devices)
 
         # TODO Incorporate true parameters
+        parameters = self.setup_parameters(**network_parameters)
         primal_costs, primal_constraints, primal_data = net.model_dispatch_problem(
-            devices, self.problem.time_horizon, dual=False, parameters=[{} for _ in devices]
+            devices,
+            self.problem.time_horizon,
+            dual=False,
+            parameters=[{} for _ in devices],
+            envelope=envelope_constraints,
         )
         dual_costs, dual_constraints, dual_data = net.model_dispatch_problem(
             dual_devices,
@@ -86,9 +112,14 @@ class RelaxedPlanningProblem:
             local_inequality_duals=None,
         )
 
+        # TODO Incorporate true parameters
+        operation_objective = self.problem.operation_objective(
+            y, parameters=[{} for _ in devices], la=cp
+        )
+
         # Create full problem and solve
         problem = cp.Problem(
-            cp.Minimize(investment_objective),
+            cp.Minimize(investment_objective + operation_objective),
             lower_bounds
             + upper_bounds
             + [sd_constraint]
@@ -110,4 +141,5 @@ class RelaxedPlanningProblem:
             "dual_constraints": dual_constraints,
             "primal_data": primal_data,
             "dual_data": dual_data,
+            "operation_objective": operation_objective,
         }

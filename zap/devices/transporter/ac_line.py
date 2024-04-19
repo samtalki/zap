@@ -73,7 +73,11 @@ class ACLine(PowerLine):
             self.slack,
         )
 
-    def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np):
+    # ====
+    # CORE MODELING FUNCTIONS
+    # ====
+
+    def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         base = choose_base_modeler(la)
 
@@ -84,6 +88,10 @@ class ACLine(PowerLine):
         )
         eq_constraints += [power[1] - la.multiply(susceptance, (angle[0] - angle[1]))]
         return eq_constraints
+
+    # ====
+    # DIFFERENTIATION
+    # ====
 
     def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
@@ -100,6 +108,10 @@ class ACLine(PowerLine):
         equalities[1].angle[1] += sp.diags(b_mat.ravel())
 
         return super()._equality_matrices(equalities, nominal_capacity=nominal_capacity, la=la)
+
+    # ====
+    # ADMM FUNCTIONS
+    # ====
 
     def admm_initialize_angle_variables(self, time_horizon: int):
         return [

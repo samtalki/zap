@@ -72,10 +72,14 @@ class Injector(AbstractDevice):
             self.emission_rates,
         )
 
-    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    # ====
+    # CORE MODELING FUNCTIONS
+    # ====
+
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return []
 
-    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         base = choose_base_modeler(la)
         power = power[0]
@@ -85,7 +89,7 @@ class Injector(AbstractDevice):
             power - base.multiply(data.max_power, data.nominal_capacity),
         ]
 
-    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         base = choose_base_modeler(la)
 
@@ -96,6 +100,10 @@ class Injector(AbstractDevice):
             cost += la.sum(la.multiply(data.quadratic_cost, la.square(power)))
 
         return cost
+
+    # ====
+    # DIFFERENTIATION
+    # ====
 
     def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
         return equalities
@@ -115,6 +123,10 @@ class Injector(AbstractDevice):
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
+
+    # ====
+    # ADMM FUNCTIONS
+    # ====
 
     def admm_initialize_power_variables(self, time_horizon: int):
         return [np.zeros((self.num_devices, time_horizon))]

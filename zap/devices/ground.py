@@ -44,21 +44,35 @@ class Ground(AbstractDevice):
     def _device_data(self):
         return GroundData(self.voltage)
 
-    def equality_constraints(self, power, angle, local_variables, la=np):
+    def scale_costs(self, scale):
+        pass
+
+    def scale_power(self, scale):
+        pass
+
+    # ====
+    # CORE MODELING FUNCTIONS
+    # ====
+
+    def equality_constraints(self, power, angle, local_variables, la=np, envelope=None):
         data = self.device_data(la=la)
         return [
             power[0],
             angle[0] - data.voltage,
         ]
 
-    def inequality_constraints(self, power, angle, local_variables, la=np):
+    def inequality_constraints(self, power, angle, local_variables, la=np, envelope=None):
         return []
 
-    def operation_cost(self, power, angle, local_variables, la=np):
+    def operation_cost(self, power, angle, local_variables, la=np, envelope=None):
         if la == torch:
             return la.zeros(1)
         else:
             return 0.0
+
+    # ====
+    # DIFFERENTIATION
+    # ====
 
     def _equality_matrices(self, equalities, la=np):
         size = equalities[0].power[0].shape[1]
@@ -70,11 +84,9 @@ class Ground(AbstractDevice):
     def _inequality_matrices(self, inequalities, la=np):
         return inequalities
 
-    def scale_costs(self, scale):
-        pass
-
-    def scale_power(self, scale):
-        pass
+    # ====
+    # ADMM FUNCTIONS
+    # ====
 
     def admm_initialize_power_variables(self, time_horizon: int):
         return [np.zeros((self.num_devices, time_horizon))]

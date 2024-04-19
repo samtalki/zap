@@ -20,13 +20,13 @@ class DualACLine(ACLine):
         self.max_nominal_capacity = line.max_nominal_capacity
         self.susceptance = line.susceptance
 
-    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return [angle[1] + angle[0]]
 
-    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return []
 
-    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
         assert data.quadratic_cost is None

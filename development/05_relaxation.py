@@ -147,8 +147,8 @@ def __(DispatchLayer, cp, deepcopy, devices, net, zap):
 
 
 @app.cell
-def __(devices, layer, zap):
-    op_objective = zap.planning.EmissionsObjective(devices)
+def __(devices, layer, net, zap):
+    op_objective = zap.planning.DispatchCostObjective(net, devices)
     inv_objective = zap.planning.InvestmentObjective(devices, layer)
     return inv_objective, op_objective
 
@@ -181,16 +181,36 @@ def __(cp, problem):
 
 @app.cell
 def __(problem, zap):
-    relaxation = zap.planning.RelaxedPlanningProblem(problem)
+    relaxation = zap.planning.RelaxedPlanningProblem(
+        problem,
+        solver_kwargs={"verbose": False, "accept_unknown": True},
+    )
     out = relaxation.solve()
-
-    out["problem"]
     return out, relaxation
 
 
 @app.cell
 def __(out):
-    out["primal_data"]["power"][0][0].value
+    out["problem"].value
+    return
+
+
+@app.cell
+def __(out):
+    out["operation_objective"].value
+    return
+
+
+@app.cell
+def __(cp, out):
+    # out["primal_data"]["power"][0][0].value
+    cp.sum(out["primal_costs"]).value
+    return
+
+
+@app.cell
+def __(out, relaxation):
+    relaxation.problem.layer.setup_parameters(**out["network_parameters"])
     return
 
 

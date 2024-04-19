@@ -11,13 +11,13 @@ class DualGround(Ground):
         self.terminal = ground.terminal
         self.voltage = ground.voltage
 
-    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return []
 
-    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return []
 
-    def operation_cost(self, power, angle, _, la=np):
+    def operation_cost(self, power, angle, _, la=np, envelope=None):
         data = self.device_data(la=la)
 
         mu = angle[0]

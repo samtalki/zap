@@ -81,10 +81,14 @@ class Transporter(AbstractDevice):
             self.slack,
         )
 
-    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    # ====
+    # CORE MODELING FUNCTIONS
+    # ====
+
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return [power[1] + power[0]]
 
-    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         base = choose_base_modeler(la)
 
@@ -93,7 +97,7 @@ class Transporter(AbstractDevice):
             power[1] - base.multiply(data.max_power, data.nominal_capacity) - data.slack,
         ]
 
-    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
         cost = la.sum(la.multiply(data.linear_cost, la.abs(power[1])))
@@ -101,6 +105,10 @@ class Transporter(AbstractDevice):
             cost += la.sum(la.multiply(data.quadratic_cost, la.square(power[1])))
 
         return cost
+
+    # ====
+    # DIFFERENTIATION
+    # ====
 
     def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
         size = equalities[0].power[0].shape[1]
@@ -145,6 +153,10 @@ class Transporter(AbstractDevice):
         capital_cost = data.capital_cost
 
         return la.sum(la.multiply(capital_cost, (nominal_capacity - pnom_min)))
+
+    # ====
+    # ADMM FUNCTIONS
+    # ====
 
     def admm_initialize_power_variables(self, time_horizon: int):
         return [

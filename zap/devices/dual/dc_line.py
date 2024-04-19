@@ -19,13 +19,13 @@ class DualDCLine(DCLine):
         self.min_nominal_capacity = line.min_nominal_capacity
         self.max_nominal_capacity = line.max_nominal_capacity
 
-    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return []
 
-    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np):
+    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         return []
 
-    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np):
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
         assert data.quadratic_cost is None
