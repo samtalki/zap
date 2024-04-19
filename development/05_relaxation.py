@@ -41,7 +41,7 @@ def __(mo):
 
 @app.cell
 def __(np, pn, pn_dates, zap):
-    mode = "classic"
+    mode = "pypsa"
     classic_line_type = zap.ACLine
 
     if mode == "classic":  # Classic settings
@@ -141,6 +141,7 @@ def __(DispatchLayer, classic_line_type, cp, deepcopy, devices, net, zap):
         time_horizon=devices[0].time_horizon,
         solver=cp.MOSEK,
         solver_kwargs={"verbose": False, "accept_unknown": True},
+        add_ground=False,
     )
 
     # initial_parameters
@@ -184,29 +185,31 @@ def __(cp, problem):
 def __(problem, zap):
     relaxation = zap.planning.RelaxedPlanningProblem(
         problem,
-        solver_kwargs={"verbose": False, "accept_unknown": True},
+        # solver=cp.MOSEK,
+        # solver_kwargs={"verbose": False, "accept_unknown": True},
     )
-    out = relaxation.solve()
-    return out, relaxation
+    relaxed_parameters, data = relaxation.solve()
+    return data, relaxation, relaxed_parameters
 
 
 @app.cell
-def __(out):
-    print(out["operation_objective"].value, out["investment_objective"].value)
-    print(out["operation_objective"].value + out["investment_objective"].value)
-    print(out["problem"].value)
+def __(data):
+    print(data["operation_objective"].value, data["investment_objective"].value)
+    print(data["operation_objective"].value + data["investment_objective"].value)
+    print(data["problem"].value)
     return
 
 
 @app.cell
-def __(initial_parameters, out):
-    initial_parameters, {k: v.value for k,v in out["network_parameters"].items()}
+def __(initial_parameters, problem, relaxed_parameters):
+    print(problem(**initial_parameters))
+    print(problem(**relaxed_parameters))
     return
 
 
 @app.cell
-def __(devices):
-    devices[-2].capital_cost
+def __(initial_parameters, relaxed_parameters):
+    initial_parameters, relaxed_parameters
     return
 
 

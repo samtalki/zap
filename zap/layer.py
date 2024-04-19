@@ -17,6 +17,7 @@ class DispatchLayer:
         time_horizon: int = 1,
         solver=cp.ECOS,
         solver_kwargs={},
+        add_ground=False,
     ):
         self.network = network
         self.devices = devices
@@ -24,6 +25,7 @@ class DispatchLayer:
         self.time_horizon = time_horizon
         self.solver = solver
         self.solver_kwargs = solver_kwargs
+        self.add_ground = add_ground
 
         # TODO - check that parameters match devices
         # TODO - check that parameters are unique?
@@ -52,6 +54,7 @@ class DispatchLayer:
             parameters=parameters,
             solver=self.solver,
             solver_kwargs=self.solver_kwargs,
+            add_ground=self.add_ground,
         )
 
     def backward(self, z: DispatchOutcome, dz: DispatchOutcome, regularize=1e-8, **kwargs):

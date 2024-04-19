@@ -1,0 +1,20 @@
+name: zap
+channels:
+- conda-forge
+- pytorch
+dependencies:
+- conda-lock
+- cvxpy
+- marimo
+- matplotlib
+- mkl
+- numpy
+- poetry
+- pypsa
+- pytest
+- python=3.11
+- pytorch
+- seaborn
+- setuptools
+- conda-forge::sparse_dot_mkl
+- torchvision

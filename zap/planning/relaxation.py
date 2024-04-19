@@ -13,9 +13,9 @@ class RelaxedPlanningProblem:
         problem: PlanningProblem,
         inf_value=100.0,
         max_price=100.0,
-        solver=cp.MOSEK,
+        solver=None,
         sd_tolerance=1.0,
-        solver_kwargs={"verbose": False, "accept_unknown": True},
+        solver_kwargs=None,
     ):
         self.problem = deepcopy(problem)
         self.inf_value = inf_value
@@ -23,6 +23,12 @@ class RelaxedPlanningProblem:
         self.solver_kwargs = solver_kwargs
         self.sd_tolerance = sd_tolerance
         self.max_price = max_price
+
+        if self.solver is None:
+            self.solver = self.problem.layer.solver
+
+        if self.solver_kwargs is None:
+            self.solver_kwargs = self.problem.layer.solver_kwargs
 
     def setup_parameters(self, **kwargs):
         return self.problem.layer.setup_parameters(**kwargs)
@@ -111,7 +117,7 @@ class RelaxedPlanningProblem:
         )
         problem.solve(solver=self.solver, **self.solver_kwargs)
 
-        return {
+        data = {
             "network_parameters": net_params,
             "lower_bounds": lower,
             "upper_bounds": upper,
@@ -127,3 +133,7 @@ class RelaxedPlanningProblem:
             "dual_data": dual_data,
             "operation_objective": operation_objective,
         }
+
+        relaxed_parameters = {p: net_params[p].value for p in net_params.keys()}
+
+        return relaxed_parameters, data
