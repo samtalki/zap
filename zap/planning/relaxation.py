@@ -78,7 +78,10 @@ class RelaxedPlanningProblem:
             dual_devices,
             self.problem.time_horizon,
             dual=True,
-            parameters=[{} for _ in dual_devices],  # TODO Incorporate true parameters
+            parameters=parameters,
+            envelope=(envelope_variables, envelope_constraints),
+            lower_param=self.setup_parameters(**lower),
+            upper_param=self.setup_parameters(**upper),
         )
 
         # Define strong duality coupling constraint

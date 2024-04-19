@@ -3,7 +3,7 @@ import scipy.sparse as sp
 from collections import namedtuple
 
 from zap.devices.abstract import make_dynamic
-from zap.util import replace_none, envelope_variable
+from zap.util import replace_none, envelope_variable, use_envelope
 from .dc_line import PowerLine
 
 
@@ -90,11 +90,9 @@ class ACLine(PowerLine):
         pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
 
         # Envelope of product pnom * dtheta (when line is plannable)
-        if envelope is not None:
-            (env, lb, ub) = envelope
-            if "nominal_capacity" in lb:  # Check if the parameter is being planned (has bounds)
-                print("Envelope relaxation applied to AC line.")
-                pnom_dtheta = self.get_envelope_variable(env, lb, ub, data, angle_diff)
+        if use_envelope(envelope):
+            print("Envelope relaxation applied to AC line.")
+            pnom_dtheta = self.get_envelope_variable(*envelope, data, angle_diff)
 
         eq_constraints += [power[1] - la.multiply(data.susceptance, pnom_dtheta)]
 

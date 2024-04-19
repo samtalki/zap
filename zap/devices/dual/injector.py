@@ -39,6 +39,7 @@ class DualInjector(Injector):
         c = data.linear_cost
 
         f1 = la.multiply(la.multiply(z, pnom), pmin)
-        f2 = la.multiply(la.multiply(z, pnom), pmax) - c * pnom * (pmax - pmin)
+        f2 = la.multiply(la.multiply(z, pnom), pmax)
+        f2 -= la.multiply(c, la.multiply(pnom, (pmax - pmin)))
 
         return la.sum(la.maximum(f1, f2))

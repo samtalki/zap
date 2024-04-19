@@ -41,8 +41,8 @@ class DualACLine(ACLine):
         pmax = data.max_power
         slack = data.slack
 
-        upper = pnom * pmax + slack
-        b_pnom = b * pnom
+        upper = la.multiply(pnom, pmax) + slack
+        b_pnom = la.multiply(b, pnom)
 
         # For now this is
         #   = mu1 * (pnom * pmax + slack) / (b * pnom)

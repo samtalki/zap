@@ -99,3 +99,11 @@ def envelope_variable(
         envelope_constraints += constraints
 
     return z
+
+
+def use_envelope(envelope):
+    if envelope is not None:
+        env, lb, ub = envelope
+        if len(lb) > 0:
+            return True
+    return False
