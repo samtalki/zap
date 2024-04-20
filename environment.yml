@@ -1,13 +1,14 @@
 name: zap
 channels:
 - conda-forge
+- mosek
 - pytorch
 dependencies:
-- conda-lock
 - cvxpy
 - marimo
 - matplotlib
 - mkl
+- mosek::mosek
 - numpy
 - poetry
 - pypsa
