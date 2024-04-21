@@ -1,20 +1,24 @@
 # zap ⚡
 
 
+## Setup
+
+```zsh
+mamba env create -n zap --file environment.yaml
+```
 
 
 ## Environment Management
 
-Install environment:
+**Updating Packages.** Change the `environment.yaml`.
+
+**Syncing Environment.** Run one of the following commands.
 
 ```zsh
-mamba env create -n zap
-mamba update -f environment-lock.yml
+mamba update --file environment.yaml  # Mamba
+# or
+mamba env update --file environment-lock.yaml  # Conda with Mamba solver
 ```
 
-Update environment:
-
-```zsh
-mamba update -f environment.yml --prune
-mamba env export --no-builds > environment-lock.yml
-```
+I haven't figured out a good way to lock the environment yet (i.e., fix all the dependency versions),
+but this seems to work fine for the time being.
