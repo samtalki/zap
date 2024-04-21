@@ -2,8 +2,7 @@ import os
 import pypsa
 
 FILE_PATH = os.path.dirname(os.path.realpath(__file__))
-
-NUM_NODES = range(100, stop=1100, step=100)
+NUM_NODES = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
 for num_nodes in NUM_NODES:
     for ext in ["", "_ec"]:
