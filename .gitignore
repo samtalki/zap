@@ -1,4 +1,6 @@
 research/
+data/
+data
 
 # Python
 *.pyc

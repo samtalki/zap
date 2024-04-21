@@ -19,3 +19,4 @@ dependencies:
 - setuptools
 - conda-forge::sparse_dot_mkl
 - torchvision
+- wandb

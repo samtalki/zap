@@ -1,0 +1,50 @@
+# Basic config
+
+---
+cluster:
+  threads: 32
+  memory: auto
+  use_wandb: true
+
+data:
+  name: pypsa
+  add_ground: true
+  use_batteries: true
+  num_nodes: 100
+  date: todo
+  args:
+    # Important
+    power_unit: 1e3  # 1e3 = GW
+    cost_unit: 10.0  # 10.0 = decamillion / GWh
+    marginal_load_value: 500.0  # $ / MWh
+
+    # TODO
+    # scale_load: 1.0
+    # scale_rated_generator_capacity: 0.8
+    # scale_rated_line_capacity: 0.8
+
+    # Less important
+    generator_cost_perturbation: 1.0  # MW
+    load_cost_perturbation: 10.0  # MW
+    drop_empty_generators: true
+    expand_empty_generators: 0.0  # MW TODO
+
+objective:
+  cost_weight: 1.0
+  emission_weight: 0.0
+
+problem:
+  solver: mosek
+  regularize: 1e-6  # Jacobian regularization
+  parameters: [generator, dc_line, ac_line, battery]
+
+optimizer:
+  name: gradient_descent
+  num_iterations: 100
+  initial_state: relaxation
+  args:
+    step_size: 1e-3
+
+relaxation:
+  should_solve: true
+  price_bound: 100.0  # In scaled units

@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.3.10"
+__generated_with = "0.4.2"
 app = marimo.App()
 
 
@@ -379,9 +379,9 @@ def __():
 
 @app.cell
 def __():
-    # import pypsa
-    # import pandas as pd
-    # import datetime as dt
+    import pypsa
+    import pandas as pd
+    import datetime as dt
 
     # pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100_ec.nc")
     # _net, _dev = zap.importers.load_pypsa_network(
@@ -394,7 +394,15 @@ def __():
     #     ),
     # )
     # # _dev[0].max_nominal_capacity
-    return
+    return dt, pd, pypsa
+
+
+@app.cell
+def __(pypsa):
+    pn = pypsa.Network("~/zap/data/western/elec_s_200_ec.nc")
+
+    pn
+    return pn,
 
 
 if __name__ == "__main__":
