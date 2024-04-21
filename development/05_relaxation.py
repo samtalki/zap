@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.3.10"
+__generated_with = "0.4.2"
 app = marimo.App()
 
 
@@ -22,15 +22,15 @@ def __():
 
 
 @app.cell
-def __(dt, pd, pypsa):
-    pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
+def __(dt, pd):
+    # pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100.nc")
     pn_dates = pd.date_range(
         dt.datetime(2019, 1, 2, 0),
         dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=6),
         freq="1h",
         inclusive="left",
     )
-    return pn, pn_dates
+    return pn_dates,
 
 
 @app.cell
@@ -40,8 +40,8 @@ def __(mo):
 
 
 @app.cell
-def __(np, pn, pn_dates, zap):
-    mode = "pypsa"
+def __(np, pn_dates, zap):
+    mode = "classic"
     classic_line_type = zap.ACLine
 
     if mode == "classic":  # Classic settings
@@ -52,7 +52,7 @@ def __(np, pn, pn_dates, zap):
 
     else:  # PyPSA settings
         net, devices = zap.importers.load_pypsa_network(
-            pn, pn_dates, power_unit=1e3, cost_unit=10.0
+            None, pn_dates, power_unit=1e3, cost_unit=10.0
         )
 
     devices = devices + [
