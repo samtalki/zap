@@ -167,6 +167,9 @@ def solve_problem(problem, relaxation, config):
     # Setup wandb
     if config["system"]["use_wandb"]:
         wandb.init(project="zap", config=config)
+        logger = wandb
+    else:
+        logger = None
 
     # Initialize
     if relaxation is not None and opt_config["initial_state"] == "relaxation":
@@ -181,9 +184,9 @@ def solve_problem(problem, relaxation, config):
     parameters, history = problem.solve(
         num_iterations=opt_config["num_iterations"],
         algorithm=alg,
-        trackers=[tr.LOSS, tr.GRAD_NORM, tr.PROJ_GRAD_NORM],
+        trackers=[tr.LOSS, tr.GRAD_NORM, tr.PROJ_GRAD_NORM, tr.TIME],
         initial_state=initial_state,
-        wandb=wandb,
+        wandb=logger,
         log_wandb_every=config["system"]["log_wandb_every"],
     )
 

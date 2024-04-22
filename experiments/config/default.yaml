@@ -4,7 +4,7 @@
 system:
   threads: 32
   memory: auto
-  use_wandb: true
+  use_wandb: false
   log_wandb_every: 2
 
 data:

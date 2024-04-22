@@ -1,5 +1,6 @@
 import dataclasses
 import torch
+import time
 import numpy as np
 from copy import deepcopy
 
@@ -161,6 +162,7 @@ class PlanningProblem:
         history = self.initialize_history(trackers)
 
         # Initialize loop
+        self.start_time = time.time()
         J, grad = self.forward_and_back(**state)
         history = self.update_history(
             history, trackers, J, grad, state, None, wandb=wandb, log_wandb_every=log_wandb_every
@@ -205,7 +207,7 @@ class PlanningProblem:
     ):
         for tracker in trackers:
             f = TRACKER_MAPS[tracker]
-            f_val = f(J, grad, state, last_state)
+            f_val = f(J, grad, state, last_state, self)
             history[tracker] += [f_val]
 
         if wandb is not None:
