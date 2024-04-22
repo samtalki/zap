@@ -1,6 +1,8 @@
 research/
 data/
 data
+wandb/
+wandb
 
 # Python
 *.pyc

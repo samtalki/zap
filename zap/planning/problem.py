@@ -139,7 +139,15 @@ class PlanningProblem:
 
         return J, grad
 
-    def solve(self, algorithm=None, initial_state=None, num_iterations=100, trackers=None):
+    def solve(
+        self,
+        algorithm=None,
+        initial_state=None,
+        num_iterations=100,
+        trackers=None,
+        wandb=None,
+        log_wandb_every=1,
+    ):
         if algorithm is None:
             algorithm = GradientDescent()
 
@@ -154,7 +162,9 @@ class PlanningProblem:
 
         # Initialize loop
         J, grad = self.forward_and_back(**state)
-        history = self.update_history(history, trackers, J, grad, state, None)
+        history = self.update_history(
+            history, trackers, J, grad, state, None, wandb=wandb, log_wandb_every=log_wandb_every
+        )
 
         # Gradient descent loop
         for iteration in range(num_iterations):
@@ -168,7 +178,16 @@ class PlanningProblem:
             J, grad = self.forward_and_back(**state)
 
             # Record stuff
-            history = self.update_history(history, trackers, J, grad, state, last_state)
+            history = self.update_history(
+                history,
+                trackers,
+                J,
+                grad,
+                state,
+                last_state,
+                wandb=wandb,
+                log_wandb_every=log_wandb_every,
+            )
 
         return state, history
 
@@ -181,10 +200,22 @@ class PlanningProblem:
     def initialize_history(self, trackers):
         return {k: [] for k in trackers}
 
-    def update_history(self, history: dict, trackers: dict, J, grad, state, last_state):
+    def update_history(
+        self, history: dict, trackers: dict, J, grad, state, last_state, wandb, log_wandb_every
+    ):
         for tracker in trackers:
             f = TRACKER_MAPS[tracker]
-            history[tracker] += [f(J, grad, state, last_state)]
+            f_val = f(J, grad, state, last_state)
+            history[tracker] += [f_val]
+
+        if wandb is not None:
+            iteration = len(history[trackers[0]])
+
+            if (iteration % log_wandb_every == 0) or (iteration == 1):
+                print(f"logging to wandb on iteration {iteration}")
+                wand_data = {tracker: history[tracker][-1] for tracker in trackers}
+                wand_data["iteration"] = iteration
+                wandb.log(wand_data)
 
         return history
 

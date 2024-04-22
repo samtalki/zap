@@ -1,5 +1,6 @@
 import sys
 import pypsa
+import wandb
 import numpy as np
 import pandas as pd
 import datetime as dt
@@ -163,7 +164,11 @@ def solve_problem(problem, relaxation, config):
     # Construct algorithm
     alg = ALGORITHMS[opt_config["name"]](**opt_config["args"])
 
-    # Solve problem
+    # Setup wandb
+    if config["system"]["use_wandb"]:
+        wandb.init(project="zap", config=config)
+
+    # Initialize
     if relaxation is not None and opt_config["initial_state"] == "relaxation":
         print("Initializing with relaxation solution.")
         initial_state = deepcopy(relaxation["relaxed_parameters"])
@@ -172,12 +177,18 @@ def solve_problem(problem, relaxation, config):
         print("Initializing with initial parameters (no investment).")
         initial_state = None
 
+    # Solve
     parameters, history = problem.solve(
         num_iterations=opt_config["num_iterations"],
         algorithm=alg,
-        trackers=[tr.LOSS, tr.PARAM, tr.GRAD_NORM, tr.PROJ_GRAD_NORM],
+        trackers=[tr.LOSS, tr.GRAD_NORM, tr.PROJ_GRAD_NORM],
         initial_state=initial_state,
+        wandb=wandb,
+        log_wandb_every=config["system"]["log_wandb_every"],
     )
+
+    if config["system"]["use_wandb"]:
+        wandb.finish()
 
     return {
         "parameters": parameters,

@@ -1,10 +1,11 @@
 # Basic config
 
 ---
-cluster:
+system:
   threads: 32
   memory: auto
   use_wandb: true
+  log_wandb_every: 2
 
 data:
   name: pypsa
@@ -32,7 +33,7 @@ data:
     expand_empty_generators: 0.0  # MW TODO
 
 problem:
-  cost_weight: 0.0
+  cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   solver: mosek  # TODO
   regularize: 1.0e-6  # Jacobian regularization
@@ -43,7 +44,7 @@ optimizer:
   num_iterations: 10
   initial_state: relaxation
   args:
-    step_size: 1.0e-1
+    step_size: 1.0e-2
 
 relaxation:
   should_solve: true
