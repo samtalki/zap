@@ -31,12 +31,10 @@ data:
     drop_empty_generators: true
     expand_empty_generators: 0.0  # MW TODO
 
-objective:
-  cost_weight: 1.0
-  emission_weight: 0.0
-
 problem:
-  solver: mosek
+  cost_weight: 1.0
+  emissions_weight: 0.0
+  solver: mosek  # TODO
   regularize: 1.0e-6  # Jacobian regularization
   parameters: [generator, dc_line, ac_line, battery]
 
@@ -50,3 +48,4 @@ optimizer:
 relaxation:
   should_solve: true
   price_bound: 100.0  # In scaled units
+  inf_value: 100.0  # Relative to maximum lower bound of that device type

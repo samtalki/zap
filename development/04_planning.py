@@ -410,26 +410,32 @@ def __():
 
 
 @app.cell
-def __(config):
-    import importlib
-    from experiments import runner
-    importlib.reload(runner)
-
-    dataset = runner.load_dataset(config)
-    return dataset, importlib, runner
-
-
-@app.cell
 def __():
-    # dataset["devices"]
-    return
+    from experiments import runner
+    return runner,
 
 
 @app.cell
-def __(carbon_objective, op_objective):
-    _new_objective = 2.0 * op_objective + carbon_objective
+def __(config, runner):
+    dataset = runner.load_dataset(config)
+    return dataset,
 
-    _new_objective.objectives
+
+@app.cell
+def __(config, dataset, runner):
+    test_problem = runner.setup_problem(dataset, config)
+    return test_problem,
+
+
+@app.cell
+def __(config, runner, test_problem):
+    test_relax = runner.solve_relaxed_problem(test_problem, config)
+    return test_relax,
+
+
+@app.cell
+def __(test_relax):
+    test_relax["relaxed_parameters"]
     return
 
 

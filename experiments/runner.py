@@ -3,13 +3,23 @@ import pypsa
 import numpy as np
 import pandas as pd
 import datetime as dt
+import cvxpy as cp
+
 from pathlib import Path
+from copy import deepcopy
 
 import zap
 
 
 ZAP_PATH = Path(zap.__file__).parent.parent
 DATA_PATH = ZAP_PATH / "data"
+
+PARAMETERS = {
+    "generator": (zap.Generator, "nominal_capacity"),
+    "dc_line": (zap.DCLine, "nominal_capacity"),
+    "ac_line": (zap.ACLine, "nominal_capacity"),
+    "battery": (zap.Battery, "power_capacity"),
+}
 
 
 def load_config(config_path):
@@ -19,6 +29,8 @@ def load_config(config_path):
 
 
 def load_dataset(config):
+    print("Loading dataset...")
+
     data = config["data"]
 
     if data["name"] == "pypsa":
@@ -64,11 +76,78 @@ def load_dataset(config):
 
 
 def setup_problem(data, config):
-    pass
+    print("Building planning problem...")
+
+    cfg = config["problem"]
+    net, devices = data["net"], data["devices"]
+
+    # Setup parameters
+    parameter_names = {}
+    for dev in cfg["parameters"]:
+        d_type, param_field = PARAMETERS[dev]
+        d_index = device_index(devices, d_type)
+
+        if d_index is not None:
+            parameter_names[dev] = d_index, param_field
+        else:
+            print(f"Warning: device {dev} not found in devices. Will not be expanded.")
+
+    # Setup layer
+    layer = zap.DispatchLayer(
+        net,
+        devices,
+        parameter_names=parameter_names,
+        time_horizon=devices[0].time_horizon,
+        solver=cp.MOSEK,
+        solver_kwargs={"verbose": False, "accept_unknown": True},
+        add_ground=False,
+    )
+
+    # Build objective
+    f_cost = cfg["cost_weight"] * zap.planning.DispatchCostObjective(net, devices)
+    f_emissions = cfg["emissions_weight"] * zap.planning.EmissionsObjective(devices)
+    op_objective = f_cost + f_emissions
+    inv_objective = zap.planning.InvestmentObjective(devices, layer)
+
+    # Setup planning problem
+    problem = zap.planning.PlanningProblem(
+        operation_objective=op_objective,
+        investment_objective=inv_objective,
+        layer=deepcopy(layer),
+        lower_bounds=None,
+        upper_bounds=None,
+        regularize=cfg["regularize"],
+    )
+
+    return {
+        "problem": problem,
+        "layer": layer,
+    }
 
 
-def solve_relaxed_problem(data, problem, config):
-    pass
+def solve_relaxed_problem(problem, config):
+    problem = problem["problem"]
+
+    if not config["relaxation"]["should_solve"]:
+        print("Skipping relaxation...")
+        return None
+
+    else:
+        print("Solving relaxation...")
+
+        relaxation = zap.planning.RelaxedPlanningProblem(
+            problem,
+            max_price=config["relaxation"]["price_bound"],
+            inf_value=config["relaxation"]["inf_value"],
+        )
+
+        relaxed_parameters, data = relaxation.solve()
+
+        return {
+            "relaxation": relaxation,
+            "relaxed_parameters": relaxed_parameters,
+            "data": data,
+        }
 
 
 def solve_problem(data, problem, relaxation, config):
@@ -85,10 +164,22 @@ def run_experiment(config):
     problem = setup_problem(data, config)
 
     # Solve relaxation and original problem
-    relaxation = solve_relaxed_problem(data, problem, config)
+    relaxation = solve_relaxed_problem(problem, config)
     results = solve_problem(data, problem, relaxation, config)
 
     save_results(relaxation, results, config)
+
+
+# ====
+# Utility Functions
+# ====
+
+
+def device_index(devices, kind):
+    if not any(isinstance(d, kind) for d in devices):
+        return None
+
+    return next(i for i, d in enumerate(devices) if isinstance(d, kind))
 
 
 if __name__ == "__main__":
