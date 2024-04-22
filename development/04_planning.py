@@ -392,9 +392,6 @@ def __():
 def __():
     # pn = pypsa.Network()
     # pn.import_from_csv_folder(Path.home() / "zap/data/pypsa/western/elec_s_100")
-
-    # pn_ec = pypsa.Network()
-    # pn_ec.import_from_csv_folder(Path.home() / "zap/data/pypsa/western/elec_s_100_ec")
     return
 
 
@@ -418,16 +415,11 @@ def __():
 
 
 @app.cell
-def __():
+def __(importlib, zap):
     from experiments import runner
-    return runner,
-
-
-@app.cell
-def __(importlib, runner, zap):
     importlib.reload(runner)
     importlib.reload(zap)
-    return
+    return runner,
 
 
 @app.cell
@@ -455,6 +447,12 @@ def __(config, runner, test_problem, test_relax):
 
 
 @app.cell
+def __(test_relax):
+    print(test_relax["lower_bound"])
+    return
+
+
+@app.cell
 def __(test_problem, test_relax, test_result):
     _J = test_problem["problem"]
 
@@ -466,7 +464,7 @@ def __(test_problem, test_relax, test_result):
 
 @app.cell
 def __(plt, test_result):
-    plt.plot(test_result["history"]["loss"])
+    plt.plot(test_result["history"]["loss"])  # test_relax["lower_bound"])
     return
 
 

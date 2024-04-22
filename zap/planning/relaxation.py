@@ -15,7 +15,7 @@ class RelaxedPlanningProblem:
         max_price=100.0,
         solver=None,
         sd_tolerance=1.0,
-        solver_kwargs=None,
+        solver_kwargs={},
     ):
         self.problem = deepcopy(problem)
         self.inf_value = inf_value
@@ -26,8 +26,6 @@ class RelaxedPlanningProblem:
 
         if self.solver is None:
             self.solver = self.problem.layer.solver
-
-        if self.solver_kwargs is None:
             self.solver_kwargs = self.problem.layer.solver_kwargs
 
     def setup_parameters(self, **kwargs):

@@ -81,7 +81,7 @@ def load_dataset(config):
 
 
 def setup_problem(data, config):
-    print("Building very fancy planning problem...")
+    print("Building planning problem...")
 
     cfg = config["problem"]
     net, devices = data["net"], data["devices"]
@@ -138,12 +138,11 @@ def solve_relaxed_problem(problem, config):
         return None
 
     else:
-        print("Solving relaxation...")
-
         relaxation = zap.planning.RelaxedPlanningProblem(
             problem,
             max_price=config["relaxation"]["price_bound"],
             inf_value=config["relaxation"]["inf_value"],
+            sd_tolerance=1e-3,
         )
 
         relaxed_parameters, data = relaxation.solve()
@@ -152,6 +151,7 @@ def solve_relaxed_problem(problem, config):
             "relaxation": relaxation,
             "relaxed_parameters": relaxed_parameters,
             "data": data,
+            "lower_bound": data["problem"].value,
         }
 
 
@@ -166,7 +166,7 @@ def solve_problem(problem, relaxation, config):
     # Solve problem
     if relaxation is not None and opt_config["initial_state"] == "relaxation":
         print("Initializing with relaxation solution.")
-        initial_state = relaxation["relaxed_parameters"]
+        initial_state = deepcopy(relaxation["relaxed_parameters"])
 
     else:
         print("Initializing with initial parameters (no investment).")

@@ -65,6 +65,11 @@ def parse_generators(
     # Build capital costs
     capital_costs = net.generators.capital_cost.values * (len(dates) / HOURS_PER_YEAR)
 
+    # Add emissions rates
+    efficiency = net.generators.efficiency.values
+    fuel_rates = net.carriers.loc[net.generators["carrier"].values].co2_emissions.values
+    emissions = fuel_rates / efficiency
+
     if drop_empty_generators:
         mask = nominal_capacities > 0
         terminals = terminals[mask]
@@ -74,6 +79,7 @@ def parse_generators(
         capital_costs = capital_costs[mask]
         min_nominal_capacities = min_nominal_capacities[mask]
         max_nominal_capacities = max_nominal_capacities[mask]
+        emissions = emissions[mask]
 
     else:
         nominal_capacities += expand_empty_generators
@@ -87,6 +93,7 @@ def parse_generators(
         capital_cost=capital_costs,
         min_nominal_capacity=min_nominal_capacities,
         max_nominal_capacity=max_nominal_capacities,
+        emission_rates=emissions,
     )
 
 

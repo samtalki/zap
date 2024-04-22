@@ -149,7 +149,7 @@ class PlanningProblem:
         assert all([t in TRACKER_MAPS for t in trackers])
 
         # Setup initial state and history
-        state = self.initialize_parameters(initial_state)
+        state = self.initialize_parameters(deepcopy(initial_state))
         history = self.initialize_history(trackers)
 
         # Initialize loop

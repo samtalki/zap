@@ -79,6 +79,11 @@ class Injector(AbstractDevice):
         if self.capital_cost is not None:
             self.capital_cost /= scale
 
+        # Emissions are in units of kg/MWh
+        # but we scale them with costs so that prices can be stated in $/MWh
+        if self.emission_rates is not None:
+            self.emission_rates /= scale
+
     def scale_power(self, scale):
         self.nominal_capacity /= scale
 

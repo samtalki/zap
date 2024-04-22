@@ -17,7 +17,7 @@ data:
   args:
     # Important
     power_unit: 1.0e+3  # 1e3 = GW
-    cost_unit: 10.0  # 10.0 = decamillion / GWh
+    cost_unit: 10.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
 
     # TODO
@@ -32,8 +32,8 @@ data:
     expand_empty_generators: 0.0  # MW TODO
 
 problem:
-  cost_weight: 1.0
-  emissions_weight: 0.0
+  cost_weight: 0.0
+  emissions_weight: 100.0  # $ / ton CO2
   solver: mosek  # TODO
   regularize: 1.0e-6  # Jacobian regularization
   parameters: [generator, dc_line, ac_line, battery]
@@ -43,9 +43,9 @@ optimizer:
   num_iterations: 10
   initial_state: relaxation
   args:
-    step_size: 1.0e-3
+    step_size: 1.0e-1
 
 relaxation:
   should_solve: true
-  price_bound: 100.0  # In scaled units
-  inf_value: 100.0  # Relative to maximum lower bound of that device type
+  price_bound: 50.0  # In scaled units
+  inf_value: 50.0  # Relative to maximum lower bound of that device type
