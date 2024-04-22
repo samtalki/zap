@@ -401,18 +401,33 @@ def __():
 @app.cell
 def __():
     import yaml
+    return yaml,
 
+
+@app.cell
+def __(yaml):
     with open("experiments/config/default.yaml", 'r') as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
+    return config, f
 
-    # config
-    return config, f, yaml
+
+@app.cell
+def __():
+    import importlib
+    return importlib,
 
 
 @app.cell
 def __():
     from experiments import runner
     return runner,
+
+
+@app.cell
+def __(importlib, runner, zap):
+    importlib.reload(runner)
+    importlib.reload(zap)
+    return
 
 
 @app.cell
@@ -434,8 +449,24 @@ def __(config, runner, test_problem):
 
 
 @app.cell
-def __(test_relax):
-    test_relax["relaxed_parameters"]
+def __(config, runner, test_problem, test_relax):
+    test_result = runner.solve_problem(test_problem, test_relax, config)
+    return test_result,
+
+
+@app.cell
+def __(test_problem, test_relax, test_result):
+    _J = test_problem["problem"]
+
+    print(_J(**_J.initialize_parameters(None)))
+    print(_J(**test_relax["relaxed_parameters"]))
+    print(_J(**test_result["parameters"]))
+    return
+
+
+@app.cell
+def __(plt, test_result):
+    plt.plot(test_result["history"]["loss"])
     return
 
 

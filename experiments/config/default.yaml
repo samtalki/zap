@@ -13,7 +13,7 @@ data:
   num_nodes: 100
   use_extra_components: false
   start_hour: 100
-  num_hours: 24
+  num_hours: 1
   args:
     # Important
     power_unit: 1.0e+3  # 1e3 = GW
@@ -40,10 +40,10 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 100
+  num_iterations: 10
   initial_state: relaxation
   args:
-    step_size: 1e-3
+    step_size: 1.0e-3
 
 relaxation:
   should_solve: true

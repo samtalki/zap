@@ -9,6 +9,7 @@ from pathlib import Path
 from copy import deepcopy
 
 import zap
+import zap.planning.trackers as tr
 
 
 ZAP_PATH = Path(zap.__file__).parent.parent
@@ -19,6 +20,10 @@ PARAMETERS = {
     "dc_line": (zap.DCLine, "nominal_capacity"),
     "ac_line": (zap.ACLine, "nominal_capacity"),
     "battery": (zap.Battery, "power_capacity"),
+}
+
+ALGORITHMS = {
+    "gradient_descent": zap.planning.GradientDescent,
 }
 
 
@@ -57,7 +62,7 @@ def load_dataset(config):
         # Build zap network
         net, devices = zap.importers.load_pypsa_network(pn, dates, **data["args"])
 
-        if not data["use_batteries"]:
+        if (not data["use_batteries"]) or (data["num_hours"] == 1):
             devices = [d for d in devices if type(d) != zap.Battery]
 
         if data["add_ground"]:
@@ -76,7 +81,7 @@ def load_dataset(config):
 
 
 def setup_problem(data, config):
-    print("Building planning problem...")
+    print("Building very fancy planning problem...")
 
     cfg = config["problem"]
     net, devices = data["net"], data["devices"]
@@ -150,8 +155,34 @@ def solve_relaxed_problem(problem, config):
         }
 
 
-def solve_problem(data, problem, relaxation, config):
-    pass
+def solve_problem(problem, relaxation, config):
+    print("Solving problem...")
+    opt_config = config["optimizer"]
+    problem: zap.planning.PlanningProblem = problem["problem"]
+
+    # Construct algorithm
+    alg = ALGORITHMS[opt_config["name"]](**opt_config["args"])
+
+    # Solve problem
+    if relaxation is not None and opt_config["initial_state"] == "relaxation":
+        print("Initializing with relaxation solution.")
+        initial_state = relaxation["relaxed_parameters"]
+
+    else:
+        print("Initializing with initial parameters (no investment).")
+        initial_state = None
+
+    parameters, history = problem.solve(
+        num_iterations=opt_config["num_iterations"],
+        algorithm=alg,
+        trackers=[tr.LOSS, tr.PARAM, tr.GRAD_NORM, tr.PROJ_GRAD_NORM],
+        initial_state=initial_state,
+    )
+
+    return {
+        "parameters": parameters,
+        "history": history,
+    }
 
 
 def save_results(relaxation, results, config):
@@ -165,7 +196,7 @@ def run_experiment(config):
 
     # Solve relaxation and original problem
     relaxation = solve_relaxed_problem(problem, config)
-    results = solve_problem(data, problem, relaxation, config)
+    results = solve_problem(problem, relaxation, config)
 
     save_results(relaxation, results, config)
 
