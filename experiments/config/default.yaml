@@ -1,10 +1,12 @@
 # Basic config
 
 ---
+tags: []
+
 system:
   threads: 32
   memory: auto
-  use_wandb: false
+  use_wandb: true
   log_wandb_every: 2
 
 data:

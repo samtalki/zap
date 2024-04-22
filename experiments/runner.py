@@ -29,6 +29,7 @@ ALGORITHMS = {
 
 
 def load_config(config_path):
+    # TODO Tag config from name
     # TODO Expand configs
     # TODO Hunt for improperly parsed scientific notation
     pass
@@ -156,10 +157,10 @@ def solve_relaxed_problem(problem, config):
         }
 
 
-def solve_problem(problem, relaxation, config):
+def solve_problem(problem_data, relaxation, config):
     print("Solving problem...")
     opt_config = config["optimizer"]
-    problem: zap.planning.PlanningProblem = problem["problem"]
+    problem: zap.planning.PlanningProblem = problem_data["problem"]
 
     # Construct algorithm
     alg = ALGORITHMS[opt_config["name"]](**opt_config["args"])
@@ -189,6 +190,7 @@ def solve_problem(problem, relaxation, config):
         wandb=logger,
         log_wandb_every=config["system"]["log_wandb_every"],
         lower_bound=relaxation["lower_bound"] if relaxation is not None else None,
+        extra_wandb_trackers=get_wandb_trackers(problem_data, relaxation, config),
     )
 
     if config["system"]["use_wandb"]:
@@ -226,6 +228,36 @@ def device_index(devices, kind):
         return None
 
     return next(i for i, d in enumerate(devices) if isinstance(d, kind))
+
+
+def get_wandb_trackers(problem_data, relaxation, config):
+    problem, layer = problem_data["problem"], problem_data["layer"]
+
+    carbon_objective = zap.planning.EmissionsObjective(layer.devices)
+    cost_objective = zap.planning.DispatchCostObjective(layer.network, layer.devices)
+
+    def emissions_tracker(J, grad, state, last_state, problem):
+        return carbon_objective(problem.state, parameters=layer.setup_parameters(**state))
+
+    def cost_tracker(J, grad, state, last_state, problem):
+        return cost_objective(problem.state, parameters=layer.setup_parameters(**state))
+
+    lower_bound = relaxation["lower_bound"] if relaxation is not None else 1.0
+    true_relax_cost = relaxation["data"]["problem"].value if relaxation is not None else np.inf
+    relax_solve_time = (
+        relaxation["data"]["problem"].solver_stats.solve_time if relaxation is not None else 0.0
+    )
+
+    # Trackers
+    return {
+        "emissions": emissions_tracker,
+        "fuel_costs": cost_tracker,
+        "inv_cost": lambda *args: problem.inv_cost.item(),
+        "op_cost": lambda *args: problem.op_cost.item(),
+        "lower_bound": lambda *args: lower_bound,
+        "true_relaxation_cost": lambda *args: true_relax_cost,
+        "relaxation_solve_time": lambda *args: relax_solve_time,
+    }
 
 
 if __name__ == "__main__":

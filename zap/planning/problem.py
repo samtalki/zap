@@ -149,6 +149,7 @@ class PlanningProblem:
         wandb=None,
         log_wandb_every=1,
         lower_bound=None,
+        extra_wandb_trackers=None,
     ):
         if algorithm is None:
             algorithm = GradientDescent()
@@ -159,6 +160,7 @@ class PlanningProblem:
         assert all([t in TRACKER_MAPS for t in trackers])
         self.start_time = time.time()
         self.lower_bound = lower_bound
+        self.extra_wandb_trackers = extra_wandb_trackers
 
         # Setup initial state and history
         state = self.initialize_parameters(deepcopy(initial_state))
@@ -167,7 +169,7 @@ class PlanningProblem:
         # Initialize loop
         J, grad = self.forward_and_back(**state)
         history = self.update_history(
-            history, trackers, J, grad, state, None, wandb=wandb, log_wandb_every=log_wandb_every
+            history, trackers, J, grad, state, None, wandb, log_wandb_every
         )
 
         # Gradient descent loop
@@ -183,14 +185,7 @@ class PlanningProblem:
 
             # Record stuff
             history = self.update_history(
-                history,
-                trackers,
-                J,
-                grad,
-                state,
-                last_state,
-                wandb=wandb,
-                log_wandb_every=log_wandb_every,
+                history, trackers, J, grad, state, last_state, wandb, log_wandb_every
             )
 
         return state, history
@@ -216,9 +211,16 @@ class PlanningProblem:
             iteration = len(history[trackers[0]])
 
             if (iteration % log_wandb_every == 0) or (iteration == 1):
-                print(f"logging to wandb on iteration {iteration}")
+                print(f"Logging to wandb on iteration {iteration}.")
+
                 wand_data = {tracker: history[tracker][-1] for tracker in trackers}
                 wand_data["iteration"] = iteration
+
+                # Add extra trackers
+                if self.extra_wandb_trackers is not None:
+                    for tracker, f in self.extra_wandb_trackers.items():
+                        wand_data[tracker] = f(J, grad, state, last_state, self)
+
                 wandb.log(wand_data)
 
         return history
