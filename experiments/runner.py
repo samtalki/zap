@@ -184,10 +184,11 @@ def solve_problem(problem, relaxation, config):
     parameters, history = problem.solve(
         num_iterations=opt_config["num_iterations"],
         algorithm=alg,
-        trackers=[tr.LOSS, tr.GRAD_NORM, tr.PROJ_GRAD_NORM, tr.TIME],
+        trackers=tr.DEFAULT_TRACKERS,
         initial_state=initial_state,
         wandb=logger,
         log_wandb_every=config["system"]["log_wandb_every"],
+        lower_bound=relaxation["lower_bound"] if relaxation is not None else None,
     )
 
     if config["system"]["use_wandb"]:

@@ -54,6 +54,8 @@ def __(problem, relax, result):
     print(_J(**_J.initialize_parameters(None)))
     print(_J(**relax["relaxed_parameters"]))
     print(_J(**result["parameters"]))
+
+    print(relax["lower_bound"])
     return
 
 

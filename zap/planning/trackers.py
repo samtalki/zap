@@ -9,6 +9,7 @@ GRAD_NORM = "grad_norm"
 PROJ_GRAD_NORM = "proj_grad_norm"
 PARAM = "param"
 TIME = "time"
+SUBOPTIMALITY = "suboptimality"
 
 
 def track_loss(J, grad, state, last_state, problem):
@@ -41,12 +42,19 @@ def track_time(J, grad, state, last_state, problem):
     return time.time() - problem.start_time
 
 
+def suboptimality(J, grad, state, last_state, problem):
+    lb = 1.0 if problem.lower_bound is None else problem.lower_bound
+
+    return (J.detach().numpy() / lb) - 1.0
+
+
 TRACKER_MAPS = {
     LOSS: track_loss,
     GRAD_NORM: track_grad_norm,
     PROJ_GRAD_NORM: track_proj_grad_norm,
     PARAM: track_param,
     TIME: track_time,
+    SUBOPTIMALITY: suboptimality,
 }
 
-DEFAULT_TRACKERS = [LOSS, GRAD_NORM, PROJ_GRAD_NORM, TIME]
+DEFAULT_TRACKERS = [LOSS, GRAD_NORM, PROJ_GRAD_NORM, TIME, SUBOPTIMALITY]

@@ -148,6 +148,7 @@ class PlanningProblem:
         trackers=None,
         wandb=None,
         log_wandb_every=1,
+        lower_bound=None,
     ):
         if algorithm is None:
             algorithm = GradientDescent()
@@ -156,13 +157,14 @@ class PlanningProblem:
             trackers = DEFAULT_TRACKERS
 
         assert all([t in TRACKER_MAPS for t in trackers])
+        self.start_time = time.time()
+        self.lower_bound = lower_bound
 
         # Setup initial state and history
         state = self.initialize_parameters(deepcopy(initial_state))
         history = self.initialize_history(trackers)
 
         # Initialize loop
-        self.start_time = time.time()
         J, grad = self.forward_and_back(**state)
         history = self.update_history(
             history, trackers, J, grad, state, None, wandb=wandb, log_wandb_every=log_wandb_every
