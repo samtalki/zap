@@ -382,6 +382,8 @@ def __():
     import pypsa
     import pandas as pd
     import datetime as dt
+    import pathlib
+    from pathlib import Path
 
     # pn = pypsa.Network("~/pypsa-usa/workflow/resources/western/elec_s_100_ec.nc")
     # _net, _dev = zap.importers.load_pypsa_network(
@@ -394,15 +396,44 @@ def __():
     #     ),
     # )
     # # _dev[0].max_nominal_capacity
-    return dt, pd, pypsa
+    return Path, dt, pathlib, pd, pypsa
 
 
 @app.cell
-def __(pypsa):
-    pn = pypsa.Network("~/zap/data/western/elec_s_200_ec.nc")
+def __():
+    # pn = pypsa.Network()
+    # pn.import_from_csv_folder(Path.home() / "zap/data/pypsa/western/elec_s_100")
 
-    pn
-    return pn,
+    # pn_ec = pypsa.Network()
+    # pn_ec.import_from_csv_folder(Path.home() / "zap/data/pypsa/western/elec_s_100_ec")
+    return
+
+
+@app.cell
+def __():
+    import yaml
+
+    with open("experiments/config/default.yaml", 'r') as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+
+    # config
+    return config, f, yaml
+
+
+@app.cell
+def __(config):
+    import importlib
+    from experiments import runner
+    importlib.reload(runner)
+
+    dataset = runner.load_dataset(config)
+    return dataset, importlib, runner
+
+
+@app.cell
+def __(dataset):
+    dataset["devices"]
+    return
 
 
 if __name__ == "__main__":
