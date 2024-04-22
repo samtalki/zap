@@ -18,7 +18,7 @@ def __():
     return DispatchLayer, cp, deepcopy, mo, np, torch, zap
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(mo):
     mo.md("## Setup Base Network")
     return
@@ -268,7 +268,7 @@ def __(problem, tr, zap):
     alg = zap.planning.GradientDescent(step_size=0.1)
 
     state, history = problem.solve(
-        num_iterations=100,
+        num_iterations=10,
         algorithm=alg,
         trackers=[tr.LOSS, tr.PARAM, tr.GRAD_NORM, tr.PROJ_GRAD_NORM],
     )
@@ -368,17 +368,6 @@ def __():
 
 @app.cell
 def __():
-    foo = lambda x, y: x + y + 2
-
-    def foo(x, y):
-        return x + y + 2
-
-    foo(3, 4)
-    return foo,
-
-
-@app.cell
-def __():
     import pypsa
     import pandas as pd
     import datetime as dt
@@ -431,8 +420,16 @@ def __(config):
 
 
 @app.cell
-def __(dataset):
-    dataset["devices"]
+def __():
+    # dataset["devices"]
+    return
+
+
+@app.cell
+def __(carbon_objective, op_objective):
+    _new_objective = 2.0 * op_objective + carbon_objective
+
+    _new_objective.objectives
     return
 
 

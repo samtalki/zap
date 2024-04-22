@@ -13,6 +13,8 @@ DATA_PATH = ZAP_PATH / "data"
 
 
 def load_config(config_path):
+    # TODO Expand configs
+    # TODO Hunt for improperly parsed scientific notation
     pass
 
 
