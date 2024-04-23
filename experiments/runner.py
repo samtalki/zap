@@ -231,7 +231,7 @@ def solve_problem(problem_data, relaxation, config):
     parameters, history = problem.solve(
         num_iterations=opt_config["num_iterations"],
         algorithm=alg,
-        trackers=tr.DEFAULT_TRACKERS + [tr.GRAD],
+        trackers=tr.DEFAULT_TRACKERS,
         initial_state=initial_state,
         wandb=logger,
         log_wandb_every=config["system"]["log_wandb_every"],

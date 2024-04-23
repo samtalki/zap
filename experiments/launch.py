@@ -26,7 +26,7 @@ slurm_script = f"""#!/bin/bash
 #SBATCH --time={system["runtime"]}
 
 conda activate $ZAP_ENV
-srun python experiments/runner.py {config_path}
+srun python -u experiments/runner.py {config_path}
 """
 
 with open(script_file, "w") as f:
