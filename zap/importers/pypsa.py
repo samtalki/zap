@@ -44,6 +44,7 @@ def parse_generators(
     expand_empty_generators,
     drop_empty_generators,
     scale_generator_capacity_factor,
+    carbon_tax,
 ):
     if drop_empty_generators:
         assert expand_empty_generators == 0.0
@@ -90,7 +91,7 @@ def parse_generators(
         terminal=terminals,
         nominal_capacity=nominal_capacities,
         dynamic_capacity=dynamic_capacities * scale_generator_capacity_factor,
-        linear_cost=dynamic_costs,
+        linear_cost=dynamic_costs + carbon_tax * emissions.reshape(-1, 1),
         capital_cost=capital_costs,
         min_nominal_capacity=min_nominal_capacities,
         max_nominal_capacity=max_nominal_capacities,
@@ -207,6 +208,7 @@ def load_pypsa_network(
     scale_load=1.0,
     scale_generator_capacity_factor=1.0,
     scale_line_capacity_factor=1.0,
+    carbon_tax=0.0,
 ):
     net = deepcopy(net)
     network = PowerNetwork(len(net.buses))
@@ -222,6 +224,7 @@ def load_pypsa_network(
             expand_empty_generators=expand_empty_generators,
             drop_empty_generators=drop_empty_generators,
             scale_generator_capacity_factor=scale_generator_capacity_factor,
+            carbon_tax=carbon_tax,
         ),
         parse_loads(
             net,

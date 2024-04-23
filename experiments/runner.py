@@ -48,13 +48,15 @@ def load_config(path):
         config = yaml.load(f, Loader=yaml.SafeLoader)
 
     # Tag config from name
-    config_name = Path(path).name.split(".")[0] + "_000"
+    config_short_name = Path(path).name.split(".")[0]
+    config_id = config_short_name + "_000"
 
     # Check if name has already been used
-    while get_results_path(config_name).exists():
-        config_name = config_name[:-3] + f"{int(config_name[-3:]) + 1:03d}"
+    while get_results_path(config_id).exists():
+        config_id = config_id[:-3] + f"{int(config_id[-3:]) + 1:03d}"
 
-    config["name"] = config_name
+    config["name"] = config_short_name
+    config["id"] = config_id
 
     # TODO Expand configs
     # TODO Hunt for improperly parsed scientific notation

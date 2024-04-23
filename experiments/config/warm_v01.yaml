@@ -26,6 +26,7 @@ data:
     scale_load: 1.7
     scale_generator_capacity_factor: 0.8
     scale_line_capacity_factor: 0.8
+    carbon_tax: 200.0  # $ / ton CO2
 
     # Technical parameters (for problem stability)
     generator_cost_perturbation: 1.0  # MW
