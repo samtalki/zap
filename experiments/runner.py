@@ -33,12 +33,15 @@ TOTAL_PYPSA_HOUR = 8760 - 48
 PYPSA_START_DAY = dt.datetime(2019, 1, 2, 0)
 
 
-def get_results_path(config_name):
-    return DATA_PATH / "results" / config_name
-
-
 def load_config(path):
     path = Path(path)
+
+    if not path.exists():
+        path = ZAP_PATH / path
+
+    path = path.absolute()
+    assert path.exists()
+    print(path)
 
     # Open config
     with open(path, "r") as f:
@@ -108,6 +111,7 @@ def setup_pypysa_dataset(data):
 
     # Build zap network
     dates = pd.date_range(start_hour, periods=data["num_hours"], freq="1h", inclusive="left")
+    print(f"Solving a case with {len(dates)} hours.")
     print(dates)
     net, devices = zap.importers.load_pypsa_network(pn, dates, **data["args"])
 
@@ -326,6 +330,18 @@ def get_total_load_curve(devices, every=1, reducer=np.sum):
         reducer(total_hourly_load[:, t : t + every])
         for t in range(0, total_hourly_load.shape[1], every)
     ]
+
+
+def datadir(*args):
+    return Path(DATA_PATH, *args)
+
+
+def projectdir(*args):
+    return Path(ZAP_PATH, *args)
+
+
+def get_results_path(config_name):
+    return datadir("results", config_name)
 
 
 if __name__ == "__main__":

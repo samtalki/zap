@@ -19,12 +19,6 @@ def __():
 
 
 @app.cell
-def __(config, runner):
-    data = runner.load_dataset(config)
-    return data,
-
-
-@app.cell
 def __(importlib):
     from experiments import runner
     _ = importlib.reload(runner)
@@ -32,15 +26,15 @@ def __(importlib):
 
 
 @app.cell
-def __(config):
-    config["name"]
-    return
-
-
-@app.cell
 def __(runner):
     config = runner.load_config("experiments/config/default.yaml")
     return config,
+
+
+@app.cell
+def __(config, runner):
+    data = runner.load_dataset(config)
+    return data,
 
 
 @app.cell
@@ -116,6 +110,12 @@ def __():
 @app.cell
 def __(np):
     type(np.argmax([1, 10, 3, 10]).item())
+    return
+
+
+@app.cell
+def __(Path, runner):
+    Path(runner.DATA_PATH, "experiments")
     return
 
 
