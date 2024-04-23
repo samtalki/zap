@@ -98,8 +98,13 @@ def __():
 
 
 @app.cell
-def __(result):
-    result["history"]["time"]
+def __(np, problem, result):
+    _final = result["parameters"]
+    _init = problem["problem"].initialize_parameters(None)
+
+    _expansion = {k: np.sum(_final[k] - _init[k]) for k in _final.keys()}
+
+    _expansion
     return
 
 

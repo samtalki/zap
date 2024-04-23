@@ -10,7 +10,20 @@ from zap.devices.store import Battery
 
 pd.set_option("future.no_silent_downcasting", True)
 
+
+def get_annuity(num_years, discount_rate):
+    return discount_rate / (1.0 - 1.0 / (1.0 + discount_rate) ** num_years)
+
+
 HOURS_PER_YEAR = 365 * 24
+
+# "Danish Energy Agency, technology_data_catalogue_for_energy_storage.xlsx"
+DISCOUNT_RATE = 0.07
+BATTERY_DURATION = 25.0
+INVERTER_DURATION = 10.0
+COST_PER_BATTERY_MWH = get_annuity(BATTERY_DURATION, DISCOUNT_RATE) * 151_940.0
+COST_PER_BATTERY_MW = get_annuity(INVERTER_DURATION, DISCOUNT_RATE) * 171_200.0
+FOM_PER_BATTERY_MW = 52_845.0
 
 
 def parse_buses(net: pypsa.Network):
@@ -176,18 +189,23 @@ def parse_ac_lines(
     )
 
 
-def parse_batteries(net: pypsa.Network, dates, *, battery_discharge_cost):
+def parse_batteries(
+    net: pypsa.Network, dates, *, battery_discharge_cost, cost_per_battery_mw, cost_per_battery_mwh
+):
     buses, buses_to_index = parse_buses(net)
     terminals = net.storage_units.bus.replace(buses_to_index).values.astype(int)
+
+    duration = net.storage_units.max_hours.values
+    capital_cost = cost_per_battery_mw + cost_per_battery_mwh * duration
 
     return Battery(
         num_nodes=len(buses),
         terminal=terminals,
         power_capacity=net.storage_units.p_nom.values,
-        duration=net.storage_units.max_hours.values,
+        duration=duration,
         charge_efficiency=net.storage_units.efficiency_dispatch.values,
         linear_cost=battery_discharge_cost * np.ones(terminals.size),
-        capital_cost=net.storage_units.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
+        capital_cost=capital_cost * (len(dates) / HOURS_PER_YEAR),
     )
 
 
@@ -209,6 +227,8 @@ def load_pypsa_network(
     scale_generator_capacity_factor=1.0,
     scale_line_capacity_factor=1.0,
     carbon_tax=0.0,
+    cost_per_battery_mw=COST_PER_BATTERY_MW,
+    cost_per_battery_mwh=COST_PER_BATTERY_MWH,
 ):
     net = deepcopy(net)
     network = PowerNetwork(len(net.buses))
@@ -242,7 +262,13 @@ def load_pypsa_network(
             susceptance_unit=susceptance_unit,
             scale_line_capacity_factor=scale_line_capacity_factor,
         ),
-        parse_batteries(net, dates, battery_discharge_cost=battery_discharge_cost),
+        parse_batteries(
+            net,
+            dates,
+            battery_discharge_cost=battery_discharge_cost,
+            cost_per_battery_mw=cost_per_battery_mw,
+            cost_per_battery_mwh=cost_per_battery_mwh,
+        ),
     ]
 
     for d in devices:
