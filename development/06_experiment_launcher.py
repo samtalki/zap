@@ -8,11 +8,15 @@ app = marimo.App()
 def __():
     import marimo as mo
     import matplotlib.pyplot as plt
+    import numpy as np
+
     import yaml
     import importlib
 
+    from pathlib import Path
+
     import zap
-    return importlib, mo, plt, yaml, zap
+    return Path, importlib, mo, np, plt, yaml, zap
 
 
 @app.cell
@@ -29,10 +33,15 @@ def __(importlib):
 
 
 @app.cell
-def __(yaml):
-    with open("experiments/config/default.yaml", 'r') as f:
-        config = yaml.load(f, Loader=yaml.SafeLoader)
-    return config, f
+def __(config):
+    config["name"]
+    return
+
+
+@app.cell
+def __(runner):
+    config = runner.load_config("experiments/config/default.yaml")
+    return config,
 
 
 @app.cell
@@ -66,8 +75,46 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
-def __(result):
-    result["history"]
+def __(np, result):
+    _g = result["history"]["grad"][1]
+
+    np.linalg.norm(_g["generator"].detach().numpy().ravel())
+
+    [np.linalg.norm(_g[k].detach().numpy().ravel(), ord=1) for k in _g.keys()]
+    return
+
+
+@app.cell
+def __(plt, result):
+    plt.plot(result["history"]["grad_norm"][2:])
+    return
+
+
+@app.cell
+def __():
+    # result["history"]
+    return
+
+
+@app.cell
+def __():
+    # runner.save_results(relax, result, config)
+    return
+
+
+@app.cell
+def __():
+    # import pypsa
+    return
+
+
+@app.cell
+def __():
+    # _csv_dir = f"elec_s_{100}"
+    # _csv_dir += "_ec"
+
+    # pn = pypsa.Network()
+    # pn.import_from_csv_folder(runner.DATA_PATH / "pypsa/western/" / _csv_dir)
     return
 
 

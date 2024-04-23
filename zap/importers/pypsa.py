@@ -43,6 +43,7 @@ def parse_generators(
     generator_cost_perturbation,
     expand_empty_generators,
     drop_empty_generators,
+    scale_generator_capacity_factor,
 ):
     if drop_empty_generators:
         assert expand_empty_generators == 0.0
@@ -82,13 +83,13 @@ def parse_generators(
         emissions = emissions[mask]
 
     else:
-        nominal_capacities += expand_empty_generators
+        nominal_capacities = np.maximum(expand_empty_generators, nominal_capacities)
 
     return Generator(
         num_nodes=len(buses),
         terminal=terminals,
         nominal_capacity=nominal_capacities,
-        dynamic_capacity=dynamic_capacities,
+        dynamic_capacity=dynamic_capacities * scale_generator_capacity_factor,
         linear_cost=dynamic_costs,
         capital_cost=capital_costs,
         min_nominal_capacity=min_nominal_capacities,
@@ -104,6 +105,7 @@ def parse_loads(
     *,
     load_cost_perturbation,
     marginal_load_value,
+    scale_load,
 ):
     buses, buses_to_index = parse_buses(net)
     terminals = net.loads.bus.replace(buses_to_index).values.astype(int)
@@ -116,7 +118,7 @@ def parse_loads(
     return Load(
         num_nodes=len(buses),
         terminal=terminals,
-        load=load,
+        load=load * scale_load,
         linear_cost=load_cost,
     )
 
@@ -128,7 +130,7 @@ def get_source_sinks(df: pd.DataFrame, buses_to_index):
     return sources, sinks
 
 
-def parse_dc_lines(net: pypsa.Network, dates):
+def parse_dc_lines(net: pypsa.Network, dates, *, scale_line_capacity_factor):
     buses, buses_to_index = parse_buses(net)
 
     links = net.links[net.links.carrier == "DC"]
@@ -138,13 +140,15 @@ def parse_dc_lines(net: pypsa.Network, dates):
         num_nodes=len(buses),
         source_terminal=sources,
         sink_terminal=sinks,
-        capacity=links.p_max_pu.values,
+        capacity=links.p_max_pu.values * scale_line_capacity_factor,
         nominal_capacity=links.p_nom.values,
         capital_cost=links.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
     )
 
 
-def parse_ac_lines(net: pypsa.Network, dates, *, ac_transmission_cost, susceptance_unit):
+def parse_ac_lines(
+    net: pypsa.Network, dates, *, ac_transmission_cost, susceptance_unit, scale_line_capacity_factor
+):
     buses, buses_to_index = parse_buses(net)
 
     sources, sinks = get_source_sinks(net.lines, buses_to_index)
@@ -164,7 +168,7 @@ def parse_ac_lines(net: pypsa.Network, dates, *, ac_transmission_cost, susceptan
         source_terminal=sources,
         sink_terminal=sinks,
         susceptance=susceptance,
-        capacity=net.lines.s_max_pu.values,
+        capacity=net.lines.s_max_pu.values * scale_line_capacity_factor,
         nominal_capacity=net.lines.s_nom.values,
         linear_cost=ac_transmission_cost * np.ones(sources.size),
         capital_cost=net.lines.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
@@ -200,6 +204,9 @@ def load_pypsa_network(
     power_unit=1.0,  # MW
     cost_unit=1.0,  # $
     susceptance_unit="auto",
+    scale_load=1.0,
+    scale_generator_capacity_factor=1.0,
+    scale_line_capacity_factor=1.0,
 ):
     net = deepcopy(net)
     network = PowerNetwork(len(net.buses))
@@ -214,6 +221,7 @@ def load_pypsa_network(
             generator_cost_perturbation=generator_cost_perturbation,
             expand_empty_generators=expand_empty_generators,
             drop_empty_generators=drop_empty_generators,
+            scale_generator_capacity_factor=scale_generator_capacity_factor,
         ),
         parse_loads(
             net,
@@ -221,10 +229,15 @@ def load_pypsa_network(
             rng,
             load_cost_perturbation=load_cost_perturbation,
             marginal_load_value=marginal_load_value,
+            scale_load=scale_load,
         ),
-        parse_dc_lines(net, dates),
+        parse_dc_lines(net, dates, scale_line_capacity_factor=scale_line_capacity_factor),
         parse_ac_lines(
-            net, dates, ac_transmission_cost=ac_transmission_cost, susceptance_unit=susceptance_unit
+            net,
+            dates,
+            ac_transmission_cost=ac_transmission_cost,
+            susceptance_unit=susceptance_unit,
+            scale_line_capacity_factor=scale_line_capacity_factor,
         ),
         parse_batteries(net, dates, battery_discharge_cost=battery_discharge_cost),
     ]

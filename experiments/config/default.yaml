@@ -6,7 +6,7 @@ tags: []
 system:
   threads: 32
   memory: auto
-  use_wandb: true
+  use_wandb: false
   log_wandb_every: 2
 
 data:
@@ -14,7 +14,7 @@ data:
   add_ground: true
   use_batteries: true
   num_nodes: 100
-  use_extra_components: false
+  use_extra_components: true
   start_hour: 100
   num_hours: 1
   args:
@@ -22,17 +22,15 @@ data:
     power_unit: 1.0e+3  # 1e3 = GW
     cost_unit: 10.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
+    scale_load: 1.5
+    scale_generator_capacity_factor: 0.8
+    scale_line_capacity_factor: 0.8
 
-    # TODO
-    # scale_load: 1.0
-    # scale_rated_generator_capacity: 0.8
-    # scale_rated_line_capacity: 0.8
-
-    # Less important
+    # Technical parameters (for problem stability)
     generator_cost_perturbation: 1.0  # MW
     load_cost_perturbation: 10.0  # MW
-    drop_empty_generators: true
-    expand_empty_generators: 0.0  # MW TODO
+    drop_empty_generators: false
+    expand_empty_generators: 0.5  # MW
 
 problem:
   cost_weight: 1.0

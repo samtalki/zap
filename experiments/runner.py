@@ -1,10 +1,12 @@
-import sys
-import pypsa
-import wandb
 import numpy as np
 import pandas as pd
 import datetime as dt
 import cvxpy as cp
+import sys
+import pypsa
+import wandb
+import yaml
+import json
 
 from pathlib import Path
 from copy import deepcopy
@@ -28,11 +30,30 @@ ALGORITHMS = {
 }
 
 
-def load_config(config_path):
-    # TODO Tag config from name
+def get_results_path(config_name):
+    return DATA_PATH / "results" / config_name
+
+
+def load_config(path):
+    path = Path(path)
+
+    # Open config
+    with open(path, "r") as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+
+    # Tag config from name
+    config_name = Path(path).name.split(".")[0] + "_000"
+
+    # Check if name has already been used
+    while get_results_path(config_name).exists():
+        config_name = config_name[:-3] + f"{int(config_name[-3:]) + 1:03d}"
+
+    config["name"] = config_name
+
     # TODO Expand configs
     # TODO Hunt for improperly parsed scientific notation
-    pass
+
+    return config
 
 
 def load_dataset(config):
@@ -41,37 +62,7 @@ def load_dataset(config):
     data = config["data"]
 
     if data["name"] == "pypsa":
-        # Load pypsa file
-        csv_dir = f"elec_s_{data['num_nodes']}"
-        if data["use_extra_components"]:
-            csv_dir += "_ec"
-
-        pn = pypsa.Network()
-        pn.import_from_csv_folder(DATA_PATH / "pypsa/western/" / csv_dir)
-
-        # Filter out extra components (battery nodes, links, and stores)
-        # TODO
-
-        # Pick dates
-        start_hour = dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=data["start_hour"])
-        dates = pd.date_range(
-            start_hour,
-            start_hour + dt.timedelta(hours=data["num_hours"]),
-            freq="1h",
-            inclusive="left",
-        )
-
-        # Build zap network
-        net, devices = zap.importers.load_pypsa_network(pn, dates, **data["args"])
-
-        if (not data["use_batteries"]) or (data["num_hours"] == 1):
-            devices = [d for d in devices if type(d) != zap.Battery]
-
-        if data["add_ground"]:
-            ground = zap.Ground(
-                num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
-            )
-            devices += [ground]
+        net, devices = setup_pypysa_dataset(data)
 
     else:
         raise ValueError("Unknown dataset")
@@ -80,6 +71,43 @@ def load_dataset(config):
         "net": net,
         "devices": devices,
     }
+
+
+def setup_pypysa_dataset(data):
+    # Load pypsa file
+    csv_dir = f"elec_s_{data['num_nodes']}"
+    if data["use_extra_components"]:
+        csv_dir += "_ec"
+
+    pn = pypsa.Network()
+    pn.import_from_csv_folder(DATA_PATH / "pypsa/western/" / csv_dir)
+
+    # Filter out extra components (battery nodes, links, and stores)
+    pn.buses = pn.buses[~pn.buses.index.str.contains("battery")]
+    pn.links = pn.links[~pn.links.index.str.contains("battery")]
+
+    # Pick dates
+    start_hour = dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=data["start_hour"])
+    dates = pd.date_range(
+        start_hour,
+        start_hour + dt.timedelta(hours=data["num_hours"]),
+        freq="1h",
+        inclusive="left",
+    )
+
+    # Build zap network
+    net, devices = zap.importers.load_pypsa_network(pn, dates, **data["args"])
+
+    if (not data["use_batteries"]) or (data["num_hours"] == 1):
+        devices = [d for d in devices if type(d) != zap.Battery]
+
+    if data["add_ground"]:
+        ground = zap.Ground(
+            num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
+        )
+        devices += [ground]
+
+    return net, devices
 
 
 def setup_problem(data, config):
@@ -140,6 +168,7 @@ def solve_relaxed_problem(problem, config):
         return None
 
     else:
+        print("Solving relaxation...")
         relaxation = zap.planning.RelaxedPlanningProblem(
             problem,
             max_price=config["relaxation"]["price_bound"],
@@ -185,16 +214,13 @@ def solve_problem(problem_data, relaxation, config):
     parameters, history = problem.solve(
         num_iterations=opt_config["num_iterations"],
         algorithm=alg,
-        trackers=tr.DEFAULT_TRACKERS,
+        trackers=tr.DEFAULT_TRACKERS + [tr.GRAD],
         initial_state=initial_state,
         wandb=logger,
         log_wandb_every=config["system"]["log_wandb_every"],
         lower_bound=relaxation["lower_bound"] if relaxation is not None else None,
         extra_wandb_trackers=get_wandb_trackers(problem_data, relaxation, config),
     )
-
-    if config["system"]["use_wandb"]:
-        wandb.finish()
 
     return {
         "parameters": parameters,
@@ -203,7 +229,21 @@ def solve_problem(problem_data, relaxation, config):
 
 
 def save_results(relaxation, results, config):
-    pass
+    # Pick a file name
+    results_path = get_results_path(config["name"])
+    results_path.mkdir(parents=True, exist_ok=False)
+
+    # Save relaxation parameters
+    relax_params = {k: v.ravel().tolist() for k, v in relaxation["relaxed_parameters"].items()}
+    with open(results_path / "relaxed.json", "w") as f:
+        json.dump(relax_params, f)
+
+    # Save final parameters
+    final_params = {k: v.ravel().tolist() for k, v in results["parameters"].items()}
+    with open(results_path / "optimized.json", "w") as f:
+        json.dump(final_params, f)
+
+    return None
 
 
 def run_experiment(config):
@@ -216,6 +256,11 @@ def run_experiment(config):
     results = solve_problem(problem, relaxation, config)
 
     save_results(relaxation, results, config)
+
+    if config["system"]["use_wandb"]:
+        wandb.finish()
+
+    return None
 
 
 # ====

@@ -10,6 +10,7 @@ PROJ_GRAD_NORM = "proj_grad_norm"
 PARAM = "param"
 TIME = "time"
 SUBOPTIMALITY = "suboptimality"
+GRAD = "grad"
 
 
 def track_loss(J, grad, state, last_state, problem):
@@ -38,6 +39,10 @@ def track_param(J, grad, state, last_state, problem):
     return deepcopy(state)
 
 
+def track_grad(J, grad, state, last_state, problem):
+    return grad
+
+
 def track_time(J, grad, state, last_state, problem):
     return time.time() - problem.start_time
 
@@ -55,6 +60,7 @@ TRACKER_MAPS = {
     PARAM: track_param,
     TIME: track_time,
     SUBOPTIMALITY: suboptimality,
+    GRAD: track_grad,
 }
 
 DEFAULT_TRACKERS = [LOSS, GRAD_NORM, PROJ_GRAD_NORM, TIME, SUBOPTIMALITY]
