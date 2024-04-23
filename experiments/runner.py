@@ -29,6 +29,9 @@ ALGORITHMS = {
     "gradient_descent": zap.planning.GradientDescent,
 }
 
+TOTAL_PYPSA_HOUR = 8760 - 48
+PYPSA_START_DAY = dt.datetime(2019, 1, 2, 0)
+
 
 def get_results_path(config_name):
     return DATA_PATH / "results" / config_name
@@ -87,15 +90,25 @@ def setup_pypysa_dataset(data):
     pn.links = pn.links[~pn.links.index.str.contains("battery")]
 
     # Pick dates
-    start_hour = dt.datetime(2019, 1, 2, 0) + dt.timedelta(hours=data["start_hour"])
-    dates = pd.date_range(
-        start_hour,
-        start_hour + dt.timedelta(hours=data["num_hours"]),
-        freq="1h",
-        inclusive="left",
-    )
+    # Rule 1 - Just a fixed hour of the year
+    if isinstance(data["start_hour"], int):
+        print("Using a fixed start hour.")
+        start_hour = PYPSA_START_DAY + dt.timedelta(hours=data["start_hour"])
+
+    # Rule 2 - Dynamically selected by peak load
+    elif data["start_hour"] == "peak_load_day":
+        print("Finding the peak load day.")
+        all_dates = pd.date_range(start=PYPSA_START_DAY, periods=TOTAL_PYPSA_HOUR, freq="1h")
+        _, year_devices = zap.importers.load_pypsa_network(pn, all_dates, **data["args"])
+
+        daily_peak_load = get_total_load_curve(year_devices, every=24, reducer=np.max)
+        peak_day = np.argmax(daily_peak_load).item()
+
+        start_hour = PYPSA_START_DAY + dt.timedelta(hours=peak_day * 24)
 
     # Build zap network
+    dates = pd.date_range(start_hour, periods=data["num_hours"], freq="1h", inclusive="left")
+    print(dates)
     net, devices = zap.importers.load_pypsa_network(pn, dates, **data["args"])
 
     if (not data["use_batteries"]) or (data["num_hours"] == 1):
@@ -303,6 +316,16 @@ def get_wandb_trackers(problem_data, relaxation, config):
         "true_relaxation_cost": lambda *args: true_relax_cost,
         "relaxation_solve_time": lambda *args: relax_solve_time,
     }
+
+
+def get_total_load_curve(devices, every=1, reducer=np.sum):
+    devs = [d for d in devices if isinstance(d, zap.Load)]
+    total_hourly_load = sum([d.load for d in devs])
+
+    return [
+        reducer(total_hourly_load[:, t : t + every])
+        for t in range(0, total_hourly_load.shape[1], every)
+    ]
 
 
 if __name__ == "__main__":

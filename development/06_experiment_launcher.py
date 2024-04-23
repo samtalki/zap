@@ -74,21 +74,15 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
-def __(np, result, torch):
-    _g = result["history"]["grad"][1]
+def __(plt, relax, result):
+    fig, axes = plt.subplots(2, 1, figsize=(8, 3))
 
-    np.linalg.norm(_g["generator"].detach().numpy().ravel())
+    axes[0].plot(result["history"]["loss"] / relax["lower_bound"])
+    axes[1].plot(result["history"]["proj_grad_norm"])
+    axes[1].set_yscale("log")
 
-    [np.linalg.norm(_g[k].detach().numpy().ravel(), ord=1) for k in _g.keys()]
-
-    torch.linalg.vector_norm(_g["generator"], ord=2)
-    return
-
-
-@app.cell
-def __(plt, result):
-    plt.plot(result["history"]["loss"][2:])
-    return
+    fig
+    return axes, fig
 
 
 @app.cell
@@ -116,6 +110,12 @@ def __():
 
     # pn = pypsa.Network()
     # pn.import_from_csv_folder(runner.DATA_PATH / "pypsa/western/" / _csv_dir)
+    return
+
+
+@app.cell
+def __(np):
+    type(np.argmax([1, 10, 3, 10]).item())
     return
 
 

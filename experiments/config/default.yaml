@@ -15,8 +15,8 @@ data:
   use_batteries: true
   num_nodes: 100
   use_extra_components: true
-  start_hour: 100
-  num_hours: 1
+  start_hour: peak_load_day
+  num_hours: 12
   args:
     # Important
     power_unit: 1.0e+3  # 1e3 = GW
