@@ -9,14 +9,13 @@ def __():
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
-
-    import yaml
+    import torch
     import importlib
 
     from pathlib import Path
 
     import zap
-    return Path, importlib, mo, np, plt, yaml, zap
+    return Path, importlib, mo, np, plt, torch, zap
 
 
 @app.cell
@@ -75,18 +74,20 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
-def __(np, result):
+def __(np, result, torch):
     _g = result["history"]["grad"][1]
 
     np.linalg.norm(_g["generator"].detach().numpy().ravel())
 
     [np.linalg.norm(_g[k].detach().numpy().ravel(), ord=1) for k in _g.keys()]
+
+    torch.linalg.vector_norm(_g["generator"], ord=2)
     return
 
 
 @app.cell
 def __(plt, result):
-    plt.plot(result["history"]["grad_norm"][2:])
+    plt.plot(result["history"]["loss"][2:])
     return
 
 

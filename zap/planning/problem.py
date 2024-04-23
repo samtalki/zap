@@ -17,10 +17,18 @@ class GradientDescent:
     """Parameters for gradient descent."""
 
     step_size: float = 1e-3
+    clip: float = 1e3
 
     def step(self, state: dict, grad: dict):
         for param in state.keys():
-            state[param] -= self.step_size * grad[param].numpy()
+            grad_norm = torch.linalg.vector_norm(grad[param], ord=2)
+
+            if grad_norm > self.clip:
+                clipped_grad = (self.clip / grad_norm) * grad[param]
+            else:
+                clipped_grad = grad[param]
+
+            state[param] -= self.step_size * clipped_grad.numpy()
 
         return state
 

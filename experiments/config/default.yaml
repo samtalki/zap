@@ -45,6 +45,7 @@ optimizer:
   initial_state: relaxation
   args:
     step_size: 1.0e-2
+    clip: 1.0e+3
 
 relaxation:
   should_solve: true
