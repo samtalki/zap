@@ -322,7 +322,7 @@ def get_wandb_trackers(problem_data, relaxation, config):
         return cost_objective(problem.state, parameters=layer.setup_parameters(**state))
 
     lower_bound = relaxation["lower_bound"] if relaxation is not None else 1.0
-    true_relax_cost = relaxation["data"]["problem"].value if relaxation is not None else np.inf
+    true_relax_cost = problem(**relaxation["relaxed_parameters"])
     relax_solve_time = (
         relaxation["data"]["problem"].solver_stats.solve_time if relaxation is not None else 0.0
     )

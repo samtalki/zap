@@ -25,6 +25,7 @@ slurm_script = f"""#!/bin/bash
 #SBATCH --cpus-per-task={system["threads"]}
 #SBATCH --time={system["runtime"]}
 
+conda init bash
 conda activate $ZAP_ENV
 srun python -u experiments/runner.py {config_path}
 """
