@@ -59,7 +59,7 @@ class DualBattery(Battery):
             s_term = la.multiply(lamb[:, :-1] - lamb[:, 1:], smax)
 
         else:
-            print("Envelope relaxation applied to battery.")
+            print("Envelope relaxation applied to dual battery.")
             env, lower, upper = envelope
 
             # Create envelope variables

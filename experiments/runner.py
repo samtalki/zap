@@ -219,13 +219,29 @@ def solve_problem(problem_data, relaxation, config):
         logger = None
 
     # Initialize
-    if relaxation is not None and opt_config["initial_state"] == "relaxation":
+    init = opt_config["initial_state"]
+
+    if relaxation is not None and init == "relaxation":
         print("Initializing with relaxation solution.")
         initial_state = deepcopy(relaxation["relaxed_parameters"])
 
-    else:
+    elif init == "initial":
         print("Initializing with initial parameters (no investment).")
         initial_state = None
+
+    else:
+        print("Initializing with a previous solution.")
+
+        # Check if file exists
+        initial_path = datadir("results", init, "optimized.json")
+        if not initial_path.exists():
+            raise ValueError("Could not find initial parameters.")
+
+        with open(initial_path, "r") as f:
+            initial_state = json.load(f)
+
+        ref_shapes = {k: v.shape for k, v in problem.layer.initialize_parameters().items()}
+        initial_state = {k: np.array(v).reshape(ref_shapes[k]) for k, v in initial_state.items()}
 
     # Solve
     parameters, history = problem.solve(
@@ -240,6 +256,7 @@ def solve_problem(problem_data, relaxation, config):
     )
 
     return {
+        "initial_state": initial_state,
         "parameters": parameters,
         "history": history,
     }
