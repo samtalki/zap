@@ -158,6 +158,8 @@ class PlanningProblem:
         log_wandb_every=1,
         lower_bound=None,
         extra_wandb_trackers=None,
+        checkpoint_every=100_000,
+        checkpoint_func=lambda x: None,
     ):
         if algorithm is None:
             algorithm = GradientDescent()
@@ -183,6 +185,10 @@ class PlanningProblem:
         # Gradient descent loop
         for iteration in range(num_iterations):
             last_state = deepcopy(state)
+
+            # Checkpoint
+            if (iteration + 1) % checkpoint_every == 0:
+                checkpoint_func(state, history)
 
             # Gradient step and project
             state = algorithm.step(state, grad)

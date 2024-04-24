@@ -244,6 +244,7 @@ def solve_problem(
     initial_state="relaxation",
     num_iterations=10,
     args={"step_size": 1e-3, "num_iterations": 100},
+    checkpoint_every=100_000,
 ):
     print("Solving problem...")
 
@@ -294,6 +295,8 @@ def solve_problem(
         log_wandb_every=log_wandb_every,
         lower_bound=relaxation["lower_bound"] if relaxation is not None else None,
         extra_wandb_trackers=get_wandb_trackers(problem_data, relaxation, config),
+        checkpoint_every=checkpoint_every,
+        checkpoint_func=lambda *args: checkpoint_model(*args, config),
     )
 
     return {
@@ -305,8 +308,8 @@ def solve_problem(
 
 def save_results(relaxation, results, config):
     # Pick a file name
-    results_path = get_results_path(config["name"])
-    results_path.mkdir(parents=True, exist_ok=False)
+    results_path = get_results_path(config["id"])
+    results_path.mkdir(parents=True, exist_ok=True)
 
     # Save relaxation parameters
     relax_params = {k: v.ravel().tolist() for k, v in relaxation["relaxed_parameters"].items()}
@@ -378,6 +381,20 @@ def get_wandb_trackers(problem_data, relaxation, config):
         "true_relaxation_cost": lambda *args: true_relax_cost,
         "relaxation_solve_time": lambda *args: relax_solve_time,
     }
+
+
+def checkpoint_model(parameters, history, config):
+    result_dir = get_results_path(config["id"])
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    iteration = len(history[tr.LOSS])
+
+    # Save current model
+    with open(result_dir / f"model_{iteration:05d}.json", "w") as f:
+        ps = {k: v.ravel().tolist() for k, v in parameters.items()}
+        json.dump(ps, f)
+
+    return None
 
 
 def get_total_load_curve(devices, every=1, reducer=np.sum):
