@@ -7,8 +7,6 @@ system:
   threads: 32
   runtime: 30
   memory: auto
-  use_wandb: false
-  log_wandb_every: 2
 
 data:
   name: pypsa
@@ -37,7 +35,6 @@ data:
 problem:
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
-  solver: mosek  # TODO
   regularize: 1.0e-6  # Jacobian regularization
   parameters: [generator, dc_line, ac_line, battery]
 
@@ -45,6 +42,8 @@ optimizer:
   name: gradient_descent
   num_iterations: 10
   initial_state: relaxation
+  use_wandb: false
+  log_wandb_every: 2
   args:
     step_size: 1.0e-2
     clip: 1.0e+3

@@ -31,6 +31,19 @@ ALGORITHMS = {
 
 TOTAL_PYPSA_HOUR = 8760 - 48
 PYPSA_START_DAY = dt.datetime(2019, 1, 2, 0)
+PYPSA_DEFAULT_ARGS = {
+    "power_unit": 1.0e3,
+    "cost_unit": 10.0,
+    "marginal_load_value": 500.0,
+    "scale_load": 1.5,
+    "scale_generator_capacity_factor": 0.8,
+    "scale_line_capacity_factor": 0.8,
+    "carbon_tax": 0.0,
+    "generator_cost_perturbation": 1.0,
+    "load_cost_perturbation": 10.0,
+    "drop_empty_generators": False,
+    "expand_empty_generators": 0.5,
+}
 
 
 def load_config(path):
@@ -64,13 +77,13 @@ def load_config(path):
     return config
 
 
-def load_dataset(config):
+def load_dataset(name="pypsa", **kwargs):
     print("Loading dataset...")
 
-    data = config["data"]
+    print(name)
 
-    if data["name"] == "pypsa":
-        net, devices = setup_pypysa_dataset(data)
+    if name == "pypsa":
+        net, devices = setup_pypysa_dataset(**kwargs)
 
     else:
         raise ValueError("Unknown dataset")
@@ -81,10 +94,19 @@ def load_dataset(config):
     }
 
 
-def setup_pypysa_dataset(data):
+def setup_pypysa_dataset(
+    add_ground=True,
+    use_batteries=True,
+    use_extra_components=True,
+    num_nodes=100,
+    start_hour="peak_load_day",
+    num_hours=4,
+    args=PYPSA_DEFAULT_ARGS,
+    **kwargs,
+):
     # Load pypsa file
-    csv_dir = f"elec_s_{data['num_nodes']}"
-    if data["use_extra_components"]:
+    csv_dir = f"elec_s_{num_nodes}"
+    if use_extra_components:
         csv_dir += "_ec"
 
     pn = pypsa.Network()
@@ -96,15 +118,15 @@ def setup_pypysa_dataset(data):
 
     # Pick dates
     # Rule 1 - Just a fixed hour of the year
-    if isinstance(data["start_hour"], int):
+    if isinstance(start_hour, int):
         print("Using a fixed start hour.")
-        start_hour = PYPSA_START_DAY + dt.timedelta(hours=data["start_hour"])
+        start_hour = PYPSA_START_DAY + dt.timedelta(hours=start_hour)
 
     # Rule 2 - Dynamically selected by peak load
-    elif data["start_hour"] == "peak_load_day":
+    elif start_hour == "peak_load_day":
         print("Finding the peak load day.")
         all_dates = pd.date_range(start=PYPSA_START_DAY, periods=TOTAL_PYPSA_HOUR, freq="1h")
-        _, year_devices = zap.importers.load_pypsa_network(pn, all_dates, **data["args"])
+        _, year_devices = zap.importers.load_pypsa_network(pn, all_dates, **args)
 
         daily_peak_load = get_total_load_curve(year_devices, every=24, reducer=np.max)
         peak_day = np.argmax(daily_peak_load).item()
@@ -112,15 +134,15 @@ def setup_pypysa_dataset(data):
         start_hour = PYPSA_START_DAY + dt.timedelta(hours=peak_day * 24)
 
     # Build zap network
-    dates = pd.date_range(start_hour, periods=data["num_hours"], freq="1h", inclusive="left")
+    dates = pd.date_range(start_hour, periods=num_hours, freq="1h", inclusive="left")
     print(f"Solving a case with {len(dates)} hours.")
     print(dates)
-    net, devices = zap.importers.load_pypsa_network(pn, dates, **data["args"])
+    net, devices = zap.importers.load_pypsa_network(pn, dates, **args)
 
-    if (not data["use_batteries"]) or (data["num_hours"] == 1):
+    if (not use_batteries) or (num_hours == 1):
         devices = [d for d in devices if type(d) != zap.Battery]
 
-    if data["add_ground"]:
+    if add_ground:
         ground = zap.Ground(
             num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
         )
@@ -129,15 +151,21 @@ def setup_pypysa_dataset(data):
     return net, devices
 
 
-def setup_problem(data, config):
+def setup_problem(
+    net,
+    devices,
+    parameters=["generator", "dc_line", "ac_line", "battery"],
+    cost_weight=1.0,
+    emissions_weight=0.0,
+    regularize=0.0,
+):
     print("Building planning problem...")
 
-    cfg = config["problem"]
-    net, devices = data["net"], data["devices"]
+    # cfg = config["problem"]
 
     # Setup parameters
     parameter_names = {}
-    for dev in cfg["parameters"]:
+    for dev in parameters:
         d_type, param_field = PARAMETERS[dev]
         d_index = device_index(devices, d_type)
 
@@ -158,8 +186,8 @@ def setup_problem(data, config):
     )
 
     # Build objective
-    f_cost = cfg["cost_weight"] * zap.planning.DispatchCostObjective(net, devices)
-    f_emissions = cfg["emissions_weight"] * zap.planning.EmissionsObjective(devices)
+    f_cost = cost_weight * zap.planning.DispatchCostObjective(net, devices)
+    f_emissions = emissions_weight * zap.planning.EmissionsObjective(devices)
     op_objective = f_cost + f_emissions
     inv_objective = zap.planning.InvestmentObjective(devices, layer)
 
@@ -170,7 +198,7 @@ def setup_problem(data, config):
         layer=deepcopy(layer),
         lower_bounds=None,
         upper_bounds=None,
-        regularize=cfg["regularize"],
+        regularize=regularize,
     )
 
     return {
@@ -179,10 +207,10 @@ def setup_problem(data, config):
     }
 
 
-def solve_relaxed_problem(problem, config):
+def solve_relaxed_problem(problem, *, should_solve=True, price_bound=50.0, inf_value=50.0):
     problem = problem["problem"]
 
-    if not config["relaxation"]["should_solve"]:
+    if not should_solve:
         print("Skipping relaxation...")
         return None
 
@@ -190,8 +218,8 @@ def solve_relaxed_problem(problem, config):
         print("Solving relaxation...")
         relaxation = zap.planning.RelaxedPlanningProblem(
             problem,
-            max_price=config["relaxation"]["price_bound"],
-            inf_value=config["relaxation"]["inf_value"],
+            max_price=price_bound,
+            inf_value=inf_value,
             sd_tolerance=1e-3,
         )
 
@@ -205,23 +233,34 @@ def solve_relaxed_problem(problem, config):
         }
 
 
-def solve_problem(problem_data, relaxation, config):
+def solve_problem(
+    problem_data,
+    relaxation,
+    config,
+    *,
+    use_wandb=False,
+    log_wandb_every=2,
+    name="gradient_descent",
+    initial_state="relaxation",
+    num_iterations=10,
+    args={"step_size": 1e-3, "num_iterations": 100},
+):
     print("Solving problem...")
-    opt_config = config["optimizer"]
+
     problem: zap.planning.PlanningProblem = problem_data["problem"]
 
     # Construct algorithm
-    alg = ALGORITHMS[opt_config["name"]](**opt_config["args"])
+    alg = ALGORITHMS[name](**args)
 
     # Setup wandb
-    if config["system"]["use_wandb"]:
+    if use_wandb:
         wandb.init(project="zap", config=config)
         logger = wandb
     else:
         logger = None
 
     # Initialize
-    init = opt_config["initial_state"]
+    init = initial_state
 
     if relaxation is not None and init == "relaxation":
         print("Initializing with relaxation solution.")
@@ -247,12 +286,12 @@ def solve_problem(problem_data, relaxation, config):
 
     # Solve
     parameters, history = problem.solve(
-        num_iterations=opt_config["num_iterations"],
+        num_iterations=num_iterations,
         algorithm=alg,
         trackers=tr.DEFAULT_TRACKERS,
         initial_state=initial_state,
         wandb=logger,
-        log_wandb_every=config["system"]["log_wandb_every"],
+        log_wandb_every=log_wandb_every,
         lower_bound=relaxation["lower_bound"] if relaxation is not None else None,
         extra_wandb_trackers=get_wandb_trackers(problem_data, relaxation, config),
     )
@@ -284,12 +323,12 @@ def save_results(relaxation, results, config):
 
 def run_experiment(config):
     # Load data and formulate problem
-    data = load_dataset(config)
-    problem = setup_problem(data, config)
+    data = load_dataset(**config["data"])
+    problem = setup_problem(**data, **config["problem"])
 
     # Solve relaxation and original problem
-    relaxation = solve_relaxed_problem(problem, config)
-    results = solve_problem(problem, relaxation, config)
+    relaxation = solve_relaxed_problem(problem, **config["relaxation"])
+    results = solve_problem(problem, relaxation, config, **config["optimizer"])
 
     save_results(relaxation, results, config)
 

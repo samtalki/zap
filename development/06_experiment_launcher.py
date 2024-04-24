@@ -33,19 +33,19 @@ def __(runner):
 
 @app.cell
 def __(config, runner):
-    data = runner.load_dataset(config)
+    data = runner.load_dataset(**config["data"])
     return data,
 
 
 @app.cell
 def __(config, data, runner):
-    problem = runner.setup_problem(data, config)
+    problem = runner.setup_problem(**data, **config["problem"])
     return problem,
 
 
 @app.cell
 def __(config, problem, runner):
-    relax = runner.solve_relaxed_problem(problem, config)
+    relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
     return relax,
 
 
@@ -63,7 +63,7 @@ def __(problem, relax, result):
 
 @app.cell
 def __(config, problem, relax, runner):
-    result = runner.solve_problem(problem, relax, config)
+    result = runner.solve_problem(problem, relax, config, **config["optimizer"])
     return result,
 
 
@@ -81,41 +81,7 @@ def __(plt, relax, result):
 
 @app.cell
 def __():
-    # result["history"]
-    return
-
-
-@app.cell
-def __():
     # runner.save_results(relax, result, config)
-    return
-
-
-@app.cell
-def __():
-    # import pypsa
-    return
-
-
-@app.cell
-def __():
-    # _csv_dir = f"elec_s_{100}"
-    # _csv_dir += "_ec"
-
-    # pn = pypsa.Network()
-    # pn.import_from_csv_folder(runner.DATA_PATH / "pypsa/western/" / _csv_dir)
-    return
-
-
-@app.cell
-def __(np):
-    type(np.argmax([1, 10, 3, 10]).item())
-    return
-
-
-@app.cell
-def __(Path, runner):
-    Path(runner.DATA_PATH, "experiments")
     return
 
 
