@@ -250,6 +250,8 @@ def solve_problem(
 
     problem: zap.planning.PlanningProblem = problem_data["problem"]
 
+    # TODO - Make stochastic form of the problem
+
     # Construct algorithm
     alg = ALGORITHMS[name](**args)
 
@@ -282,7 +284,7 @@ def solve_problem(
         with open(initial_path, "r") as f:
             initial_state = json.load(f)
 
-        ref_shapes = {k: v.shape for k, v in problem.layer.initialize_parameters().items()}
+        ref_shapes = {k: v.shape for k, v in problem.initialize_parameters().items()}
         initial_state = {k: np.array(v).reshape(ref_shapes[k]) for k, v in initial_state.items()}
 
     # Solve
@@ -359,9 +361,11 @@ def get_wandb_trackers(problem_data, relaxation, config):
     carbon_objective = zap.planning.EmissionsObjective(layer.devices)
     cost_objective = zap.planning.DispatchCostObjective(layer.network, layer.devices)
 
+    # TODO - Generalize for multi-objective problems
     def emissions_tracker(J, grad, state, last_state, problem):
         return carbon_objective(problem.state, parameters=layer.setup_parameters(**state))
 
+    # TODO - Generalize for multi-objective problems
     def cost_tracker(J, grad, state, last_state, problem):
         return cost_objective(problem.state, parameters=layer.setup_parameters(**state))
 
@@ -375,7 +379,9 @@ def get_wandb_trackers(problem_data, relaxation, config):
     return {
         "emissions": emissions_tracker,
         "fuel_costs": cost_tracker,
+        # TODO - Generalize for multi-objective problems
         "inv_cost": lambda *args: problem.inv_cost.item(),
+        # TODO - Generalize for multi-objective problems
         "op_cost": lambda *args: problem.op_cost.item(),
         "lower_bound": lambda *args: lower_bound,
         "true_relaxation_cost": lambda *args: true_relax_cost,

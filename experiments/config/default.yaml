@@ -44,7 +44,7 @@ optimizer:
   initial_state: relaxation
   use_wandb: false
   log_wandb_every: 2
-  checkpoint_every: 2
+  checkpoint_every: 100000
   args:
     step_size: 1.0e-2
     clip: 1.0e+3

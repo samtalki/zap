@@ -85,5 +85,34 @@ def __():
     return
 
 
+@app.cell
+def __(mo):
+    mo.md("## Stochastic Problem")
+    return
+
+
+@app.cell
+def __():
+    from copy import deepcopy
+    return deepcopy,
+
+
+@app.cell
+def __(deepcopy, problem, result):
+    _prob1 = deepcopy(problem["problem"])
+    _prob2 = deepcopy(_prob1)
+
+    _stoch_prob = 0.4 * _prob1 + 0.6 * _prob2
+
+    # Check forward pass
+    _stoch_prob(**result["parameters"])
+
+    # Check full forward and back
+    _J, _grad = _stoch_prob.forward_and_back(**result["parameters"])
+
+    _grad
+    return
+
+
 if __name__ == "__main__":
     app.run()

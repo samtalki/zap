@@ -243,3 +243,68 @@ class PlanningProblem:
         for param in state.keys():
             state[param] = np.clip(state[param], self.lower_bounds[param], self.upper_bounds[param])
         return state
+
+    def __add__(self, other_problem):
+        return StochasticPlanningProblem([self, other_problem])
+
+    def __mul__(self, weight):
+        return StochasticPlanningProblem([self], [weight])
+
+    def __rmul__(self, weight):
+        return self.__mul__(weight)
+
+
+class StochasticPlanningProblem(PlanningProblem):
+    """Weighted mixture of planning problems."""
+
+    def __init__(
+        self,
+        subproblems: list[PlanningProblem],
+        weights: list[float] = None,
+    ):
+        if weights is None:
+            weights = [1.0 for _ in subproblems]
+
+        # Merge stochastic subproblems
+        new_subproblems = []
+        new_weights = []
+        for sub, w in zip(subproblems, weights):
+            if isinstance(sub, StochasticPlanningProblem):
+                new_subproblems.extend(sub.subproblems)
+                new_weights.extend([w * w_ for w_ in sub.weights])
+            else:
+                new_subproblems.append(sub)
+                new_weights.append(w)
+
+        # Drop zero weights
+        subproblems = [sub for sub, w in zip(subproblems, weights) if w > 0]
+        weights = [w for w in weights if w > 0]
+
+        self.subproblems = new_subproblems
+        self.weights = new_weights
+
+        # Maximum of all sub problem lower bounds
+        self.lower_bounds = {
+            k: np.max([sub.lower_bounds[k] for sub in self.subproblems])
+            for k in subproblems[0].lower_bounds.keys()
+        }
+        self.upper_bounds = {
+            k: np.min([sub.upper_bounds[k] for sub in self.subproblems])
+            for k in subproblems[0].upper_bounds.keys()
+        }
+
+        assert len(self.subproblems) == len(self.weights)
+
+    @property
+    def layer(self):
+        return self.subproblems[0].layer
+
+    def forward(self, requires_grad: bool = False, **kwargs):
+        sub_costs = [
+            sub.forward(requires_grad, **kwargs) for w, sub in zip(self.weights, self.subproblems)
+        ]
+        return sum([w * c for w, c in zip(self.weights, sub_costs)])
+
+    def backward(self):
+        grads = [sub.backward() for sub in self.subproblems]
+        return {k: sum([w * g[k] for w, g in zip(self.weights, grads)]) for k in grads[0].keys()}
