@@ -98,19 +98,21 @@ def __():
 
 
 @app.cell
-def __(deepcopy, problem, result):
+def __(deepcopy, problem):
     _prob1 = deepcopy(problem["problem"])
     _prob2 = deepcopy(_prob1)
 
     _stoch_prob = 0.4 * _prob1 + 0.6 * _prob2
 
     # Check forward pass
-    _stoch_prob(**result["parameters"])
+    # _stoch_prob(**result["parameters"])
 
     # Check full forward and back
-    _J, _grad = _stoch_prob.forward_and_back(**result["parameters"])
+    # _J, _grad = _stoch_prob.forward_and_back(**result["parameters"])
 
-    _grad
+    # Check solve
+    # np.all(_stoch_prob.lower_bounds["generator"] == _prob1.lower_bounds["generator"])
+    # p, hist = _stoch_prob.solve(num_iterations=3)
     return
 
 

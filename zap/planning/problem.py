@@ -285,11 +285,11 @@ class StochasticPlanningProblem(PlanningProblem):
 
         # Maximum of all sub problem lower bounds
         self.lower_bounds = {
-            k: np.max([sub.lower_bounds[k] for sub in self.subproblems])
+            k: np.max([sub.lower_bounds[k] for sub in self.subproblems], axis=0)
             for k in subproblems[0].lower_bounds.keys()
         }
         self.upper_bounds = {
-            k: np.min([sub.upper_bounds[k] for sub in self.subproblems])
+            k: np.min([sub.upper_bounds[k] for sub in self.subproblems], axis=0)
             for k in subproblems[0].upper_bounds.keys()
         }
 
