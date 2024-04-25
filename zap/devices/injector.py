@@ -115,6 +115,19 @@ class Injector(AbstractDevice):
         return cost
 
     # ====
+    # PLANNING FUNCTIONS
+    # ====
+
+    def sample_time(self, time_periods, original_time_horizon):
+        dev = super().sample_time(time_periods, original_time_horizon)
+
+        # Subsample linear cost
+        if dev.linear_cost.shape[1] > 1:
+            dev.linear_cost = dev.linear_cost[:, time_periods]
+
+        return dev
+
+    # ====
     # DIFFERENTIATION
     # ====
 
@@ -260,6 +273,14 @@ class Generator(Injector):
         else:
             return la.sum(la.multiply(data.emission_rates, power[0]))
 
+    def sample_time(self, time_periods, original_time_horizon):
+        dev = super().sample_time(time_periods, original_time_horizon)
+
+        if dev.dynamic_capacity.shape[1] > 1:
+            dev.dynamic_capacity = dev.dynamic_capacity[:, time_periods]
+
+        return dev
+
 
 class Load(Injector):
     """An Injector that can only withdraw power."""
@@ -280,3 +301,11 @@ class Load(Injector):
     @property
     def max_power(self):
         return np.zeros(self.load.shape)
+
+    def sample_time(self, time_periods, original_time_horizon):
+        dev = super().sample_time(time_periods, original_time_horizon)
+
+        if dev.load.shape[1] > 1:
+            dev.load = dev.load[:, time_periods]
+
+        return dev

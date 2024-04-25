@@ -161,8 +161,6 @@ def setup_problem(
 ):
     print("Building planning problem...")
 
-    # cfg = config["problem"]
-
     # Setup parameters
     parameter_names = {}
     for dev in parameters:

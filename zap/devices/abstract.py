@@ -3,6 +3,7 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
+from copy import deepcopy
 from collections import namedtuple
 from functools import cached_property
 from typing import Optional
@@ -124,6 +125,16 @@ class AbstractDevice:
 
     def get_emissions(self, power, **kwargs):
         return 0.0
+
+    def sample_time(self, time_periods, original_time_horizon):
+        new_device = deepcopy(self)
+        # Rescale capital costs by ratio of time horizons
+        if hasattr(new_device, "capital_cost"):
+            if new_device.capital_cost is not None:
+                new_device.capital_cost /= original_time_horizon
+                new_device.capital_cost *= np.size(time_periods)
+
+        return new_device
 
     # ====
     # Shared Functionality (No need to override)
