@@ -232,10 +232,10 @@ def setup_problem(
             zap.planning.PlanningProblem(
                 operation_objective=o,
                 investment_objective=i,
-                layer=l,
+                layer=lay,
                 **problem_args,
             )
-            for o, i, l in zip(sub_op_objectives, sub_inv_objectives, sub_layers)
+            for o, i, lay in zip(sub_op_objectives, sub_inv_objectives, sub_layers)
         ]
 
         stochastic_problem = zap.planning.StochasticPlanningProblem(sub_problems)

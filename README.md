@@ -14,10 +14,14 @@ mamba env create -n zap --file environment.yaml
 
 **Syncing Environment.** Run one of the following commands.
 
+On Perlmutter:
+```zsh
+mamba env update --file environment.yaml --prefix $ZAP_ENV  # Conda with Mamba solver
+```
+
+On Macbook:
 ```zsh
 mamba update --file environment.yaml  # Mamba
-# or
-mamba env update --file environment.yaml  # Conda with Mamba solver
 ```
 
 I haven't figured out a good way to lock the environment yet (i.e., fix all the dependency versions),
