@@ -299,6 +299,14 @@ class StochasticPlanningProblem(PlanningProblem):
     def layer(self):
         return self.subproblems[0].layer
 
+    @property
+    def inv_cost(self):
+        return sum([w * sub.inv_cost for w, sub in zip(self.weights, self.subproblems)])
+
+    @property
+    def op_cost(self):
+        return sum([w * sub.op_cost for w, sub in zip(self.weights, self.subproblems)])
+
     def forward(self, requires_grad: bool = False, **kwargs):
         sub_costs = [
             sub.forward(requires_grad, **kwargs) for w, sub in zip(self.weights, self.subproblems)

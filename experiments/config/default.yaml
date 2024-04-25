@@ -33,6 +33,8 @@ data:
     expand_empty_generators: 0.5  # MW
 
 problem:
+  stochastic: true
+  hours_per_scenario: 1
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -40,7 +42,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 5
+  num_iterations: 20
   initial_state: relaxation
   use_wandb: false
   log_wandb_every: 2

@@ -158,8 +158,15 @@ def setup_problem(
     cost_weight=1.0,
     emissions_weight=0.0,
     regularize=0.0,
+    stochastic=False,
+    hours_per_scenario=1,
 ):
     print("Building planning problem...")
+    time_horizon = np.max([d.time_horizon for d in devices])
+
+    # Drop batteries
+    if stochastic and hours_per_scenario == 1:
+        devices = [d for d in devices if type(d) != zap.Battery]
 
     # Setup parameters
     parameter_names = {}
@@ -173,35 +180,75 @@ def setup_problem(
             print(f"Warning: device {dev} not found in devices. Will not be expanded.")
 
     # Setup layer
-    layer = zap.DispatchLayer(
-        net,
-        devices,
-        parameter_names=parameter_names,
-        time_horizon=devices[0].time_horizon,
-        solver=cp.MOSEK,
-        solver_kwargs={"verbose": False, "accept_unknown": True},
-        add_ground=False,
-    )
+    layer_args = {
+        "parameter_names": parameter_names,
+        "solver": cp.MOSEK,
+        "solver_kwargs": {"verbose": False, "accept_unknown": True},
+        "add_ground": False,
+    }
+    layer = zap.DispatchLayer(net, devices, time_horizon=time_horizon, **layer_args)
 
     # Build objective
-    f_cost = cost_weight * zap.planning.DispatchCostObjective(net, devices)
-    f_emissions = emissions_weight * zap.planning.EmissionsObjective(devices)
-    op_objective = f_cost + f_emissions
+    def make_objective(devs):
+        f_cost = cost_weight * zap.planning.DispatchCostObjective(net, devs)
+        f_emissions = emissions_weight * zap.planning.EmissionsObjective(devs)
+        return f_cost + f_emissions
+
+    op_objective = make_objective(devices)
     inv_objective = zap.planning.InvestmentObjective(devices, layer)
 
     # Setup planning problem
+    problem_args = {"lower_bounds": None, "upper_bounds": None, "regularize": regularize}
     problem = zap.planning.PlanningProblem(
         operation_objective=op_objective,
         investment_objective=inv_objective,
         layer=deepcopy(layer),
-        lower_bounds=None,
-        upper_bounds=None,
-        regularize=regularize,
+        **problem_args,
     )
+
+    # Setup stochastic problem
+    if stochastic:
+        assert hours_per_scenario >= 1
+        assert time_horizon % hours_per_scenario == 0
+
+        scenarios = [
+            range(i, i + hours_per_scenario) for i in range(0, time_horizon, hours_per_scenario)
+        ]
+        sub_devices = [[d.sample_time(s, time_horizon) for d in devices] for s in scenarios]
+
+        sub_layers = [
+            zap.DispatchLayer(
+                devices=d, network=layer.network, time_horizon=hours_per_scenario, **layer_args
+            )
+            for d in sub_devices
+        ]
+
+        sub_op_objectives = [make_objective(d) for d in sub_devices]
+        sub_inv_objectives = [
+            zap.planning.InvestmentObjective(d, lay) for d, lay in zip(sub_devices, sub_layers)
+        ]
+
+        sub_problems = [
+            zap.planning.PlanningProblem(
+                operation_objective=o,
+                investment_objective=i,
+                layer=l,
+                **problem_args,
+            )
+            for o, i, l in zip(sub_op_objectives, sub_inv_objectives, sub_layers)
+        ]
+
+        stochastic_problem = zap.planning.StochasticPlanningProblem(sub_problems)
+
+    else:
+        stochastic_problem = None
+        sub_devices = None
 
     return {
         "problem": problem,
         "layer": layer,
+        "stochastic_problem": stochastic_problem,
+        "sub_devices": sub_devices,
     }
 
 
@@ -247,8 +294,9 @@ def solve_problem(
     print("Solving problem...")
 
     problem: zap.planning.PlanningProblem = problem_data["problem"]
-
-    # TODO - Make stochastic form of the problem
+    if problem_data["stochastic_problem"] is not None:
+        print("Solving stochastic problem.")
+        problem = problem_data["stochastic_problem"]
 
     # Construct algorithm
     alg = ALGORITHMS[name](**args)
@@ -355,17 +403,42 @@ def device_index(devices, kind):
 
 def get_wandb_trackers(problem_data, relaxation, config):
     problem, layer = problem_data["problem"], problem_data["layer"]
-
-    carbon_objective = zap.planning.EmissionsObjective(layer.devices)
-    cost_objective = zap.planning.DispatchCostObjective(layer.network, layer.devices)
-
-    # TODO - Generalize for multi-objective problems
-    def emissions_tracker(J, grad, state, last_state, problem):
-        return carbon_objective(problem.state, parameters=layer.setup_parameters(**state))
+    is_stochastic = problem_data["stochastic_problem"] is not None
+    sub_devices = problem_data["sub_devices"]
 
     # TODO - Generalize for multi-objective problems
-    def cost_tracker(J, grad, state, last_state, problem):
-        return cost_objective(problem.state, parameters=layer.setup_parameters(**state))
+    if is_stochastic:
+        carbon_objective = [zap.planning.EmissionsObjective(d) for d in sub_devices]
+        cost_objective = [zap.planning.DispatchCostObjective(layer.network, d) for d in sub_devices]
+    else:
+        carbon_objective = zap.planning.EmissionsObjective(layer.devices)
+        cost_objective = zap.planning.DispatchCostObjective(layer.network, layer.devices)
+
+    if is_stochastic:
+
+        def emissions_tracker(J, grad, params, last_state, problem):
+            return sum(
+                [
+                    c(sub.state, parameters=layer.setup_parameters(**params))
+                    for c, sub in zip(carbon_objective, problem.subproblems)
+                ]
+            )
+
+        def cost_tracker(J, grad, params, last_state, problem):
+            return sum(
+                [
+                    c(sub.state, parameters=layer.setup_parameters(**params))
+                    for c, sub in zip(cost_objective, problem.subproblems)
+                ]
+            )
+
+    else:
+
+        def emissions_tracker(J, grad, state, last_state, problem):
+            return carbon_objective(problem.state, parameters=layer.setup_parameters(**state))
+
+        def cost_tracker(J, grad, state, last_state, problem):
+            return cost_objective(problem.state, parameters=layer.setup_parameters(**state))
 
     lower_bound = relaxation["lower_bound"] if relaxation is not None else 1.0
     true_relax_cost = problem(**relaxation["relaxed_parameters"])
@@ -377,9 +450,7 @@ def get_wandb_trackers(problem_data, relaxation, config):
     return {
         "emissions": emissions_tracker,
         "fuel_costs": cost_tracker,
-        # TODO - Generalize for multi-objective problems
         "inv_cost": lambda *args: problem.inv_cost.item(),
-        # TODO - Generalize for multi-objective problems
         "op_cost": lambda *args: problem.op_cost.item(),
         "lower_bound": lambda *args: lower_bound,
         "true_relaxation_cost": lambda *args: true_relax_cost,

@@ -117,10 +117,7 @@ def __(deepcopy, problem):
 
 
 @app.cell
-def __(data):
-    _devs = data["devices"]
-
-    [d.sample_time(range(1), 4) for d in _devs]
+def __():
     return
 
 
