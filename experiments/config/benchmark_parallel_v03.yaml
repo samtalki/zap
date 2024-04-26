@@ -4,8 +4,8 @@
 tags: []
 
 system:
-  threads: 32
-  runtime: 30
+  threads: 128
+  runtime: 120
   memory: auto
 
 data:
@@ -15,9 +15,8 @@ data:
   num_nodes: 100
   use_extra_components: true
   start_hour: peak_load_day
-  num_hours: 8
+  num_hours: [expand, 96, 192]
   args:
-    # Important
     power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 10.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
@@ -25,8 +24,6 @@ data:
     scale_generator_capacity_factor: 0.8
     scale_line_capacity_factor: 0.8
     carbon_tax: 0.0  # $ / ton CO2
-
-    # Technical parameters (for problem stability)
     generator_cost_perturbation: 1.0  # MW
     load_cost_perturbation: 10.0  # MW
     drop_empty_generators: false
@@ -34,7 +31,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 1
+  hours_per_scenario: 24
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -42,13 +39,12 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 5
+  num_iterations: 100
   initial_state: relaxation
-  use_wandb: false
+  use_wandb: true
   log_wandb_every: 1
-  checkpoint_every: 1
+  checkpoint_every: 5
   parallel: true
-  ray_num_cpus: 16
   args:
     step_size: 1.0e-2
     clip: 1.0e+3

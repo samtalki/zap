@@ -4,6 +4,9 @@ data
 wandb/
 wandb
 
+# Ray
+.prometheus*/
+
 # Python
 *.pyc
 *.whl

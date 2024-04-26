@@ -338,7 +338,7 @@ def solve_problem(
     args={"step_size": 1e-3, "num_iterations": 100},
     checkpoint_every=100_000,
     parallel=False,
-    ray_num_cpus=16,
+    ray_num_cpus=16,  # TODO - Deprecated
 ):
     print("Solving problem...")
 
@@ -350,7 +350,8 @@ def solve_problem(
         if parallel:
             # Setup ray
             print("Initializing Ray.")
-            ray.init(num_cpus=ray_num_cpus, _memory=2 * ray_num_cpus * (1024**3))
+            ray_num_cpus = len(problem.subproblems)
+            ray.init(num_cpus=ray_num_cpus, _memory=config["system"]["num_threads"] * (1024**3))
             print(ray.cluster_resources())
             print(ray.cluster_resources()["CPU"])
             print(ray.cluster_resources()["memory"] / 1e9, "GB\n")
