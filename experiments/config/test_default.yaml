@@ -18,7 +18,7 @@ data:
   num_hours: 16
   args:
     # Important
-    power_unit: 1.0e+3  # 1e3 = GW
+    power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 10.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.5

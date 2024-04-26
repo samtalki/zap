@@ -73,7 +73,8 @@ def load_config(path):
     config["id"] = config_id
 
     # TODO Expand configs
-    # TODO Hunt for improperly parsed scientific notation
+    # Hunt for improperly parsed scientific notation (bug in Python yaml parser)
+    config = parse_scientific_notation(config)
 
     return config
 
@@ -407,18 +408,6 @@ def run_experiment(config):
     return None
 
 
-# ====
-# Utility Functions
-# ====
-
-
-def device_index(devices, kind):
-    if not any(isinstance(d, kind) for d in devices):
-        return None
-
-    return next(i for i, d in enumerate(devices) if isinstance(d, kind))
-
-
 def get_wandb_trackers(problem_data, relaxation, config):
     problem, layer = problem_data["problem"], problem_data["layer"]
     is_stochastic = problem_data["stochastic_problem"] is not None
@@ -476,6 +465,33 @@ def get_wandb_trackers(problem_data, relaxation, config):
     }
 
 
+# ====
+# Data Processing Utilities
+# ====
+
+
+def device_index(devices, kind):
+    if not any(isinstance(d, kind) for d in devices):
+        return None
+
+    return next(i for i, d in enumerate(devices) if isinstance(d, kind))
+
+
+def get_total_load_curve(devices, every=1, reducer=np.sum):
+    devs = [d for d in devices if isinstance(d, zap.Load)]
+    total_hourly_load = sum([d.load for d in devs])
+
+    return [
+        reducer(total_hourly_load[:, t : t + every])
+        for t in range(0, total_hourly_load.shape[1], every)
+    ]
+
+
+# ====
+# File I/O and Config Utilities
+# ====
+
+
 def checkpoint_model(parameters, history, config):
     result_dir = get_results_path(config["id"])
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -490,16 +506,6 @@ def checkpoint_model(parameters, history, config):
     return None
 
 
-def get_total_load_curve(devices, every=1, reducer=np.sum):
-    devs = [d for d in devices if isinstance(d, zap.Load)]
-    total_hourly_load = sum([d.load for d in devs])
-
-    return [
-        reducer(total_hourly_load[:, t : t + every])
-        for t in range(0, total_hourly_load.shape[1], every)
-    ]
-
-
 def datadir(*args):
     return Path(DATA_PATH, *args)
 
@@ -510,6 +516,24 @@ def projectdir(*args):
 
 def get_results_path(config_name):
     return datadir("results", config_name)
+
+
+def parse_scientific_notation(s):
+    if isinstance(s, list):
+        return [parse_scientific_notation(v) for v in s]
+    if isinstance(s, dict):
+        return {k: parse_scientific_notation(v) for k, v in s.items()}
+    if isinstance(s, str):
+        try:
+            return float(s)
+        except ValueError:
+            return s
+    return s
+
+
+# ====
+# MAIN FUNCTION
+# ====
 
 
 if __name__ == "__main__":
