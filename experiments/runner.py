@@ -47,6 +47,50 @@ PYPSA_DEFAULT_ARGS = {
 }
 
 
+def expand_config(config: dict) -> list[dict]:
+    configs = _expand_config(config)
+
+    # Tag every config with an index
+    for i, c in enumerate(configs):
+        c["index"] = i
+
+    return configs
+
+
+def _expand_config(config: dict) -> list[dict]:
+    """Expand config with multiple values for a single parameter.
+
+    Lists of the form `param: [expand, arg1, arg2, ..., argn]` will be expanded into
+    `n` distinct configurations.
+    """
+    config = deepcopy(config)
+
+    # Expand sub-dictionaries
+    for k, v in config.items():
+        if isinstance(v, dict):
+            v = _expand_config(v)
+            if len(v) == 1:
+                config[k] = v[0]
+            else:
+                config[k] = ["expand"] + v
+
+    # Expand lists
+    for k, v in config.items():
+        if isinstance(v, list) and len(v) > 0 and v[0] == "expand":
+            data: list = v[1:]
+            assert isinstance(data, list)
+
+            expanded_configs = [deepcopy(config) for _ in range(len(data))]
+
+            for i, d in enumerate(data):
+                expanded_configs[i][k] = d
+
+            return sum([_expand_config(e) for e in expanded_configs], start=[])  # Join lists
+
+    # No expansion happened, just return a singleton list
+    return [config]
+
+
 def load_config(path):
     path = Path(path)
 
@@ -63,11 +107,11 @@ def load_config(path):
 
     # Tag config from name
     config_short_name = Path(path).name.split(".")[0]
-    config_id = config_short_name + "_000"
+    config_id = config_short_name  # + "_000"
 
-    # Check if name has already been used
-    while get_results_path(config_id).exists():
-        config_id = config_id[:-3] + f"{int(config_id[-3:]) + 1:03d}"
+    # # Check if name has already been used
+    # while get_results_path(config_id).exists():
+    #     config_id = config_id[:-3] + f"{int(config_id[-3:]) + 1:03d}"
 
     config["name"] = config_short_name
     config["id"] = config_id
@@ -375,7 +419,7 @@ def solve_problem(
 
 def save_results(relaxation, results, config):
     # Pick a file name
-    results_path = get_results_path(config["id"])
+    results_path = get_results_path(config["id"], config.get("index", None))
     results_path.mkdir(parents=True, exist_ok=True)
 
     # Save relaxation parameters
@@ -493,7 +537,7 @@ def get_total_load_curve(devices, every=1, reducer=np.sum):
 
 
 def checkpoint_model(parameters, history, config):
-    result_dir = get_results_path(config["id"])
+    result_dir = get_results_path(config["id"], config.get("index", None))
     result_dir.mkdir(parents=True, exist_ok=True)
 
     iteration = len(history[tr.LOSS])
@@ -514,8 +558,11 @@ def projectdir(*args):
     return Path(ZAP_PATH, *args)
 
 
-def get_results_path(config_name):
-    return datadir("results", config_name)
+def get_results_path(config_name, index=None):
+    if index is None:
+        return datadir("results", config_name)
+    else:
+        return datadir("results", config_name, f"{index:03d}")
 
 
 def parse_scientific_notation(s):
@@ -538,5 +585,12 @@ def parse_scientific_notation(s):
 
 if __name__ == "__main__":
     config_path = sys.argv[1]
-    config = load_config(config_path)
+
+    if len(sys.argv) > 2:
+        config_num = int(sys.argv[2])
+    else:
+        config_num = 0
+
+    config = expand_config(load_config(config_path))[config_num]
+
     run_experiment(config)

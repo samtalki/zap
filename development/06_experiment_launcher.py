@@ -27,8 +27,12 @@ def __(importlib):
 
 @app.cell
 def __(runner):
-    config = runner.load_config("experiments/config/test_default.yaml")
-    return config,
+    config_list = runner.expand_config(
+        runner.load_config("experiments/config/test_default.yaml")
+    )
+
+    config = config_list[1]
+    return config, config_list
 
 
 @app.cell
@@ -37,7 +41,7 @@ def __(config, runner):
     return data,
 
 
-@app.cell(disabled=True)
+@app.cell
 def __(config, data, runner):
     problem = runner.setup_problem(**data, **config["problem"])
     return problem,
