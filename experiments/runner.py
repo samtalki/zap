@@ -351,7 +351,7 @@ def solve_problem(
             # Setup ray
             print("Initializing Ray.")
             ray_num_cpus = len(problem.subproblems)
-            ray.init(num_cpus=ray_num_cpus, _memory=config["system"]["num_threads"] * (1024**3))
+            ray.init(num_cpus=ray_num_cpus, _memory=config["system"]["threads"] * (1024**3))
             print(ray.cluster_resources())
             print(ray.cluster_resources()["CPU"])
             print(ray.cluster_resources()["memory"] / 1e9, "GB\n")
@@ -427,9 +427,10 @@ def save_results(relaxation, results, config):
     results_path.mkdir(parents=True, exist_ok=True)
 
     # Save relaxation parameters
-    relax_params = {k: v.ravel().tolist() for k, v in relaxation["relaxed_parameters"].items()}
-    with open(results_path / "relaxed.json", "w") as f:
-        json.dump(relax_params, f)
+    if relaxation is not None:
+        relax_params = {k: v.ravel().tolist() for k, v in relaxation["relaxed_parameters"].items()}
+        with open(results_path / "relaxed.json", "w") as f:
+            json.dump(relax_params, f)
 
     # Save final parameters
     final_params = {k: v.ravel().tolist() for k, v in results["parameters"].items()}
@@ -505,7 +506,9 @@ def get_wandb_trackers(problem_data, relaxation, config):
             return cost_objective(problem.state, parameters=layer.setup_parameters(**state))
 
     lower_bound = relaxation["lower_bound"] if relaxation is not None else 1.0
-    true_relax_cost = problem(**relaxation["relaxed_parameters"])
+    true_relax_cost = (
+        problem(**relaxation["relaxed_parameters"]) if relaxation is not None else np.inf
+    )
     relax_solve_time = (
         relaxation["data"]["problem"].solver_stats.solve_time if relaxation is not None else 0.0
     )

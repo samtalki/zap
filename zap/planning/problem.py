@@ -295,6 +295,7 @@ class StochasticPlanningProblem(PlanningProblem):
 
         self.subproblems = new_subproblems
         self.weights = new_weights
+        self.layer = subproblems[0].layer
 
         # Maximum of all sub problem lower bounds
         self.lower_bounds = {
@@ -307,10 +308,6 @@ class StochasticPlanningProblem(PlanningProblem):
         }
 
         assert len(self.subproblems) == len(self.weights)
-
-    @property
-    def layer(self):
-        return self.subproblems[0].layer
 
     @property
     def inv_cost(self):
