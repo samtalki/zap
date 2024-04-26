@@ -1,0 +1,56 @@
+# Basic config
+
+---
+tags: []
+
+system:
+  threads: 128
+  runtime: 120
+  memory: auto
+
+data:
+  name: pypsa
+  add_ground: true
+  use_batteries: true
+  num_nodes: 100
+  use_extra_components: true
+  start_hour: peak_load_day
+  num_hours: ["expand", 96, 192]
+  args:
+    power_unit: 1.0e3  # 1e3 = GW
+    cost_unit: 10.0  # $ / MWh
+    marginal_load_value: 500.0  # $ / MWh
+    scale_load: 1.5
+    scale_generator_capacity_factor: 0.8
+    scale_line_capacity_factor: 0.8
+    carbon_tax: 0.0  # $ / ton CO2
+    generator_cost_perturbation: 1.0  # MW
+    load_cost_perturbation: 10.0  # MW
+    drop_empty_generators: false
+    expand_empty_generators: 0.5  # MW
+
+problem:
+  stochastic: true
+  hours_per_scenario: 24
+  cost_weight: 1.0
+  emissions_weight: 100.0  # $ / ton CO2
+  regularize: 1.0e-6  # Jacobian regularization
+  parameters: [generator, dc_line, ac_line, battery]
+
+optimizer:
+  name: gradient_descent
+  num_iterations: 100
+  initial_state: relaxation
+  use_wandb: true
+  log_wandb_every: 1
+  checkpoint_every: 5
+  parallel: ["expand", true, false]
+  ray_num_cpus: 128
+  args:
+    step_size: 1.0e-2
+    clip: 1.0e+3
+
+relaxation:
+  should_solve: true
+  price_bound: 50.0  # In scaled units
+  inf_value: 50.0  # Relative to maximum lower bound of that device type
