@@ -245,6 +245,18 @@ class PlanningProblem:
             state[param] = np.clip(state[param], self.lower_bounds[param], self.upper_bounds[param])
         return state
 
+    def get_state(self):
+        return self.state
+
+    def get_inv_cost(self):
+        return self.inv_cost
+
+    def get_op_cost(self):
+        return self.op_cost
+
+    def has_remote_subproblems(self):
+        return False
+
     def __add__(self, other_problem):
         return StochasticPlanningProblem([self, other_problem])
 
@@ -302,11 +314,24 @@ class StochasticPlanningProblem(PlanningProblem):
 
     @property
     def inv_cost(self):
-        return sum([w * sub.inv_cost for w, sub in zip(self.weights, self.subproblems)])
+        if self.has_remote_subproblems():
+            inv_costs = [sub.get_inv_cost.remote() for sub in self.subproblems]
+            inv_costs = ray.get(inv_costs)
+        else:
+            inv_costs = [sub.get_inv_cost() for sub in self.subproblems]
+
+        return sum([w * c for w, c in zip(self.weights, inv_costs)])
 
     @property
     def op_cost(self):
-        return sum([w * sub.op_cost for w, sub in zip(self.weights, self.subproblems)])
+        # return sum([w * sub.get_op_cost() for w, sub in zip(self.weights, self.subproblems)])
+        if self.has_remote_subproblems():
+            op_costs = [sub.get_op_cost.remote() for sub in self.subproblems]
+            op_costs = ray.get(op_costs)
+        else:
+            op_costs = [sub.get_op_cost() for sub in self.subproblems]
+
+        return sum([w * c for w, c in zip(self.weights, op_costs)])
 
     def has_remote_subproblems(self):
         return any(isinstance(sub, ray.actor.ActorHandle) for sub in self.subproblems)

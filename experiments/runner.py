@@ -315,6 +315,7 @@ def solve_relaxed_problem(problem, *, should_solve=True, price_bound=50.0, inf_v
         )
 
         relaxed_parameters, data = relaxation.solve()
+        print(f"Solved relaxation in {data['problem'].solver_stats.solve_time / 60:.2f} minutes.")
 
         return {
             "relaxation": relaxation,
@@ -409,6 +410,8 @@ def solve_problem(
     )
 
     ray.shutdown()
+    if use_wandb:
+        wandb.finish()
 
     return {
         "initial_state": initial_state,
@@ -446,9 +449,6 @@ def run_experiment(config):
 
     save_results(relaxation, results, config)
 
-    if config["system"]["use_wandb"]:
-        wandb.finish()
-
     return None
 
 
@@ -468,20 +468,32 @@ def get_wandb_trackers(problem_data, relaxation, config):
     if is_stochastic:
 
         def emissions_tracker(J, grad, params, last_state, problem):
-            return sum(
-                [
-                    c(sub.state, parameters=layer.setup_parameters(**params))
-                    for c, sub in zip(carbon_objective, problem.subproblems)
-                ]
-            )
+            if problem.has_remote_subproblems():
+                states = [sub.get_state.remote() for sub in problem.subproblems]
+                states = ray.get(states)
+            else:
+                states = [sub.state for sub in problem.subproblems]
+
+            carbon_costs = [
+                c(s, parameters=layer.setup_parameters(**params))
+                for c, s in zip(carbon_objective, states)
+            ]
+
+            return sum(carbon_costs)
 
         def cost_tracker(J, grad, params, last_state, problem):
-            return sum(
-                [
-                    c(sub.state, parameters=layer.setup_parameters(**params))
-                    for c, sub in zip(cost_objective, problem.subproblems)
-                ]
-            )
+            if problem.has_remote_subproblems():
+                states = [sub.get_state.remote() for sub in problem.subproblems]
+                states = ray.get(states)
+            else:
+                states = [sub.state for sub in problem.subproblems]
+
+            fuel_costs = [
+                c(s, parameters=layer.setup_parameters(**params))
+                for c, s in zip(cost_objective, states)
+            ]
+
+            return sum(fuel_costs)
 
     else:
 
@@ -501,8 +513,8 @@ def get_wandb_trackers(problem_data, relaxation, config):
     return {
         "emissions": emissions_tracker,
         "fuel_costs": cost_tracker,
-        "inv_cost": lambda *args: problem.inv_cost.item(),
-        "op_cost": lambda *args: problem.op_cost.item(),
+        "inv_cost": lambda J, grad, params, last_state, problem: problem.inv_cost.item(),
+        "op_cost": lambda J, grad, params, last_state, problem: problem.op_cost.item(),
         "lower_bound": lambda *args: lower_bound,
         "true_relaxation_cost": lambda *args: true_relax_cost,
         "relaxation_solve_time": lambda *args: relax_solve_time,

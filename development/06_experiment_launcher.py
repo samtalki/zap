@@ -31,7 +31,7 @@ def __(runner):
         runner.load_config("experiments/config/test_default.yaml")
     )
 
-    config = config_list[1]
+    config = config_list[0]
     return config, config_list
 
 
