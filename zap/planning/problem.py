@@ -1,6 +1,7 @@
 import dataclasses
 import torch
 import time
+import ray
 import numpy as np
 from copy import deepcopy
 
@@ -307,12 +308,29 @@ class StochasticPlanningProblem(PlanningProblem):
     def op_cost(self):
         return sum([w * sub.op_cost for w, sub in zip(self.weights, self.subproblems)])
 
+    def has_remote_subproblems(self):
+        return any(isinstance(sub, ray.actor.ActorHandle) for sub in self.subproblems)
+
     def forward(self, requires_grad: bool = False, **kwargs):
-        sub_costs = [
-            sub.forward(requires_grad, **kwargs) for w, sub in zip(self.weights, self.subproblems)
-        ]
+        if self.has_remote_subproblems():
+            sub_costs = [
+                sub.forward.remote(requires_grad, **kwargs)
+                for w, sub in zip(self.weights, self.subproblems)
+            ]
+            sub_costs = ray.get(sub_costs)
+        else:
+            sub_costs = [
+                sub.forward(requires_grad, **kwargs)
+                for w, sub in zip(self.weights, self.subproblems)
+            ]
+
         return sum([w * c for w, c in zip(self.weights, sub_costs)])
 
     def backward(self):
-        grads = [sub.backward() for sub in self.subproblems]
+        if self.has_remote_subproblems():
+            grads = [sub.backward.remote() for sub in self.subproblems]
+            grads = ray.get(grads)
+        else:
+            grads = [sub.backward() for sub in self.subproblems]
+
         return {k: sum([w * g[k] for w, g in zip(self.weights, grads)]) for k in grads[0].keys()}

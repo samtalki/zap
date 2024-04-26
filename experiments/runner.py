@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 import cvxpy as cp
+import ray
 import sys
 import pypsa
 import wandb
@@ -290,6 +291,8 @@ def solve_problem(
     num_iterations=10,
     args={"step_size": 1e-3, "num_iterations": 100},
     checkpoint_every=100_000,
+    parallel=False,
+    ray_num_cpus=16,
 ):
     print("Solving problem...")
 
@@ -297,6 +300,19 @@ def solve_problem(
     if problem_data["stochastic_problem"] is not None:
         print("Solving stochastic problem.")
         problem = problem_data["stochastic_problem"]
+
+        if parallel:
+            # Setup ray
+            print("Initializing Ray.")
+            ray.init(num_cpus=ray_num_cpus, _memory=2 * ray_num_cpus * (1024**3))
+            print(ray.cluster_resources())
+            print(ray.cluster_resources()["CPU"])
+            print(ray.cluster_resources()["memory"] / 1e9, "GB\n")
+
+            # Remoteize problem
+            problem.subproblems = [
+                zap.planning.RemotePlanningProblem.remote(p) for p in problem.subproblems
+            ]
 
     # Construct algorithm
     alg = ALGORITHMS[name](**args)
@@ -346,6 +362,8 @@ def solve_problem(
         checkpoint_every=checkpoint_every,
         checkpoint_func=lambda *args: checkpoint_model(*args, config),
     )
+
+    ray.shutdown()
 
     return {
         "initial_state": initial_state,
