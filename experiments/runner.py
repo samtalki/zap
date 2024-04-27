@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 import cvxpy as cp
-import ray
 import sys
 import pypsa
 import wandb
@@ -338,28 +337,20 @@ def solve_problem(
     args={"step_size": 1e-3, "num_iterations": 100},
     checkpoint_every=100_000,
     parallel=False,
-    ray_num_cpus=16,  # TODO - Deprecated
+    num_parallel_workers=-1,
 ):
     print("Solving problem...")
 
     problem: zap.planning.PlanningProblem = problem_data["problem"]
     if problem_data["stochastic_problem"] is not None:
         print("Solving stochastic problem.")
-        problem = problem_data["stochastic_problem"]
+        problem: zap.planning.StochasticPlanningProblem = problem_data["stochastic_problem"]
 
         if parallel:
-            # Setup ray
-            print("Initializing Ray.")
-            ray_num_cpus = len(problem.subproblems)
-            ray.init(num_cpus=ray_num_cpus, _memory=config["system"]["threads"] * (1024**3))
-            print(ray.cluster_resources())
-            print(ray.cluster_resources()["CPU"])
-            print(ray.cluster_resources()["memory"] / 1e9, "GB\n")
+            if num_parallel_workers < 0:
+                num_parallel_workers = len(problem.subproblems)
 
-            # Remoteize problem
-            problem.subproblems = [
-                zap.planning.RemotePlanningProblem.remote(p) for p in problem.subproblems
-            ]
+            problem.initialize_workers(num_parallel_workers)
 
     # Construct algorithm
     alg = ALGORITHMS[name](**args)
@@ -410,7 +401,10 @@ def solve_problem(
         checkpoint_func=lambda *args: checkpoint_model(*args, config),
     )
 
-    ray.shutdown()
+    if parallel:
+        problem.shutdown_workers()
+    #     ray.shutdown()
+
     if use_wandb:
         wandb.finish()
 
@@ -470,12 +464,7 @@ def get_wandb_trackers(problem_data, relaxation, config):
     if is_stochastic:
 
         def emissions_tracker(J, grad, params, last_state, problem):
-            if problem.has_remote_subproblems():
-                states = [sub.get_state.remote() for sub in problem.subproblems]
-                states = ray.get(states)
-            else:
-                states = [sub.state for sub in problem.subproblems]
-
+            states = [sub.state for sub in problem.subproblems]
             carbon_costs = [
                 c(s, parameters=layer.setup_parameters(**params))
                 for c, s in zip(carbon_objective, states)
@@ -484,11 +473,7 @@ def get_wandb_trackers(problem_data, relaxation, config):
             return sum(carbon_costs)
 
         def cost_tracker(J, grad, params, last_state, problem):
-            if problem.has_remote_subproblems():
-                states = [sub.get_state.remote() for sub in problem.subproblems]
-                states = ray.get(states)
-            else:
-                states = [sub.state for sub in problem.subproblems]
+            states = [sub.state for sub in problem.subproblems]
 
             fuel_costs = [
                 c(s, parameters=layer.setup_parameters(**params))

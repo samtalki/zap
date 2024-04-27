@@ -2,7 +2,6 @@
 
 from zap.planning.problem import PlanningProblem, StochasticPlanningProblem, GradientDescent
 from zap.planning.relaxation import RelaxedPlanningProblem
-from zap.planning.problem_remote import RemotePlanningProblem
 
 from zap.planning.investment_objectives import InvestmentObjective
 from zap.planning.operation_objectives import (

@@ -1,7 +1,6 @@
 import dataclasses
 import torch
 import time
-import ray
 import numpy as np
 from copy import deepcopy
 
@@ -11,6 +10,8 @@ from zap.layer import DispatchLayer
 from zap.planning.operation_objectives import AbstractOperationObjective
 from zap.planning.investment_objectives import AbstractInvestmentObjective
 from .trackers import DEFAULT_TRACKERS, TRACKER_MAPS
+
+from concurrent.futures import ThreadPoolExecutor
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -144,8 +145,13 @@ class PlanningProblem:
         return dtheta
 
     def forward_and_back(self, **kwargs):
+        t1 = time.time()
         J = self.forward(requires_grad=True, **kwargs)
+        tforward = time.time() - t1
         grad = self.backward()
+        t_back = time.time() - t1 - tforward
+        print("Forward pass took {:.2f} seconds.".format(tforward))
+        print("Backward pass took {:.2f} seconds.".format(t_back))
 
         return J, grad
 
@@ -254,9 +260,6 @@ class PlanningProblem:
     def get_op_cost(self):
         return self.op_cost
 
-    def has_remote_subproblems(self):
-        return False
-
     def __add__(self, other_problem):
         return StochasticPlanningProblem([self, other_problem])
 
@@ -296,6 +299,7 @@ class StochasticPlanningProblem(PlanningProblem):
         self.subproblems = new_subproblems
         self.weights = new_weights
         self.layer = subproblems[0].layer
+        self.num_workers = 1
 
         # Maximum of all sub problem lower bounds
         self.lower_bounds = {
@@ -311,48 +315,49 @@ class StochasticPlanningProblem(PlanningProblem):
 
     @property
     def inv_cost(self):
-        if self.has_remote_subproblems():
-            inv_costs = [sub.get_inv_cost.remote() for sub in self.subproblems]
-            inv_costs = ray.get(inv_costs)
-        else:
-            inv_costs = [sub.get_inv_cost() for sub in self.subproblems]
-
-        return sum([w * c for w, c in zip(self.weights, inv_costs)])
+        return sum([w * sub.get_inv_cost() for w, sub in zip(self.weights, self.subproblems)])
 
     @property
     def op_cost(self):
-        # return sum([w * sub.get_op_cost() for w, sub in zip(self.weights, self.subproblems)])
-        if self.has_remote_subproblems():
-            op_costs = [sub.get_op_cost.remote() for sub in self.subproblems]
-            op_costs = ray.get(op_costs)
-        else:
-            op_costs = [sub.get_op_cost() for sub in self.subproblems]
+        return sum([w * sub.get_op_cost() for w, sub in zip(self.weights, self.subproblems)])
 
-        return sum([w * c for w, c in zip(self.weights, op_costs)])
+    def initialize_workers(self, num_workers):
+        self.num_workers = num_workers
+        self.pool = ThreadPoolExecutor(max_workers=num_workers)
+        return None
 
-    def has_remote_subproblems(self):
-        return any(isinstance(sub, ray.actor.ActorHandle) for sub in self.subproblems)
+    def shutdown_workers(self):
+        if self.num_workers > 1:
+            self.pool.shutdown()
+
+        self.num_workers = 1
+        return None
 
     def forward(self, requires_grad: bool = False, **kwargs):
-        if self.has_remote_subproblems():
-            sub_costs = [
-                sub.forward.remote(requires_grad, **kwargs)
-                for w, sub in zip(self.weights, self.subproblems)
-            ]
-            sub_costs = ray.get(sub_costs)
+        if self.num_workers == 1:
+            sub_costs = [sub.forward(requires_grad, **kwargs) for sub in self.subproblems]
+
         else:
-            sub_costs = [
-                sub.forward(requires_grad, **kwargs)
-                for w, sub in zip(self.weights, self.subproblems)
-            ]
+            # Developer Note
+            # Normally, multi-threading doesn't gain any performance in Python because of the GIL.
+            # However, GIL is released when we call the Mosek solver.
+            # This is why we can gain performance by multi-threading the forward pass.
+            # The same is true for the backward pass, since the linear solver also releases the GIL.
+
+            print(f"Threaded forward pass with {self.num_workers} workers.")
+            sub_costs = self.pool.map(
+                lambda sub: sub.forward(requires_grad, **kwargs), self.subproblems
+            )
+            sub_costs = list(sub_costs)
 
         return sum([w * c for w, c in zip(self.weights, sub_costs)])
 
     def backward(self):
-        if self.has_remote_subproblems():
-            grads = [sub.backward.remote() for sub in self.subproblems]
-            grads = ray.get(grads)
-        else:
+        if self.num_workers == 1:
             grads = [sub.backward() for sub in self.subproblems]
+        else:
+            print(f"Threaded backward pass with {self.num_workers} workers.")
+            grads = self.pool.map(lambda sub: sub.backward(), self.subproblems)
+            grads = list(grads)
 
         return {k: sum([w * g[k] for w, g in zip(self.weights, grads)]) for k in grads[0].keys()}

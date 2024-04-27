@@ -48,21 +48,10 @@ def __(config, data, runner):
 
 
 @app.cell
-def __(config, problem, runner):
-    relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
+def __():
+    # relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
+    relax = None
     return relax,
-
-
-@app.cell
-def __(problem, relax, result):
-    _J = problem["problem"]
-
-    print(_J(**_J.initialize_parameters(None)))
-    print(_J(**relax["relaxed_parameters"]))
-    print(_J(**result["parameters"]))
-
-    print(relax["lower_bound"])
-    return
 
 
 @app.cell
@@ -72,10 +61,22 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
-def __(plt, relax, result):
+def __(problem, result):
+    _J = problem["problem"]
+
+    print(_J(**_J.initialize_parameters(None)))
+    # print(_J(**relax["relaxed_parameters"]))
+    print(_J(**result["parameters"]))
+
+    # print(relax["lower_bound"])
+    return
+
+
+@app.cell
+def __(plt, result):
     fig, axes = plt.subplots(2, 1, figsize=(8, 3))
 
-    axes[0].plot(result["history"]["loss"] / relax["lower_bound"])
+    axes[0].plot(result["history"]["loss"])
     axes[1].plot(result["history"]["proj_grad_norm"])
     axes[1].set_yscale("log")
 
@@ -99,6 +100,12 @@ def __(mo):
 def __():
     from copy import deepcopy
     return deepcopy,
+
+
+@app.cell
+def __():
+    list([1,2,3])
+    return
 
 
 if __name__ == "__main__":
