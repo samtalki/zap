@@ -351,6 +351,7 @@ def solve_problem(
                 num_parallel_workers = len(problem.subproblems)
 
             problem.initialize_workers(num_parallel_workers)
+            print(f"Assigned {num_parallel_workers} parallel workers.")
 
     # Construct algorithm
     alg = ALGORITHMS[name](**args)
@@ -403,7 +404,6 @@ def solve_problem(
 
     if parallel:
         problem.shutdown_workers()
-    #     ray.shutdown()
 
     if use_wandb:
         wandb.finish()

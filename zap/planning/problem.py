@@ -145,13 +145,11 @@ class PlanningProblem:
         return dtheta
 
     def forward_and_back(self, **kwargs):
-        t1 = time.time()
         J = self.forward(requires_grad=True, **kwargs)
-        tforward = time.time() - t1
         grad = self.backward()
-        t_back = time.time() - t1 - tforward
-        print("Forward pass took {:.2f} seconds.".format(tforward))
-        print("Backward pass took {:.2f} seconds.".format(t_back))
+
+        # print("Forward pass took {:.2f} seconds.".format(t_forward))
+        # print("Backward pass took {:.2f} seconds.".format(t_back))
 
         return J, grad
 
@@ -343,8 +341,6 @@ class StochasticPlanningProblem(PlanningProblem):
             # However, GIL is released when we call the Mosek solver.
             # This is why we can gain performance by multi-threading the forward pass.
             # The same is true for the backward pass, since the linear solver also releases the GIL.
-
-            print(f"Threaded forward pass with {self.num_workers} workers.")
             sub_costs = self.pool.map(
                 lambda sub: sub.forward(requires_grad, **kwargs), self.subproblems
             )
@@ -356,7 +352,6 @@ class StochasticPlanningProblem(PlanningProblem):
         if self.num_workers == 1:
             grads = [sub.backward() for sub in self.subproblems]
         else:
-            print(f"Threaded backward pass with {self.num_workers} workers.")
             grads = self.pool.map(lambda sub: sub.backward(), self.subproblems)
             grads = list(grads)
 
