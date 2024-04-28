@@ -34,7 +34,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 6
+  hours_per_scenario: 3
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -48,6 +48,7 @@ optimizer:
   log_wandb_every: 1
   checkpoint_every: 1
   parallel: true
+  batch_size: 2
   args:
     step_size: 1.0e-2
     clip: 1.0e+3

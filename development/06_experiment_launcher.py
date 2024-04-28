@@ -110,5 +110,11 @@ def __(problem, result):
     return
 
 
+@app.cell
+def __(zap):
+    zap.planning.problem.get_next_batch([2, 3], 2, 4)
+    return
+
+
 if __name__ == "__main__":
     app.run()

@@ -84,6 +84,10 @@ class PlanningProblem:
     def time_horizon(self):
         return self.layer.time_horizon
 
+    @property
+    def num_subproblems(self):
+        return 1
+
     def __call__(self, **kwargs):
         return self.forward(**kwargs)
 
@@ -173,8 +177,8 @@ class PlanningProblem:
         if trackers is None:
             trackers = DEFAULT_TRACKERS
 
-        if batch_size == -1:
-            batch_size = None
+        if batch_size is None or batch_size > self.time_horizon or batch_size <= 0:
+            batch_size = self.num_subproblems
 
         assert all([t in TRACKER_MAPS for t in trackers])
         self.start_time = time.time()
@@ -184,9 +188,11 @@ class PlanningProblem:
         # Setup initial state and history
         state = self.initialize_parameters(deepcopy(initial_state))
         history = self.initialize_history(trackers)
+        batch = list(range(batch_size))
+        print(batch)
 
         # Initialize loop
-        J, grad = self.forward_and_back(**state)
+        J, grad = self.forward_and_back(**state, batch=batch)
         history = self.update_history(
             history, trackers, J, grad, state, None, wandb, log_wandb_every
         )
@@ -203,8 +209,10 @@ class PlanningProblem:
             state = algorithm.step(state, grad)
             state = self.project(state)
 
-            # Update loss
-            J, grad = self.forward_and_back(**state)
+            # Update batch and loss
+            batch = get_next_batch(batch, batch_size, self.num_subproblems)
+            print(batch)
+            J, grad = self.forward_and_back(**state, batch=batch)
 
             # Record stuff
             history = self.update_history(
@@ -378,3 +386,8 @@ class StochasticPlanningProblem(PlanningProblem):
         total_batch_weight = sum([self.weights[b] for b in batch])
         total_weight = sum(self.weights)
         return (total_weight / total_batch_weight) * np.array(self.weights)[batch]
+
+
+def get_next_batch(batch, batch_size, num_subproblems):
+    last_index = batch[-1]
+    return [(last_index + 1 + i) % num_subproblems for i in range(batch_size)]

@@ -338,6 +338,7 @@ def solve_problem(
     checkpoint_every=100_000,
     parallel=False,
     num_parallel_workers=-1,
+    batch_size=0,
 ):
     print("Solving problem...")
 
@@ -400,6 +401,7 @@ def solve_problem(
         extra_wandb_trackers=get_wandb_trackers(problem_data, relaxation, config),
         checkpoint_every=checkpoint_every,
         checkpoint_func=lambda *args: checkpoint_model(*args, config),
+        batch_size=batch_size,
     )
 
     if parallel:
