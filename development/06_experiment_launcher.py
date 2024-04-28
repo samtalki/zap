@@ -48,9 +48,9 @@ def __(config, data, runner):
 
 
 @app.cell
-def __():
-    # relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
-    relax = None
+def __(config, problem, runner):
+    relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
+    # relax = None
     return relax,
 
 
@@ -61,14 +61,20 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
+def __(problem, relax):
+    _J = problem["problem"]
+
+    print(_J(**relax["relaxed_parameters"]))
+    print(relax["lower_bound"])
+    return
+
+
+@app.cell
 def __(problem, result):
     _J = problem["problem"]
 
     print(_J(**_J.initialize_parameters(None)))
-    # print(_J(**relax["relaxed_parameters"]))
     print(_J(**result["parameters"]))
-
-    # print(relax["lower_bound"])
     return
 
 

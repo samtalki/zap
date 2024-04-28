@@ -189,9 +189,12 @@ class PlanningProblem:
         state = self.initialize_parameters(deepcopy(initial_state))
         history = self.initialize_history(trackers)
         batch = list(range(batch_size))
-        print(batch)
+
+        # Run full forward pass to initialize everything
+        self.forward_and_back(**state)
 
         # Initialize loop
+        self.iteration = 0
         J, grad = self.forward_and_back(**state, batch=batch)
         history = self.update_history(
             history, trackers, J, grad, state, None, wandb, log_wandb_every
@@ -200,6 +203,7 @@ class PlanningProblem:
         # Gradient descent loop
         for iteration in range(num_iterations):
             last_state = deepcopy(state)
+            self.iteration = iteration + 1
 
             # Checkpoint
             if (iteration + 1) % checkpoint_every == 0:
@@ -211,7 +215,6 @@ class PlanningProblem:
 
             # Update batch and loss
             batch = get_next_batch(batch, batch_size, self.num_subproblems)
-            print(batch)
             J, grad = self.forward_and_back(**state, batch=batch)
 
             # Record stuff

@@ -19,7 +19,7 @@ data:
   args:
     # Important
     power_unit: 1.0e3  # 1e3 = GW
-    cost_unit: 10.0  # $ / MWh
+    cost_unit: 1.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.5
     scale_generator_capacity_factor: 0.8
@@ -34,7 +34,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 3
+  hours_per_scenario: 8
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -42,15 +42,16 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 4
+  num_iterations: 10
   initial_state: initial
   use_wandb: false
   log_wandb_every: 1
   checkpoint_every: 1
   parallel: true
-  batch_size: 2
+  batch_size: 1
+  track_full_loss_every: 0
   args:
-    step_size: 1.0e-2
+    step_size: 1.0e-1
     clip: 1.0e+3
 
 relaxation:

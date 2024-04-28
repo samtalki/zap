@@ -129,6 +129,8 @@ def load_dataset(name="pypsa", **kwargs):
 
     if name == "pypsa":
         net, devices = setup_pypysa_dataset(**kwargs)
+        for d in devices:
+            d.scale_costs(kwargs["num_hours"])  # Divide costs by number of hours
 
     else:
         raise ValueError("Unknown dataset")
@@ -339,6 +341,7 @@ def solve_problem(
     parallel=False,
     num_parallel_workers=-1,
     batch_size=0,
+    track_full_loss_every=0,
 ):
     print("Solving problem...")
 
@@ -450,7 +453,7 @@ def run_experiment(config):
     return None
 
 
-def get_wandb_trackers(problem_data, relaxation, config):
+def get_wandb_trackers(problem_data, relaxation, config: dict):
     problem, layer = problem_data["problem"], problem_data["layer"]
     is_stochastic = problem_data["stochastic_problem"] is not None
     sub_devices = problem_data["sub_devices"]
@@ -501,15 +504,47 @@ def get_wandb_trackers(problem_data, relaxation, config):
     )
 
     # Trackers
-    return {
+    trackers = {
         "emissions": emissions_tracker,
         "fuel_costs": cost_tracker,
         "inv_cost": lambda J, grad, params, last_state, problem: problem.inv_cost.item(),
         "op_cost": lambda J, grad, params, last_state, problem: problem.op_cost.item(),
+        "batch": lambda J, grad, params, last_state, problem: problem.batch[0],
         "lower_bound": lambda *args: lower_bound,
         "true_relaxation_cost": lambda *args: true_relax_cost,
         "relaxation_solve_time": lambda *args: relax_solve_time,
     }
+
+    if is_stochastic:
+        # Add full loss tracker
+        track_full_loss_every = config["optimizer"].get("track_full_loss_every", 0)
+        batch_size = config["optimizer"].get("batch_size", 0)
+        num_problems = problem_data["stochastic_problem"].num_subproblems
+
+        if batch_size == 0:
+            batch_size = problem_data["stochastic_problem"].num_subproblems
+
+        if track_full_loss_every == 0:  # Track once per batch
+            track_full_loss_every = int(num_problems / batch_size)
+
+        print(f"Tracking full loss every {track_full_loss_every} batches.")
+
+        def full_loss_tracker(J, grad, params, last_state, _stoch_prob):
+            iteration = _stoch_prob.iteration
+
+            if iteration % track_full_loss_every == 0:
+                problem.full_loss = problem(**params)
+                return problem.full_loss
+            else:
+                return getattr(problem, "full_loss", np.inf)
+    else:
+
+        def full_loss_tracker(J, grad, params, last_state, problem):
+            return J
+
+    trackers["full_loss"] = full_loss_tracker
+
+    return trackers
 
 
 # ====
