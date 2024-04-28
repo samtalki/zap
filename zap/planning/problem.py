@@ -87,7 +87,7 @@ class PlanningProblem:
     def __call__(self, **kwargs):
         return self.forward(**kwargs)
 
-    def forward(self, requires_grad: bool = False, **kwargs):
+    def forward(self, requires_grad: bool = False, batch=None, **kwargs):
         torch_kwargs = {}
 
         if requires_grad:
@@ -144,8 +144,8 @@ class PlanningProblem:
 
         return dtheta
 
-    def forward_and_back(self, **kwargs):
-        J = self.forward(requires_grad=True, **kwargs)
+    def forward_and_back(self, batch=None, **kwargs):
+        J = self.forward(requires_grad=True, batch=batch, **kwargs)
         grad = self.backward()
 
         # print("Forward pass took {:.2f} seconds.".format(t_forward))
@@ -165,12 +165,16 @@ class PlanningProblem:
         extra_wandb_trackers=None,
         checkpoint_every=100_000,
         checkpoint_func=lambda x: None,
+        batch_size=None,
     ):
         if algorithm is None:
             algorithm = GradientDescent()
 
         if trackers is None:
             trackers = DEFAULT_TRACKERS
+
+        if batch_size == -1:
+            batch_size = None
 
         assert all([t in TRACKER_MAPS for t in trackers])
         self.start_time = time.time()
@@ -319,6 +323,10 @@ class StochasticPlanningProblem(PlanningProblem):
     def op_cost(self):
         return sum([w * sub.get_op_cost() for w, sub in zip(self.weights, self.subproblems)])
 
+    @property
+    def num_subproblems(self):
+        return len(self.subproblems)
+
     def initialize_workers(self, num_workers):
         self.num_workers = num_workers
         self.pool = ThreadPoolExecutor(max_workers=num_workers)
@@ -331,10 +339,14 @@ class StochasticPlanningProblem(PlanningProblem):
         self.num_workers = 1
         return None
 
-    def forward(self, requires_grad: bool = False, **kwargs):
-        if self.num_workers == 1:
-            sub_costs = [sub.forward(requires_grad, **kwargs) for sub in self.subproblems]
+    def forward(self, requires_grad: bool = False, batch=None, **kwargs):
+        if batch is None:
+            batch = range(self.num_subproblems)
 
+        self.batch = batch
+
+        if self.num_workers == 1:
+            sub_costs = [self.subproblems[b].forward(requires_grad, **kwargs) for b in batch]
         else:
             # Developer Note
             # Normally, multi-threading doesn't gain any performance in Python because of the GIL.
@@ -342,17 +354,27 @@ class StochasticPlanningProblem(PlanningProblem):
             # This is why we can gain performance by multi-threading the forward pass.
             # The same is true for the backward pass, since the linear solver also releases the GIL.
             sub_costs = self.pool.map(
-                lambda sub: sub.forward(requires_grad, **kwargs), self.subproblems
+                lambda b: self.subproblems[b].forward(requires_grad, **kwargs), batch
             )
             sub_costs = list(sub_costs)
 
-        return sum([w * c for w, c in zip(self.weights, sub_costs)])
+        return sum([w * c for w, c in zip(self._get_batch_weights(batch), sub_costs)])
 
     def backward(self):
+        batch = self.batch
+
         if self.num_workers == 1:
-            grads = [sub.backward() for sub in self.subproblems]
+            grads = [self.subproblems[b].backward() for b in batch]
         else:
-            grads = self.pool.map(lambda sub: sub.backward(), self.subproblems)
+            grads = self.pool.map(lambda b: self.subproblems[b].backward(), batch)
             grads = list(grads)
 
-        return {k: sum([w * g[k] for w, g in zip(self.weights, grads)]) for k in grads[0].keys()}
+        return {
+            k: sum([w * g[k] for w, g in zip(self._get_batch_weights(batch), grads)])
+            for k in grads[0].keys()
+        }
+
+    def _get_batch_weights(self, batch):
+        total_batch_weight = sum([self.weights[b] for b in batch])
+        total_weight = sum(self.weights)
+        return (total_weight / total_batch_weight) * np.array(self.weights)[batch]

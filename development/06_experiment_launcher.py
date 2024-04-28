@@ -103,8 +103,10 @@ def __():
 
 
 @app.cell
-def __():
-    list([1,2,3])
+def __(problem, result):
+    _prob = problem["stochastic_problem"]
+
+    _prob.forward(**result["parameters"], batch=[0])
     return
 
 
