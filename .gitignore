@@ -10,3 +10,6 @@ wandb
 # Python
 *.pyc
 *.whl
+
+# Gurobi
+gurobi.log
