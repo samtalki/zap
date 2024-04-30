@@ -87,6 +87,7 @@ def parse_generators(
     fuel_type = net.generators.carrier.values
 
     if drop_empty_generators:
+        print("Dropping empty generators.")
         mask = nominal_capacities > 0
         terminals = terminals[mask]
         dynamic_capacities = dynamic_capacities[mask]
@@ -112,7 +113,7 @@ def parse_generators(
         max_nominal_capacity=max_nominal_capacities,
         emission_rates=emissions,
     )
-    dev.fuel_type = net.generators.carrier.values
+    dev.fuel_type = fuel_type
 
     return dev
 

@@ -185,13 +185,14 @@ def setup_pypysa_dataset(
         hours = sort_hours_by_peak(pn, args, by="hybrid", period=24, reducer=np.max)
         hours = hours[:num_hours]
 
-    else:
-        raise ValueError("Unknown start_hour setting.")
+    else:  # Rule 3 - Specify explicit date
+        start_hour = dt.datetime.combine(start_hour, dt.time(hour=UTC_TIME_SHIFT))
+        hours = pd.date_range(start_hour, periods=num_hours, freq="1h", inclusive="left")
 
     # Build zap network
-    hours = [PYPSA_START_DAY + dt.timedelta(hours=int(h)) for h in hours]
-    # hours = pd.date_range(start_hour, periods=num_hours, freq="1h", inclusive="left")
-    hours = pd.DatetimeIndex(hours)
+    if not isinstance(hours, pd.DatetimeIndex):
+        hours = [PYPSA_START_DAY + dt.timedelta(hours=int(h)) for h in hours]
+        hours = pd.DatetimeIndex(hours)
 
     print(f"Solving a case with {len(hours)} hours.")
     print(hours)

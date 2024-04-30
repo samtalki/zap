@@ -74,10 +74,11 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
-def __():
-    # _J = problem["problem"]
-    # print(_J(**relax["relaxed_parameters"]))
-    # print(relax["lower_bound"])
+def __(problem, relax):
+    if relax is not None:
+        _J = problem["problem"]
+        print(_J(**relax["relaxed_parameters"]))
+        print(relax["lower_bound"])
     return
 
 
@@ -93,7 +94,7 @@ def __(problem, result):
 def __(plt, result):
     _fig, _axes = plt.subplots(2, 1, figsize=(8, 3))
 
-    _axes[0].plot(result["history"]["rolling_loss"])
+    _axes[0].plot(result["history"]["loss"])
     _axes[1].plot(result["history"]["proj_grad_norm"])
     _axes[1].set_yscale("log")
 
@@ -145,20 +146,32 @@ def __(p0, p1, problem):
 
 
 @app.cell
-def __(devices, layer, np, plt, y1):
-    s, c, d = y1.local_variables[-2]
-    bat = layer.devices[-2]
+def __():
+    # s, c, d = y1.local_variables[-2]
+    # bat = layer.devices[-2]
 
-    np.max(devices[-2].charge_efficiency)
+    # np.max(devices[-2].charge_efficiency)
 
 
-    plt.plot(np.sum(s, axis=0))
-    plt.scatter(
-        np.arange(1, 25),
-        np.sum(s[:, :-1] + c * bat.charge_efficiency - d, axis=0),
-        c="red"
-    )
-    return bat, c, d, s
+    # plt.plot(np.sum(s, axis=0))
+    # plt.scatter(
+    #     np.arange(1, 25),
+    #     np.sum(s[:, :-1] + c * bat.charge_efficiency - d, axis=0),
+    #     c="red"
+    # )
+    return
+
+
+@app.cell
+def __(devices, np, plt, y0):
+    gens = devices[0]
+    gen_power = y0.power[0][0]
+    fuels = gens.fuel_type
+
+    total_gen = np.sum(gen_power[fuels == "offwind", :], axis=0)
+
+    plt.plot(total_gen)
+    return fuels, gen_power, gens, total_gen
 
 
 @app.cell
@@ -178,11 +191,10 @@ def __(layer, np, p1, plotter, plt, y1):
         # Stackplot generation
         gens = devices[0]
         gen_power = y1.power[0][0]
-        fuels = gens.fuel_type.reshape(-1, 1)
+        fuels = gens.fuel_type
 
         gen_per_period = [
-            np.sum(np.multiply(gen_power, fuels == f), axis=0)
-            for f in plotter.FUEL_NAMES
+            np.sum(gen_power[fuels == f, :], axis=0) for f in plotter.FUEL_NAMES
         ]
 
         ax.stackplot(t, gen_per_period, labels=[f[:7] for f in plotter.FUEL_NAMES])
@@ -201,7 +213,6 @@ def __(layer, np, p1, plotter, plt, y1):
             alpha=0.5,
             label="battery",
         )
-
 
         # Tune figure
         ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
@@ -271,8 +282,58 @@ def __(config, pd, pn, runner, zap):
 
 
 @app.cell
-def __(all_dates, every, plt, renewable_curve):
-    plt.plot(all_dates[range(0, 8760, every)], renewable_curve)
+def __():
+    # plt.plot(all_dates[range(0, 8736, every)], renewable_curve)
+    return
+
+
+@app.cell
+def __(pn):
+    pn.generators[["carrier", "capital_cost"]].groupby("carrier").min().iloc[1:] / 1000
+    return
+
+
+@app.cell
+def __(pn):
+    solar_gens = pn.generators.carrier == "solar"
+    df = pn.generators_t.p_max_pu
+
+    solar_cols = [col for col in df.columns if "solar" in col]
+
+    df[solar_cols].sum(axis=1).iloc[7:7+24].plot()
+    return df, solar_cols, solar_gens
+
+
+@app.cell
+def __(pn):
+    pn.lines["capital_cost"].mean() / 1000
+    return
+
+
+@app.cell
+def __(devices, np, pn):
+    np.all(pn.generators.carrier.values == devices[0].fuel_type)
+    return
+
+
+@app.cell
+def __(devices):
+    devices[0].num_devices
+    return
+
+
+@app.cell
+def __(devices, np, plotter):
+    {
+        f: np.mean(devices[0].dynamic_capacity[devices[0].fuel_type == f, :])
+        for f in plotter.FUEL_NAMES
+    }
+    return
+
+
+@app.cell
+def __(pn):
+    pn.generators_t["p_max_pu"]
     return
 
 

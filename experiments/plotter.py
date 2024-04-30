@@ -36,7 +36,7 @@ def total_capacity(capacities, fuels, fuel=None):
     if fuel is None:
         return {f: total_capacity(capacities, fuels, f) for f in np.unique(fuels)}
     else:
-        return np.sum(np.multiply(capacities, fuels == fuel))
+        return np.sum(capacities[fuels == fuel])
 
 
 def make_bar(ax, p0, p1, key=None, order=None):
@@ -78,6 +78,9 @@ def capacity_plot(p0, p1, devices):
     fuels = generators.fuel_type.reshape(-1, 1)
     gen0 = total_capacity(p0["generator"], fuels)
     gen1 = total_capacity(p1["generator"], fuels)
+
+    print(gen0)
+    print(gen1)
 
     make_bar(axes[3], gen0, gen1, order=FUEL_NAMES)
     axes[3].set_xlabel("generator")
