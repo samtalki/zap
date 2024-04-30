@@ -9,7 +9,7 @@ from zap.network import DispatchOutcome
 from zap.layer import DispatchLayer
 from zap.planning.operation_objectives import AbstractOperationObjective
 from zap.planning.investment_objectives import AbstractInvestmentObjective
-from .trackers import DEFAULT_TRACKERS, TRACKER_MAPS
+from .trackers import DEFAULT_TRACKERS, TRACKER_MAPS, LOSS
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -241,13 +241,24 @@ class PlanningProblem:
             f_val = f(J, grad, state, last_state, self)
             history[tracker] += [f_val]
 
+        if "rolling_loss" not in history:
+            history["rolling_loss"] = []
+
+        if isinstance(self, StochasticPlanningProblem):
+            if len(history[LOSS]) > 0:
+                history["rolling_loss"] += [np.mean(history[LOSS][-self.num_subproblems :])]
+            else:
+                history["rolling_loss"] += [np.mean(history[LOSS])]
+        else:
+            history["rolling_loss"] += [history[LOSS][-1]]
+
         if wandb is not None:
             iteration = len(history[trackers[0]])
 
             if (iteration % log_wandb_every == 0) or (iteration == 1):
                 print(f"Logging to wandb on iteration {iteration}.")
 
-                wand_data = {tracker: history[tracker][-1] for tracker in trackers}
+                wand_data = {k: history[k][-1] for k in history.keys()}
                 wand_data["iteration"] = iteration
 
                 # Add extra trackers

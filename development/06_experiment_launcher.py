@@ -48,31 +48,28 @@ def __(config, data, runner):
 
 
 @app.cell
-def __():
-    # relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
-    # relax = None
-    return
+def __(config, problem, runner):
+    relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
+    return relax,
+
+
+@app.cell
+def __(config, problem, relax, runner):
+    result = runner.solve_problem(problem, relax, config, **config["optimizer"])
+    return result,
 
 
 @app.cell
 def __():
-    # result = runner.solve_problem(problem, relax, config, **config["optimizer"])
-    return
-
-
-@app.cell
-def __(problem, relax):
-    _J = problem["problem"]
-
-    print(_J(**relax["relaxed_parameters"]))
-    print(relax["lower_bound"])
+    # _J = problem["problem"]
+    # print(_J(**relax["relaxed_parameters"]))
+    # print(relax["lower_bound"])
     return
 
 
 @app.cell
 def __(problem, result):
     _J = problem["problem"]
-
     print(_J(**_J.initialize_parameters(None)))
     print(_J(**result["parameters"]))
     return
@@ -82,7 +79,7 @@ def __(problem, result):
 def __(plt, result):
     fig, axes = plt.subplots(2, 1, figsize=(8, 3))
 
-    axes[0].plot(result["history"]["loss"])
+    axes[0].plot(result["history"]["rolling_loss"])
     axes[1].plot(result["history"]["proj_grad_norm"])
     axes[1].set_yscale("log")
 
@@ -98,7 +95,7 @@ def __():
 
 @app.cell
 def __(mo):
-    mo.md("## Stochastic Problem")
+    mo.md("## Debug")
     return
 
 
@@ -109,16 +106,16 @@ def __():
 
 
 @app.cell
-def __(problem, result):
-    _prob = problem["stochastic_problem"]
-
-    _prob.forward(**result["parameters"], batch=[0])
-    return
+def __():
+    import pandas as pd
+    import datetime as dt
+    return dt, pd
 
 
 @app.cell
-def __(zap):
-    zap.planning.problem.get_next_batch([2, 3], 2, 4)
+def __(problem, result):
+    _prob = problem["stochastic_problem"]
+    _prob.forward(**result["parameters"], batch=[0])
     return
 
 
@@ -132,41 +129,6 @@ def __():
 
 
 @app.cell
-def __():
-    # pn.loads_t["p_set"]
-    return
-
-
-@app.cell
-def __():
-    import datetime as dt
-    return dt,
-
-
-@app.cell
-def __(config, dt, np, pn, runner):
-    sorted_hours = runner.sort_hours_by_peak(
-        pn, config["data"]["args"], by="renewable", reducer=np.sum, period=1
-    )
-
-    # runner.PYPSA_START_DAY + runner.dt.timedelta(hours=int(sorted_hours[4*24]))
-    dts = [runner.PYPSA_START_DAY + dt.timedelta(hours=int(h)) for h in sorted_hours]
-    return dts, sorted_hours
-
-
-@app.cell
-def __(dts, pd):
-    pd.DatetimeIndex(dts)
-    return
-
-
-@app.cell
-def __():
-    import pandas as pd
-    return pd,
-
-
-@app.cell
 def __(config, pd, pn, runner, zap):
     all_dates = pd.date_range(
         start=runner.PYPSA_START_DAY, periods=runner.TOTAL_PYPSA_HOUR, freq="1h"
@@ -175,35 +137,11 @@ def __(config, pd, pn, runner, zap):
         pn, all_dates, **config["data"]["args"]
     )
 
-    # devs = [d for d in year_devices if isinstance(d, zap.Generator)]
-
-    # # Filter out non-renewable generators
-    # is_renewable = [
-    #     np.isin(d.fuel_type, ["solar", "onwind"]).reshape(-1, 1) for d in devs
-    # ]
-    # capacities = [
-    #     (d.nominal_capacity * is_renewable) * d.dynamic_capacity for d in devs
-    # ]
-
-    # total_hourly_renewable = sum([c for c in capacities])[0, :, :]
-
-    # np.array(
-    #     [
-    #         np.sum(total_hourly_renewable[:, t : t + 24])
-    #         for t in range(0, total_hourly_renewable.shape[1], 24)
-    #     ]
-    # ).shape
     every = 24
     renewable_curve = runner.get_total_renewable_curve(
-        year_devices, every=every, renewables=["solar", "onwind"]
+        year_devices, every=every, renewables=["solar", "onwind", "hydro"]
     )
     return all_dates, every, renewable_curve, year_devices
-
-
-@app.cell
-def __(pd, runner):
-    pd.date_range(start=runner.PYPSA_START_DAY, periods=20, freq="1h")
-    return
 
 
 @app.cell

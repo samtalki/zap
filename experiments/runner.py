@@ -322,6 +322,8 @@ def solve_relaxed_problem(problem, *, should_solve=True, price_bound=50.0, inf_v
             max_price=price_bound,
             inf_value=inf_value,
             sd_tolerance=1e-3,
+            solver=cp.MOSEK,
+            solver_kwargs={"verbose": True, "accept_unknown": True},
         )
 
         relaxed_parameters, data = relaxation.solve()
@@ -391,14 +393,14 @@ def solve_problem(
         print("Initializing with a previous solution.")
 
         # Check if file exists
-        initial_path = datadir("results", init, "optimized.json")
+        initial_path = datadir("results", f"{init}.json")
         if not initial_path.exists():
             raise ValueError("Could not find initial parameters.")
 
         with open(initial_path, "r") as f:
             initial_state = json.load(f)
 
-        ref_shapes = {k: v.shape for k, v in problem.initialize_parameters().items()}
+        ref_shapes = {k: v.shape for k, v in problem.initialize_parameters(None).items()}
         initial_state = {k: np.array(v).reshape(ref_shapes[k]) for k, v in initial_state.items()}
 
     # Solve
@@ -578,7 +580,9 @@ def get_total_load_curve(devices, every=1, reducer=np.sum):
     ]
 
 
-def get_total_renewable_curve(devices, every=1, reducer=np.sum, renewables=["solar", "onwind"]):
+def get_total_renewable_curve(
+    devices, every=1, reducer=np.sum, renewables=["solar", "onwind", "hydro"]
+):
     devs = [d for d in devices if isinstance(d, zap.Generator)]
 
     # Filter out non-renewable generators

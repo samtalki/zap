@@ -18,7 +18,6 @@ data:
   start_hour: peak_hybrid_day
   num_hours: 12
   args:
-    # Important
     power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 1.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
@@ -26,8 +25,6 @@ data:
     scale_generator_capacity_factor: 0.8
     scale_line_capacity_factor: 0.8
     carbon_tax: 0.0  # $ / ton CO2
-
-    # Technical parameters (for problem stability)
     generator_cost_perturbation: 1.0  # MW
     load_cost_perturbation: 10.0  # MW
     drop_empty_generators: false
@@ -44,7 +41,7 @@ problem:
 optimizer:
   name: gradient_descent
   num_iterations: 4
-  initial_state: initial
+  initial_state: base_v02/000/model_00080
   use_wandb: false
   log_wandb_every: 1
   checkpoint_every: 1
@@ -56,6 +53,6 @@ optimizer:
     clip: 1.0e+3
 
 relaxation:
-  should_solve: true
+  should_solve: false
   price_bound: 50.0  # In scaled units
   inf_value: 50.0  # Relative to maximum lower bound of that device type
