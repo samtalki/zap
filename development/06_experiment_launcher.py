@@ -7,7 +7,6 @@ app = marimo.App()
 @app.cell
 def __():
     import marimo as mo
-    import matplotlib.pyplot as plt
     import numpy as np
     import torch
     import importlib
@@ -15,7 +14,22 @@ def __():
     from pathlib import Path
 
     import zap
-    return Path, importlib, mo, np, plt, torch, zap
+    return Path, importlib, mo, np, torch, zap
+
+
+@app.cell
+def __():
+    import matplotlib.pyplot as plt
+    import seaborn
+
+    seaborn.set_theme(style="white", rc={
+        "font.size" : 10,
+        "axes.labelsize": 10,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        # "axes.ticksize": 8,
+    })
+    return plt, seaborn
 
 
 @app.cell
@@ -77,14 +91,14 @@ def __(problem, result):
 
 @app.cell
 def __(plt, result):
-    fig, axes = plt.subplots(2, 1, figsize=(8, 3))
+    _fig, _axes = plt.subplots(2, 1, figsize=(8, 3))
 
-    axes[0].plot(result["history"]["rolling_loss"])
-    axes[1].plot(result["history"]["proj_grad_norm"])
-    axes[1].set_yscale("log")
+    _axes[0].plot(result["history"]["rolling_loss"])
+    _axes[1].plot(result["history"]["proj_grad_norm"])
+    _axes[1].set_yscale("log")
 
-    fig
-    return axes, fig
+    _fig
+    return
 
 
 @app.cell
@@ -100,8 +114,109 @@ def __(mo):
 
 
 @app.cell
-def __():
+def __(importlib):
+    from experiments import plotter
+    _ = importlib.reload(plotter)
+    return plotter,
+
+
+@app.cell
+def __(data, problem, result):
+    _J = problem["problem"]
+
+    p1 = result["parameters"]
+    p0 = _J.initialize_parameters(None)
+    devices = data["devices"]
+    return devices, p0, p1
+
+
+@app.cell
+def __(devices, p0, p1, plotter):
+    plotter.capacity_plot(p0, p1, devices)[0]
     return
+
+
+@app.cell
+def __(p0, p1, problem):
+    layer = problem["problem"].layer
+    y0 = layer(**p0)
+    y1 = layer(**p1)
+    return layer, y0, y1
+
+
+@app.cell
+def __(devices, layer, np, plt, y1):
+    s, c, d = y1.local_variables[-2]
+    bat = layer.devices[-2]
+
+    np.max(devices[-2].charge_efficiency)
+
+
+    plt.plot(np.sum(s, axis=0))
+    plt.scatter(
+        np.arange(1, 25),
+        np.sum(s[:, :-1] + c * bat.charge_efficiency - d, axis=0),
+        c="red"
+    )
+    return bat, c, d, s
+
+
+@app.cell
+def __(layer, np, p1, plotter, plt, y1):
+    def stackplot(ax, p1, layer, y1=None):
+        if y1 is None:
+            y1 = layer(**p1)
+
+        devices = layer.devices
+
+        # Plot total load
+        loads = devices[1]
+        total_load = -np.sum(loads.min_power * loads.nominal_capacity, axis=0)
+        t = np.arange(total_load.size)
+        ax.plot(t, total_load, color="black")
+
+        # Stackplot generation
+        gens = devices[0]
+        gen_power = y1.power[0][0]
+        fuels = gens.fuel_type.reshape(-1, 1)
+
+        gen_per_period = [
+            np.sum(np.multiply(gen_power, fuels == f), axis=0)
+            for f in plotter.FUEL_NAMES
+        ]
+
+        ax.stackplot(t, gen_per_period, labels=[f[:7] for f in plotter.FUEL_NAMES])
+
+        # Plot battery output
+        bats = devices[-2]
+        bat_power = y1.power[-2][0]
+
+        total_bat_power = np.sum(bat_power, axis=0)
+
+        ax.fill_between(
+            t,
+            total_load,
+            total_load - total_bat_power,
+            color="yellow",
+            alpha=0.5,
+            label="battery",
+        )
+
+
+        # Tune figure
+        ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
+        ax.set_xlim(np.min(t), np.max(t))
+
+        return total_load
+
+
+    _fig, _ax = plt.subplots(figsize=(6.5, 3))
+
+    stackplot(_ax, p1, layer, y1)
+
+    _fig.tight_layout()
+    _fig
+    return stackplot,
 
 
 @app.cell
@@ -124,9 +239,9 @@ def __():
 
 
 @app.cell
-def __(problem, result):
-    _prob = problem["stochastic_problem"]
-    _prob.forward(**result["parameters"], batch=[0])
+def __():
+    # _prob = problem["stochastic_problem"]
+    # _prob.forward(**result["parameters"], batch=[0])
     return
 
 

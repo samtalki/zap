@@ -31,8 +31,9 @@ ALGORITHMS = {
     "gradient_descent": zap.planning.GradientDescent,
 }
 
-TOTAL_PYPSA_HOUR = 8760
-PYPSA_START_DAY = dt.datetime(2019, 1, 1, 0)
+UTC_TIME_SHIFT = 7
+TOTAL_PYPSA_HOUR = 8760 - 24
+PYPSA_START_DAY = dt.datetime(2019, 1, 1, UTC_TIME_SHIFT)
 PYPSA_DEFAULT_ARGS = {
     "power_unit": 1.0e3,
     "cost_unit": 10.0,
@@ -480,7 +481,7 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
     is_stochastic = problem_data["stochastic_problem"] is not None
     sub_devices = problem_data["sub_devices"]
 
-    full_stoch_problem = deepcopy(problem_data["stochastic_problem"])
+    # full_stoch_problem = deepcopy(problem_data["stochastic_problem"])
 
     # TODO - Generalize for multi-objective problems
     if is_stochastic:
@@ -557,7 +558,7 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
             iteration = _stoch_prob.iteration
 
             if iteration % track_full_loss_every == 0:
-                problem.full_loss = full_stoch_problem(**params)
+                problem.full_loss = _stoch_prob(**params)
                 return problem.full_loss
             else:
                 return getattr(problem, "full_loss", np.inf)

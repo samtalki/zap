@@ -140,7 +140,7 @@ class Battery(AbstractDevice):
             - state.discharge
         )
         return [
-            power[0] - (state.charge - state.discharge),
+            power[0] - (state.discharge - state.charge),
             state.energy[:, 1:] - soc_evolution,
             state.energy[:, 0:1] - la.multiply(data.initial_soc, energy_capacity),
             state.energy[:, T : (T + 1)] - la.multiply(data.final_soc, energy_capacity),
@@ -222,8 +222,8 @@ class Battery(AbstractDevice):
 
         # Power balance
         equalities[0].power[0] += sp.eye(size)
-        equalities[0].local_variables[1] += -sp.eye(size)
-        equalities[0].local_variables[2] += sp.eye(size)
+        equalities[0].local_variables[1] += sp.eye(size)
+        equalities[0].local_variables[2] += -sp.eye(size)
 
         # SOC evolution
         alpha = shaped_zeros + data.charge_efficiency

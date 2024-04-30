@@ -16,7 +16,7 @@ data:
   num_nodes: 100
   use_extra_components: true
   start_hour: peak_hybrid_day
-  num_hours: 12
+  num_hours: 24
   args:
     power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 1.0  # $ / MWh

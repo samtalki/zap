@@ -48,8 +48,8 @@ class DualBattery(Battery):
             smax = pmax * data.duration
 
             # Charge and discharge terms
-            c_term = la.multiply(z - la.multiply(rho, lamb), pmax)
-            d_term = la.multiply(lamb - z - data.linear_cost, pmax)
+            c_term = la.multiply(-z - la.multiply(rho, lamb), pmax)
+            d_term = la.multiply(lamb + z - data.linear_cost, pmax)
 
             # Energy terms
             s1_term = la.multiply(-lamb[:, [0]], data.initial_soc * smax)
