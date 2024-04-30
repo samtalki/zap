@@ -95,6 +95,17 @@ def __():
 
 @app.cell
 def __(mo):
+    mo.md("## Plot Results")
+    return
+
+
+@app.cell
+def __():
+    return
+
+
+@app.cell
+def __(mo):
     mo.md("## Debug")
     return
 

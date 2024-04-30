@@ -480,6 +480,8 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
     is_stochastic = problem_data["stochastic_problem"] is not None
     sub_devices = problem_data["sub_devices"]
 
+    full_stoch_problem = deepcopy(problem_data["stochastic_problem"])
+
     # TODO - Generalize for multi-objective problems
     if is_stochastic:
         carbon_objective = [zap.planning.EmissionsObjective(d) for d in sub_devices]
@@ -555,7 +557,7 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
             iteration = _stoch_prob.iteration
 
             if iteration % track_full_loss_every == 0:
-                problem.full_loss = problem(**params)
+                problem.full_loss = full_stoch_problem(**params)
                 return problem.full_loss
             else:
                 return getattr(problem, "full_loss", np.inf)
