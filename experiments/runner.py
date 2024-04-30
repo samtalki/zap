@@ -149,10 +149,11 @@ def setup_pypysa_dataset(
     start_hour="peak_load_day",
     num_hours=4,
     args=PYPSA_DEFAULT_ARGS,
+    case="load_medium",
     **kwargs,
 ):
     # Load pypsa file
-    csv_dir = f"elec_s_{num_nodes}"
+    csv_dir = f"{case}/elec_s_{num_nodes}"
     if use_extra_components:
         csv_dir += "_ec"
 
@@ -160,8 +161,9 @@ def setup_pypysa_dataset(
     pn.import_from_csv_folder(DATA_PATH / "pypsa/western/" / csv_dir)
 
     # Filter out extra components (battery nodes, links, and stores)
-    pn.buses = pn.buses[~pn.buses.index.str.contains("battery")]
-    pn.links = pn.links[~pn.links.index.str.contains("battery")]
+    # No longer needed with new pypsa dataset
+    # pn.buses = pn.buses[~pn.buses.index.str.contains("battery")]
+    # pn.links = pn.links[~pn.links.index.str.contains("battery")]
 
     # Pick dates
     # Rule 1 - Just a fixed hour of the year

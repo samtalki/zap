@@ -122,5 +122,20 @@ def __(zap):
     return
 
 
+@app.cell
+def __():
+    import pypsa
+
+    pn = pypsa.Network()
+    pn.import_from_csv_folder("./data/pypsa/western/load_medium/elec_s_100_ec/")
+    return pn, pypsa
+
+
+@app.cell
+def __(pn):
+    pn.lines.sort_values(by="x")
+    return
+
+
 if __name__ == "__main__":
     app.run()

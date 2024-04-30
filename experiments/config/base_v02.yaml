@@ -4,7 +4,7 @@
 tags: []
 
 system:
-  threads: 32
+  threads: 128
   runtime: 30
   memory: auto
 
@@ -16,7 +16,7 @@ data:
   num_nodes: 100
   use_extra_components: true
   start_hour: peak_load_day
-  num_hours: 12
+  num_hours: 24
   args:
     # Important
     power_unit: 1.0e3  # 1e3 = GW
@@ -35,7 +35,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 4
+  hours_per_scenario: 8
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -43,7 +43,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 4
+  num_iterations: 10
   initial_state: initial
   use_wandb: false
   log_wandb_every: 1

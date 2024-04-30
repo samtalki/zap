@@ -126,7 +126,7 @@ def parse_loads(
     load = build_dynamic(net.loads, net.loads_t, "p_set", dates)
 
     # Build and perturb costs
-    load_cost = marginal_load_value * np.ones(len(buses))
+    load_cost = marginal_load_value * np.ones(net.loads.shape[0])
     load_cost += load_cost_perturbation * rng.random(load_cost.shape)
 
     return Load(
@@ -164,12 +164,16 @@ def parse_ac_lines(
     net: pypsa.Network, dates, *, ac_transmission_cost, susceptance_unit, scale_line_capacity_factor
 ):
     buses, buses_to_index = parse_buses(net)
+    lines = deepcopy(net.lines)
 
-    sources, sinks = get_source_sinks(net.lines, buses_to_index)
+    # Filter lines with infinite reactance
+    lines = lines[~np.isinf(lines.x)]
+
+    sources, sinks = get_source_sinks(lines, buses_to_index)
 
     # Compute per-MW susceptance
-    susceptance = 1 / net.lines.x.values
-    susceptance = np.divide(susceptance, net.lines.s_nom.values)
+    susceptance = 1 / lines.x.values
+    susceptance = np.divide(susceptance, np.maximum(lines.s_nom.values, 1e-6))
     susceptance *= 1e3  # Convert to Kilosiemens / per-MW
 
     if susceptance_unit == "auto":
@@ -182,10 +186,10 @@ def parse_ac_lines(
         source_terminal=sources,
         sink_terminal=sinks,
         susceptance=susceptance,
-        capacity=net.lines.s_max_pu.values * scale_line_capacity_factor,
-        nominal_capacity=net.lines.s_nom.values,
+        capacity=lines.s_max_pu.values * scale_line_capacity_factor,
+        nominal_capacity=lines.s_nom.values,
         linear_cost=ac_transmission_cost * np.ones(sources.size),
-        capital_cost=net.lines.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
+        capital_cost=lines.capital_cost.values * (len(dates) / HOURS_PER_YEAR),
     )
 
 
