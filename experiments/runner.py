@@ -7,6 +7,7 @@ import pypsa
 import wandb
 import yaml
 import json
+import platform
 
 from pathlib import Path
 from copy import deepcopy
@@ -451,6 +452,16 @@ def save_results(relaxation, results, config):
 
 
 def run_experiment(config):
+    print(platform.architecture())
+    print(platform.machine())
+    print(platform.platform())
+    print(platform.processor())
+    print(platform.system())
+    print(platform.version())
+    print(platform.uname())
+    print(platform.python_version())
+    print("\n\n\n")
+
     # Load data and formulate problem
     data = load_dataset(**config["data"])
     problem = setup_problem(**data, **config["problem"])
