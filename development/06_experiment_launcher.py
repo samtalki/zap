@@ -48,16 +48,16 @@ def __(config, data, runner):
 
 
 @app.cell
-def __(config, problem, runner):
-    relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
+def __():
+    # relax = runner.solve_relaxed_problem(problem, **config["relaxation"])
     # relax = None
-    return relax,
+    return
 
 
 @app.cell
-def __(config, problem, relax, runner):
-    result = runner.solve_problem(problem, relax, config, **config["optimizer"])
-    return result,
+def __():
+    # result = runner.solve_problem(problem, relax, config, **config["optimizer"])
+    return
 
 
 @app.cell
@@ -132,8 +132,83 @@ def __():
 
 
 @app.cell
-def __(pn):
-    pn.lines.sort_values(by="x")
+def __():
+    # pn.loads_t["p_set"]
+    return
+
+
+@app.cell
+def __():
+    import datetime as dt
+    return dt,
+
+
+@app.cell
+def __(config, dt, np, pn, runner):
+    sorted_hours = runner.sort_hours_by_peak(
+        pn, config["data"]["args"], by="renewable", reducer=np.sum, period=1
+    )
+
+    # runner.PYPSA_START_DAY + runner.dt.timedelta(hours=int(sorted_hours[4*24]))
+    dts = [runner.PYPSA_START_DAY + dt.timedelta(hours=int(h)) for h in sorted_hours]
+    return dts, sorted_hours
+
+
+@app.cell
+def __(dts, pd):
+    pd.DatetimeIndex(dts)
+    return
+
+
+@app.cell
+def __():
+    import pandas as pd
+    return pd,
+
+
+@app.cell
+def __(config, pd, pn, runner, zap):
+    all_dates = pd.date_range(
+        start=runner.PYPSA_START_DAY, periods=runner.TOTAL_PYPSA_HOUR, freq="1h"
+    )
+    _, year_devices = zap.importers.load_pypsa_network(
+        pn, all_dates, **config["data"]["args"]
+    )
+
+    # devs = [d for d in year_devices if isinstance(d, zap.Generator)]
+
+    # # Filter out non-renewable generators
+    # is_renewable = [
+    #     np.isin(d.fuel_type, ["solar", "onwind"]).reshape(-1, 1) for d in devs
+    # ]
+    # capacities = [
+    #     (d.nominal_capacity * is_renewable) * d.dynamic_capacity for d in devs
+    # ]
+
+    # total_hourly_renewable = sum([c for c in capacities])[0, :, :]
+
+    # np.array(
+    #     [
+    #         np.sum(total_hourly_renewable[:, t : t + 24])
+    #         for t in range(0, total_hourly_renewable.shape[1], 24)
+    #     ]
+    # ).shape
+    every = 24
+    renewable_curve = runner.get_total_renewable_curve(
+        year_devices, every=every, renewables=["solar", "onwind"]
+    )
+    return all_dates, every, renewable_curve, year_devices
+
+
+@app.cell
+def __(pd, runner):
+    pd.date_range(start=runner.PYPSA_START_DAY, periods=20, freq="1h")
+    return
+
+
+@app.cell
+def __(all_dates, every, plt, renewable_curve):
+    plt.plot(all_dates[range(0, 8760, every)], renewable_curve)
     return
 
 

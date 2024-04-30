@@ -10,6 +10,7 @@ import json
 
 from pathlib import Path
 from copy import deepcopy
+from scipy.stats import rankdata
 
 import zap
 import zap.planning.trackers as tr
@@ -29,8 +30,8 @@ ALGORITHMS = {
     "gradient_descent": zap.planning.GradientDescent,
 }
 
-TOTAL_PYPSA_HOUR = 8760 - 48
-PYPSA_START_DAY = dt.datetime(2019, 1, 2, 0)
+TOTAL_PYPSA_HOUR = 8760
+PYPSA_START_DAY = dt.datetime(2019, 1, 1, 0)
 PYPSA_DEFAULT_ARGS = {
     "power_unit": 1.0e3,
     "cost_unit": 10.0,
@@ -169,24 +170,30 @@ def setup_pypysa_dataset(
     # Rule 1 - Just a fixed hour of the year
     if isinstance(start_hour, int):
         print("Using a fixed start hour.")
-        start_hour = PYPSA_START_DAY + dt.timedelta(hours=start_hour)
+        hours = np.array(range(start_hour, start_hour + num_hours))
 
     # Rule 2 - Dynamically selected by peak load
     elif start_hour == "peak_load_day":
         print("Finding the peak load day.")
-        all_dates = pd.date_range(start=PYPSA_START_DAY, periods=TOTAL_PYPSA_HOUR, freq="1h")
-        _, year_devices = zap.importers.load_pypsa_network(pn, all_dates, **args)
+        hours = sort_hours_by_peak(pn, args, by="load", period=24, reducer=np.max)
+        hours = hours[:num_hours]
 
-        daily_peak_load = get_total_load_curve(year_devices, every=24, reducer=np.max)
-        peak_day = np.argmax(daily_peak_load).item()
+    elif start_hour == "peak_hybrid_day":
+        print("Finding the peak hybrid (mix of load and renewables) day.")
+        hours = sort_hours_by_peak(pn, args, by="hybrid", period=24, reducer=np.max)
+        hours = hours[:num_hours]
 
-        start_hour = PYPSA_START_DAY + dt.timedelta(hours=peak_day * 24)
+    else:
+        raise ValueError("Unknown start_hour setting.")
 
     # Build zap network
-    dates = pd.date_range(start_hour, periods=num_hours, freq="1h", inclusive="left")
-    print(f"Solving a case with {len(dates)} hours.")
-    print(dates)
-    net, devices = zap.importers.load_pypsa_network(pn, dates, **args)
+    hours = [PYPSA_START_DAY + dt.timedelta(hours=int(h)) for h in hours]
+    # hours = pd.date_range(start_hour, periods=num_hours, freq="1h", inclusive="left")
+    hours = pd.DatetimeIndex(hours)
+
+    print(f"Solving a case with {len(hours)} hours.")
+    print(hours)
+    net, devices = zap.importers.load_pypsa_network(pn, hours, **args)
 
     if (not use_batteries) or (num_hours == 1):
         devices = [d for d in devices if type(d) != zap.Battery]
@@ -569,6 +576,62 @@ def get_total_load_curve(devices, every=1, reducer=np.sum):
         reducer(total_hourly_load[:, t : t + every])
         for t in range(0, total_hourly_load.shape[1], every)
     ]
+
+
+def get_total_renewable_curve(devices, every=1, reducer=np.sum, renewables=["solar", "onwind"]):
+    devs = [d for d in devices if isinstance(d, zap.Generator)]
+
+    # Filter out non-renewable generators
+    is_renewable = [np.isin(d.fuel_type, renewables).reshape(-1, 1) for d in devs]
+    capacities = [(d.nominal_capacity * is_renewable) * d.dynamic_capacity for d in devs]
+
+    total_hourly_renewable = sum([c for c in capacities])[0, :, :]
+
+    return np.array(
+        [
+            reducer(total_hourly_renewable[:, t : t + every])
+            for t in range(0, total_hourly_renewable.shape[1], every)
+        ]
+    )
+
+
+# daily_peak_load = get_total_load_curve(year_devices, every=24, reducer=np.max)
+# peak_day = np.argmax(daily_peak_load).item()
+
+# start_hour = PYPSA_START_DAY + dt.timedelta(hours=peak_day * 24)
+
+
+def sort_hours_by_peak(pn: pypsa.Network, pn_args, by="load", period=24, reducer=np.max):
+    # Load network
+    all_dates = pd.date_range(start=PYPSA_START_DAY, periods=TOTAL_PYPSA_HOUR, freq="1h")
+    _, year_devices = zap.importers.load_pypsa_network(pn, all_dates, **pn_args)
+
+    # Get peak load
+    if by == "load":
+        daily_peak = get_total_load_curve(year_devices, every=period, reducer=reducer)
+
+    elif by == "renewable":
+        daily_peak = get_total_renewable_curve(year_devices, every=period, reducer=reducer)
+
+    elif by == "hybrid":
+        peak_load = (
+            rankdata(get_total_load_curve(year_devices, every=period, reducer=reducer)) + 0.1
+        )
+        peak_renew = rankdata(
+            get_total_renewable_curve(year_devices, every=period, reducer=reducer)
+        )
+
+        daily_peak = np.maximum(peak_load, peak_renew)
+
+    else:
+        raise ValueError("Unknown peak type.")
+
+    # Sort periods
+    sorted_periods = np.argsort(-np.array(daily_peak))
+
+    # Expand periods and concatenate
+    expanded_periods = [np.arange(p * period, (p + 1) * period) for p in sorted_periods]
+    return np.concatenate(expanded_periods)
 
 
 # ====

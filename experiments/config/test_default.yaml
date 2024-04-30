@@ -15,7 +15,7 @@ data:
   use_batteries: true
   num_nodes: 100
   use_extra_components: true
-  start_hour: peak_load_day
+  start_hour: peak_hybrid_day
   num_hours: 12
   args:
     # Important

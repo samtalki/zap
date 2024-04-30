@@ -84,6 +84,7 @@ def parse_generators(
     efficiency = net.generators.efficiency.values
     fuel_rates = net.carriers.loc[net.generators["carrier"].values].co2_emissions.values
     emissions = fuel_rates / efficiency
+    fuel_type = net.generators.carrier.values
 
     if drop_empty_generators:
         mask = nominal_capacities > 0
@@ -95,11 +96,12 @@ def parse_generators(
         min_nominal_capacities = min_nominal_capacities[mask]
         max_nominal_capacities = max_nominal_capacities[mask]
         emissions = emissions[mask]
+        fuel_type = fuel_type[mask]
 
     else:
         nominal_capacities = np.maximum(expand_empty_generators, nominal_capacities)
 
-    return Generator(
+    dev = Generator(
         num_nodes=len(buses),
         terminal=terminals,
         nominal_capacity=nominal_capacities,
@@ -110,6 +112,9 @@ def parse_generators(
         max_nominal_capacity=max_nominal_capacities,
         emission_rates=emissions,
     )
+    dev.fuel_type = net.generators.carrier.values
+
+    return dev
 
 
 def parse_loads(
