@@ -132,12 +132,6 @@ def __(data, problem, result):
 
 
 @app.cell
-def __(devices, p0, p1, plotter):
-    plotter.capacity_plot(p0, p1, devices)[0]
-    return
-
-
-@app.cell
 def __(p0, p1, problem):
     layer = problem["problem"].layer
     y0 = layer(**p0)
@@ -146,88 +140,15 @@ def __(p0, p1, problem):
 
 
 @app.cell
-def __():
-    # s, c, d = y1.local_variables[-2]
-    # bat = layer.devices[-2]
-
-    # np.max(devices[-2].charge_efficiency)
-
-
-    # plt.plot(np.sum(s, axis=0))
-    # plt.scatter(
-    #     np.arange(1, 25),
-    #     np.sum(s[:, :-1] + c * bat.charge_efficiency - d, axis=0),
-    #     c="red"
-    # )
+def __(devices, p0, p1, plotter):
+    plotter.capacity_plot(p0, p1, devices)[0]
     return
 
 
 @app.cell
-def __(devices, np, plt, y0):
-    gens = devices[0]
-    gen_power = y0.power[0][0]
-    fuels = gens.fuel_type
-
-    total_gen = np.sum(gen_power[fuels == "offwind", :], axis=0)
-
-    plt.plot(total_gen)
-    return fuels, gen_power, gens, total_gen
-
-
-@app.cell
-def __(layer, np, p1, plotter, plt, y1):
-    def stackplot(ax, p1, layer, y1=None):
-        if y1 is None:
-            y1 = layer(**p1)
-
-        devices = layer.devices
-
-        # Plot total load
-        loads = devices[1]
-        total_load = -np.sum(loads.min_power * loads.nominal_capacity, axis=0)
-        t = np.arange(total_load.size)
-        ax.plot(t, total_load, color="black")
-
-        # Stackplot generation
-        gens = devices[0]
-        gen_power = y1.power[0][0]
-        fuels = gens.fuel_type
-
-        gen_per_period = [
-            np.sum(gen_power[fuels == f, :], axis=0) for f in plotter.FUEL_NAMES
-        ]
-
-        ax.stackplot(t, gen_per_period, labels=[f[:7] for f in plotter.FUEL_NAMES])
-
-        # Plot battery output
-        bats = devices[-2]
-        bat_power = y1.power[-2][0]
-
-        total_bat_power = np.sum(bat_power, axis=0)
-
-        ax.fill_between(
-            t,
-            total_load,
-            total_load - total_bat_power,
-            color="yellow",
-            alpha=0.5,
-            label="battery",
-        )
-
-        # Tune figure
-        ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
-        ax.set_xlim(np.min(t), np.max(t))
-
-        return total_load
-
-
-    _fig, _ax = plt.subplots(figsize=(6.5, 3))
-
-    stackplot(_ax, p1, layer, y1)
-
-    _fig.tight_layout()
-    _fig
-    return stackplot,
+def __(layer, p1, plotter, y1):
+    plotter.stackplot(p1, layer, y1)
+    return
 
 
 @app.cell
@@ -251,6 +172,35 @@ def __():
 
 @app.cell
 def __():
+    # gens = devices[0]
+    # gen_power = y0.power[0][0]
+    # fuels = gens.fuel_type
+
+    # total_gen = np.sum(gen_power[fuels == "hydro", :], axis=0)
+
+    # plt.plot(total_gen)
+    return
+
+
+@app.cell
+def __():
+    # s, c, d = y1.local_variables[-2]
+    # bat = layer.devices[-2]
+
+    # np.max(devices[-2].charge_efficiency)
+
+
+    # plt.plot(np.sum(s, axis=0))
+    # plt.scatter(
+    #     np.arange(1, 25),
+    #     np.sum(s[:, :-1] + c * bat.charge_efficiency - d, axis=0),
+    #     c="red"
+    # )
+    return
+
+
+@app.cell
+def __():
     # _prob = problem["stochastic_problem"]
     # _prob.forward(**result["parameters"], batch=[0])
     return
@@ -258,27 +208,27 @@ def __():
 
 @app.cell
 def __():
-    import pypsa
+    # import pypsa
 
-    pn = pypsa.Network()
-    pn.import_from_csv_folder("./data/pypsa/western/load_medium/elec_s_100_ec/")
-    return pn, pypsa
+    # pn = pypsa.Network()
+    # pn.import_from_csv_folder("./data/pypsa/western/load_medium/elec_s_100_ec/")
+    return
 
 
 @app.cell
-def __(config, pd, pn, runner, zap):
-    all_dates = pd.date_range(
-        start=runner.PYPSA_START_DAY, periods=runner.TOTAL_PYPSA_HOUR, freq="1h"
-    )
-    _, year_devices = zap.importers.load_pypsa_network(
-        pn, all_dates, **config["data"]["args"]
-    )
+def __():
+    # all_dates = pd.date_range(
+    #     start=runner.PYPSA_START_DAY, periods=runner.TOTAL_PYPSA_HOUR, freq="1h"
+    # )
+    # _, year_devices = zap.importers.load_pypsa_network(
+    #     pn, all_dates, **config["data"]["args"]
+    # )
 
-    every = 24
-    renewable_curve = runner.get_total_renewable_curve(
-        year_devices, every=every, renewables=["solar", "onwind", "hydro"]
-    )
-    return all_dates, every, renewable_curve, year_devices
+    # every = 24
+    # renewable_curve = runner.get_total_renewable_curve(
+    #     year_devices, every=every, renewables=["solar", "onwind", "hydro"]
+    # )
+    return
 
 
 @app.cell
@@ -288,52 +238,23 @@ def __():
 
 
 @app.cell
-def __(pn):
-    pn.generators[["carrier", "capital_cost"]].groupby("carrier").min().iloc[1:] / 1000
+def __():
+    # pn.generators[["carrier", "capital_cost"]].groupby("carrier").min().iloc[1:] / 1000
     return
 
 
 @app.cell
-def __(pn):
-    solar_gens = pn.generators.carrier == "solar"
-    df = pn.generators_t.p_max_pu
-
-    solar_cols = [col for col in df.columns if "solar" in col]
-
-    df[solar_cols].sum(axis=1).iloc[7:7+24].plot()
-    return df, solar_cols, solar_gens
-
-
-@app.cell
-def __(pn):
-    pn.lines["capital_cost"].mean() / 1000
+def __():
+    # {
+    #     f: np.mean(devices[0].dynamic_capacity[devices[0].fuel_type == f, :])
+    #     for f in plotter.FUEL_NAMES
+    # }
     return
 
 
 @app.cell
-def __(devices, np, pn):
-    np.all(pn.generators.carrier.values == devices[0].fuel_type)
-    return
-
-
-@app.cell
-def __(devices):
-    devices[0].num_devices
-    return
-
-
-@app.cell
-def __(devices, np, plotter):
-    {
-        f: np.mean(devices[0].dynamic_capacity[devices[0].fuel_type == f, :])
-        for f in plotter.FUEL_NAMES
-    }
-    return
-
-
-@app.cell
-def __(pn):
-    pn.generators_t["p_max_pu"]
+def __():
+    # pn.generators_t["p_max_pu"]
     return
 
 

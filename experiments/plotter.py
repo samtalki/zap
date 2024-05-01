@@ -79,17 +79,14 @@ def capacity_plot(p0, p1, devices):
     gen0 = total_capacity(p0["generator"], fuels)
     gen1 = total_capacity(p1["generator"], fuels)
 
-    print(gen0)
-    print(gen1)
-
     make_bar(axes[3], gen0, gen1, order=FUEL_NAMES)
     axes[3].set_xlabel("generator")
     axes[3].tick_params(axis="x", labelrotation=45, labelsize=8)
 
     # Labels / limits
     axes[0].set_ylabel("Capacity (GW)")
-    axes[1].set_ylim(*axes[3].get_ylim())
-    axes[2].set_ylim(*axes[3].get_ylim())
+    axes[1].set_ylim(0, 100)
+    axes[2].set_ylim(0, 100)
 
     # Finalize figure
     fig.align_labels()
@@ -97,5 +94,45 @@ def capacity_plot(p0, p1, devices):
     return fig, axes
 
 
-def stackplot(ax, p0, p1, layer):
-    pass
+def stackplot(p1, layer, y1=None):
+    fig, ax = plt.subplots(figsize=(6.5, 3))
+
+    if y1 is None:
+        y1 = layer(**p1)
+
+    devices = layer.devices
+
+    # Plot total load
+    loads = devices[1]
+    total_load = -np.sum(loads.min_power * loads.nominal_capacity, axis=0)
+    t = np.arange(total_load.size)
+    ax.plot(t, total_load, color="black")
+
+    # Stackplot generation
+    gens = devices[0]
+    gen_power = y1.power[0][0]
+    fuels = gens.fuel_type
+
+    gen_per_period = [np.sum(gen_power[fuels == f, :], axis=0) for f in FUEL_NAMES]
+
+    ax.stackplot(t, gen_per_period, labels=[f[:7] for f in FUEL_NAMES])
+
+    # Plot battery output
+    bat_power = y1.power[-2][0]
+    total_bat_power = np.sum(bat_power, axis=0)
+    ax.fill_between(
+        t,
+        total_load,
+        total_load - total_bat_power,
+        color="yellow",
+        alpha=0.5,
+        label="battery",
+    )
+
+    # Tune figure
+    ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
+    ax.set_xlim(np.min(t), np.max(t))
+
+    fig.tight_layout()
+
+    return fig, ax

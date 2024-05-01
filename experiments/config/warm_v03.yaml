@@ -1,6 +1,4 @@
 # Basic config
-# No real changes to config
-# Fixed battery bug in zap + shift hours by UTC timeshift
 
 ---
 tags: []
@@ -36,14 +34,14 @@ problem:
   stochastic: true
   hours_per_scenario: 24
   cost_weight: 1.0
-  emissions_weight: 300.0  # $ / ton CO2
+  emissions_weight: [expand, 0.0, 100.0, 200.0, 300.0, 400.0, 500.0]
   regularize: 1.0e-6  # Jacobian regularization
   parameters: [generator, dc_line, ac_line, battery]
 
 optimizer:
   name: gradient_descent
   num_iterations: 500
-  initial_state: initial
+  initial_state: [expand, initial, base_v03/000/model_00450]
   use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 5
@@ -52,7 +50,7 @@ optimizer:
   num_parallel_workers: 4
   track_full_loss_every: 0
   args:
-    step_size: 1.0e-1
+    step_size: 1.0e-2
     clip: 1.0e+3
 
 relaxation:
