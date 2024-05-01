@@ -124,7 +124,13 @@ def load_config(path):
     return config
 
 
-def load_dataset(name="pypsa", battery_cost_scale=1.0, generator_cost_scale={}, **kwargs):
+def load_dataset(
+    name="pypsa",
+    battery_cost_scale=1.0,
+    generator_cost_scale={},
+    dont_expand=[],
+    **kwargs,
+):
     print("Loading dataset...")
 
     print(name)
@@ -150,6 +156,13 @@ def load_dataset(name="pypsa", battery_cost_scale=1.0, generator_cost_scale={}, 
                     f"Scaling generator capital costs for {fuel} by {100*generator_cost_scale[fuel]:.2f} %."
                 )
                 d.capital_cost[d.fuel_type == fuel] *= generator_cost_scale[fuel]
+
+            # Set pnom max to pnom
+            for fuel in dont_expand:
+                print("Setting max power to nominal power for", fuel)
+                d.max_nominal_capacity[d.fuel_type == fuel] = d.nominal_capacity[
+                    d.fuel_type == fuel
+                ]
 
     return {
         "net": net,

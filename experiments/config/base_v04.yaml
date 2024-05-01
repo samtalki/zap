@@ -20,7 +20,8 @@ data:
   num_hours: 384
   battery_cost_scale: 1.0
   generator_cost_scale:
-    hydro: 10.0
+    hydro: 1.0
+  dont_expand: [hydro, coal]
   args:
     power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 1.0  # $ / MWh

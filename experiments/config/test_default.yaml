@@ -17,9 +17,8 @@ data:
   use_extra_components: true
   start_hour: peak_renewable_day  # peak_load_day, peak_hybrid_day, 2019-09-01
   num_hours: 24
-  battery_cost_scale: 1.5
-  generator_cost_scale:
-    hydro: 10.0
+  battery_cost_scale: 1.0
+  dont_expand: [hydro, coal]
   args:
     power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 1.0  # $ / MWh
