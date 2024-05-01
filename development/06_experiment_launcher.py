@@ -137,7 +137,7 @@ def __(importlib):
 
 @app.cell
 def __(json, model_iter, np, problem):
-    with open(f"./data/results/base_v03/000/model_{model_iter:05d}.json", "r") as f:
+    with open(f"./data/results/base_v05/000/model_{model_iter:05d}.json", "r") as f:
         model_state = json.load(f)
 
     _ref_shapes = {
@@ -156,10 +156,10 @@ def __(model_state, problem):
 
 
 @app.cell
-def __(data, problem, result):
+def __(data, model_state, problem):
     _J = problem["problem"]
 
-    p1 = result["parameters"]
+    p1 = model_state  # result["parameters"]
     p0 = _J.initialize_parameters(None)
     devices = data["devices"]
     return devices, p0, p1
@@ -175,7 +175,7 @@ def __(p0, p1, problem):
 
 @app.cell
 def __():
-    model_iter = 450
+    model_iter = 100
     return model_iter,
 
 
