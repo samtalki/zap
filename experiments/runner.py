@@ -129,6 +129,8 @@ def load_dataset(
     battery_cost_scale=1.0,
     generator_cost_scale={},
     dont_expand=[],
+    reconductoring_cost=1.0,
+    reconductoring_threshold=1.4,
     **kwargs,
 ):
     print("Loading dataset...")
@@ -163,6 +165,15 @@ def load_dataset(
                 d.max_nominal_capacity[d.fuel_type == fuel] = d.nominal_capacity[
                     d.fuel_type == fuel
                 ]
+
+        if isinstance(d, zap.ACLine):
+            if reconductoring_cost != 1.0:
+                print("Setting reconductoring cost and threshold.")
+                assert 0.0 <= reconductoring_cost <= 1.0
+                assert 1.0 <= reconductoring_threshold
+
+                d.reconductoring_cost = reconductoring_cost * d.capital_cost
+                d.reconductoring_threshold = reconductoring_threshold * d.nominal_capacity
 
     return {
         "net": net,

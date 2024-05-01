@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.3"
+__generated_with = "0.4.7"
 app = marimo.App()
 
 
@@ -91,10 +91,15 @@ def __(problem, relax):
 
 
 @app.cell
-def __(problem, result):
+def __(problem):
     _J = problem["problem"]
     print(_J(**_J.initialize_parameters(None)))
-    print(_J(**result["parameters"]))
+    return
+
+
+@app.cell
+def __(problem, result):
+    print(problem["problem"](**result["parameters"]))
     return
 
 
@@ -156,10 +161,10 @@ def __(model_state, problem):
 
 
 @app.cell
-def __(data, model_state, problem):
+def __(data, problem, result):
     _J = problem["problem"]
 
-    p1 = model_state  # result["parameters"]
+    p1 = result["parameters"]
     p0 = _J.initialize_parameters(None)
     devices = data["devices"]
     return devices, p0, p1

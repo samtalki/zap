@@ -22,6 +22,8 @@ class PowerLine(Transporter):
         slack=None,
         min_nominal_capacity=None,
         max_nominal_capacity=None,
+        reconductoring_cost=None,
+        reconductoring_threshold=None,
     ):
         if linear_cost is None:
             linear_cost = np.zeros(capacity.shape)
@@ -39,6 +41,8 @@ class PowerLine(Transporter):
         self.slack = 0.0 if slack is None else make_dynamic(slack)
         self.min_nominal_capacity = make_dynamic(min_nominal_capacity)
         self.max_nominal_capacity = make_dynamic(max_nominal_capacity)
+        self.reconductoring_cost = make_dynamic(reconductoring_cost)
+        self.reconductoring_threshold = make_dynamic(reconductoring_threshold)
 
     @property
     def min_power(self):

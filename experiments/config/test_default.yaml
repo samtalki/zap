@@ -19,6 +19,8 @@ data:
   num_hours: 24
   battery_cost_scale: 1.0
   dont_expand: [hydro, coal]
+  reconductoring_cost: 0.5  # 0 <= x <= 1
+  reconductoring_threshold: 1.5  # x >= 1
   args:
     power_unit: 1.0e3  # 1e3 = GW
     cost_unit: 1.0  # $ / MWh
@@ -42,7 +44,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 3
+  num_iterations: 5
   initial_state: initial  # initial, base_v02/000/model_00050
   use_wandb: false
   log_wandb_every: 1

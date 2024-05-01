@@ -17,6 +17,8 @@ ACLineData = namedtuple(
         "nominal_capacity",
         "susceptance",
         "capital_cost",
+        "reconductoring_cost",
+        "reconductoring_threshold",
         "slack",
     ],
 )
@@ -40,6 +42,8 @@ class ACLine(PowerLine):
         slack=None,
         min_nominal_capacity=None,
         max_nominal_capacity=None,
+        reconductoring_cost=None,
+        reconductoring_threshold=None,
     ):
         self.susceptance = make_dynamic(susceptance)
 
@@ -55,6 +59,8 @@ class ACLine(PowerLine):
             slack=slack,
             min_nominal_capacity=min_nominal_capacity,
             max_nominal_capacity=max_nominal_capacity,
+            reconductoring_cost=reconductoring_cost,
+            reconductoring_threshold=reconductoring_threshold,
         )
 
     @property
@@ -70,6 +76,8 @@ class ACLine(PowerLine):
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
             self.susceptance,
             self.capital_cost,
+            self.reconductoring_cost,
+            self.reconductoring_threshold,
             self.slack,
         )
 

@@ -20,6 +20,8 @@ TransporterData = namedtuple(
         "quadratic_cost",
         "nominal_capacity",
         "capital_cost",
+        "reconductoring_cost",
+        "reconductoring_threshold",
         "slack",
     ],
 )
@@ -44,6 +46,8 @@ class Transporter(AbstractDevice):
     slack: Optional[NDArray] = None
     min_nominal_capacity: Optional[NDArray] = None
     max_nominal_capacity: Optional[NDArray] = None
+    reconductoring_cost: Optional[NDArray] = None
+    reconductoring_threshold: Optional[NDArray] = None
 
     def __post_init__(self):
         # Reshape arrays
@@ -58,6 +62,8 @@ class Transporter(AbstractDevice):
         self.slack = 0.0 if self.slack is None else make_dynamic(self.slack)
         self.min_nominal_capacity = make_dynamic(self.min_nominal_capacity)
         self.max_nominal_capacity = make_dynamic(self.max_nominal_capacity)
+        self.reconductoring_cost = make_dynamic(self.reconductoring_cost)
+        self.reconductoring_threshold = make_dynamic(self.reconductoring_threshold)
 
         # TODO - Add dimension checks
         pass
@@ -78,6 +84,8 @@ class Transporter(AbstractDevice):
             self.quadratic_cost,
             make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
             self.capital_cost,
+            self.reconductoring_cost,
+            self.reconductoring_threshold,
             self.slack,
         )
 
@@ -87,6 +95,8 @@ class Transporter(AbstractDevice):
             self.quadratic_cost /= scale
         if self.capital_cost is not None:
             self.capital_cost /= scale
+        if self.reconductoring_cost is not None:
+            self.reconductoring_cost /= scale
 
     def scale_power(self, scale):
         self.nominal_capacity /= scale
@@ -150,12 +160,26 @@ class Transporter(AbstractDevice):
         data = self.device_data(la=la)
 
         if self.capital_cost is None or nominal_capacity is None:
+            print("No capital cost or nominal capacity")
             return 0.0
 
         pnom_min = data.nominal_capacity
-        capital_cost = data.capital_cost
+        c = data.capital_cost
 
-        return la.sum(la.multiply(capital_cost, (nominal_capacity - pnom_min)))
+        if self.reconductoring_cost is None:
+            return la.sum(la.multiply(c, (nominal_capacity - pnom_min)))
+
+        else:
+            r = data.reconductoring_cost
+            alpha = data.reconductoring_threshold
+
+            z = pnom_min * (r + c * alpha - r * alpha)
+            return la.sum(
+                la.maximum(
+                    la.multiply(r, (nominal_capacity - pnom_min)),
+                    la.multiply(c, nominal_capacity) - z,
+                )
+            )
 
     # ====
     # ADMM FUNCTIONS
