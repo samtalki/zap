@@ -3,18 +3,32 @@ import numpy as np
 import seaborn
 
 FUEL_NAMES = [
-    "solar",
-    "onwind",
-    "offwind_floating",
-    "hydro",
-    "geothermal",
     "nuclear",
-    "biomass",
+    "coal",
     "CCGT",
     "OCGT",
-    "coal",
+    "hydro",
+    "geothermal",
+    "onwind",
+    "offwind_floating",
+    "solar",
+    "biomass",
     "oil",
 ]
+
+FUEL_COLORS = {
+    "solar": "yellow",
+    "onwind": "lightblue",
+    "offwind_floating": "turquoise",
+    "hydro": "blue",
+    "geothermal": "brown",
+    "nuclear": "purple",
+    "biomass": "green",
+    "CCGT": "orange",
+    "OCGT": "red",
+    "coal": "gray",
+    "oil": "black",
+}
 
 # rc=Dict(
 #     "axes.titlesize" => 8,
@@ -85,8 +99,10 @@ def capacity_plot(p0, p1, devices):
 
     # Labels / limits
     axes[0].set_ylabel("Capacity (GW)")
+    axes[0].set_ylim(0, 1500)
     axes[1].set_ylim(0, 100)
     axes[2].set_ylim(0, 100)
+    axes[3].set_ylim(0, 300)
 
     # Finalize figure
     fig.align_labels()
@@ -115,7 +131,12 @@ def stackplot(p1, layer, y1=None):
 
     gen_per_period = [np.sum(gen_power[fuels == f, :], axis=0) for f in FUEL_NAMES]
 
-    ax.stackplot(t, gen_per_period, labels=[f[:7] for f in FUEL_NAMES])
+    ax.stackplot(
+        t,
+        gen_per_period,
+        labels=[f[:7] for f in FUEL_NAMES],
+        colors=[FUEL_COLORS[f] for f in FUEL_NAMES],
+    )
 
     # Plot battery output
     bat_power = y1.power[-2][0]
@@ -124,7 +145,7 @@ def stackplot(p1, layer, y1=None):
         t,
         total_load,
         total_load - total_bat_power,
-        color="yellow",
+        color="pink",
         alpha=0.5,
         label="battery",
     )
