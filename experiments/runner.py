@@ -118,14 +118,13 @@ def load_config(path):
     config["name"] = config_short_name
     config["id"] = config_id
 
-    # TODO Expand configs
     # Hunt for improperly parsed scientific notation (bug in Python yaml parser)
     config = parse_scientific_notation(config)
 
     return config
 
 
-def load_dataset(name="pypsa", **kwargs):
+def load_dataset(name="pypsa", battery_cost_scale=1.0, generator_cost_scale={}, **kwargs):
     print("Loading dataset...")
 
     print(name)
@@ -137,6 +136,20 @@ def load_dataset(name="pypsa", **kwargs):
 
     else:
         raise ValueError("Unknown dataset")
+
+    # Scale capital costs
+    for d in devices:
+        if isinstance(d, zap.Battery):
+            print(f"Scaling battery capital costs by {100*battery_cost_scale:.2f} %.")
+            d.capital_cost *= battery_cost_scale
+
+        if isinstance(d, zap.Generator):
+            # Scale by fuel type
+            for fuel in generator_cost_scale.keys():
+                print(
+                    f"Scaling generator capital costs for {fuel} by {100*generator_cost_scale[fuel]:.2f} %."
+                )
+                d.capital_cost[d.fuel_type == fuel] *= generator_cost_scale[fuel]
 
     return {
         "net": net,
@@ -178,6 +191,11 @@ def setup_pypysa_dataset(
     elif start_hour == "peak_load_day":
         print("Finding the peak load day.")
         hours = sort_hours_by_peak(pn, args, by="load", period=24, reducer=np.max)
+        hours = hours[:num_hours]
+
+    elif start_hour == "peak_renewable_day":
+        print("Finding the peak renewable day.")
+        hours = sort_hours_by_peak(pn, args, by="renewable", period=24, reducer=np.max)
         hours = hours[:num_hours]
 
     elif start_hour == "peak_hybrid_day":
@@ -595,9 +613,7 @@ def get_total_load_curve(devices, every=1, reducer=np.sum):
     ]
 
 
-def get_total_renewable_curve(
-    devices, every=1, reducer=np.sum, renewables=["solar", "onwind", "hydro"]
-):
+def get_total_renewable_curve(devices, every=1, reducer=np.sum, renewables=["solar", "onwind"]):
     devs = [d for d in devices if isinstance(d, zap.Generator)]
 
     # Filter out non-renewable generators

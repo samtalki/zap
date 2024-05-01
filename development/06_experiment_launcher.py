@@ -50,6 +50,14 @@ def __(runner):
 
 
 @app.cell
+def __():
+    # _d = data["devices"][0]
+
+    # _d.capital_cost[_d.fuel_type == "hydro"]
+    return
+
+
+@app.cell
 def __(config, runner):
     data = runner.load_dataset(**config["data"])
     return data,
@@ -115,10 +123,36 @@ def __(mo):
 
 
 @app.cell
+def __():
+    import json
+    return json,
+
+
+@app.cell
 def __(importlib):
     from experiments import plotter
     _ = importlib.reload(plotter)
     return plotter,
+
+
+@app.cell
+def __(json, model_iter, np, problem):
+    with open(f"./data/results/base_v03/000/model_{model_iter:05d}.json", "r") as f:
+        model_state = json.load(f)
+
+    _ref_shapes = {
+        k: v.shape for k, v in problem["problem"].initialize_parameters(None).items()
+    }
+    model_state = {
+        k: np.array(v).reshape(_ref_shapes[k]) for k, v in model_state.items()
+    }
+    return f, model_state
+
+
+@app.cell
+def __(model_state, problem):
+    problem["problem"](**model_state)
+    return
 
 
 @app.cell
@@ -137,6 +171,12 @@ def __(p0, p1, problem):
     y0 = layer(**p0)
     y1 = layer(**p1)
     return layer, y0, y1
+
+
+@app.cell
+def __():
+    model_iter = 450
+    return model_iter,
 
 
 @app.cell
