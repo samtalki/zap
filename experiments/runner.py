@@ -571,12 +571,22 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
         relaxation["data"]["problem"].solver_stats.solve_time if relaxation is not None else 0.0
     )
 
+    if is_stochastic:
+
+        def all_op_costs(J, grad, params, last_state, problem):
+            return wandb.Histogram(np.array([p.op_cost.item() for p in problem.subproblems]))
+    else:
+
+        def all_op_costs(J, grad, params, last_state, problem):
+            return wandb.Histogram(np.array([problem.op_cost.item()]))
+
     # Trackers
     trackers = {
         "emissions": emissions_tracker,
         "fuel_costs": cost_tracker,
         "inv_cost": lambda J, grad, params, last_state, problem: problem.inv_cost.item(),
         "op_cost": lambda J, grad, params, last_state, problem: problem.op_cost.item(),
+        "all_op_costs": all_op_costs,
         "batch": lambda J, grad, params, last_state, problem: problem.batch[0],
         "lower_bound": lambda *args: lower_bound,
         "true_relaxation_cost": lambda *args: true_relax_cost,
