@@ -64,6 +64,35 @@ class RelaxedPlanningProblem:
         box_constraints += [net_params[p] <= upper[p] for p in sorted(net_params.keys())]
 
         # Define primal and dual problems
+        operation_objective, primal_constraints, dual_constraints, sd_constraint = (
+            self.setup_inner_problem(net_params, lower, upper)
+        )
+
+        # Create full problem and solve
+        problem = cp.Problem(
+            cp.Minimize(investment_objective + operation_objective),
+            box_constraints + [sd_constraint] + list(primal_constraints) + list(dual_constraints),
+        )
+        problem.solve(solver=self.solver, **self.solver_kwargs)
+
+        data = {
+            "network_parameters": net_params,
+            "lower_bounds": lower,
+            "upper_bounds": upper,
+            "box_constraints": box_constraints,
+            "investment_objective": investment_objective,
+            "problem": problem,
+            "sd_constraint": sd_constraint,
+            "primal_constraints": primal_constraints,
+            "dual_constraints": dual_constraints,
+            "operation_objective": operation_objective,
+        }
+
+        relaxed_parameters = {p: net_params[p].value for p in net_params.keys()}
+
+        return relaxed_parameters, data
+
+    def setup_inner_problem(self, net_params, lower, upper):
         net, devices = self.problem.layer.network, self.problem.layer.devices
         dual_devices = zap.dual.dualize(devices, max_price=self.max_price)
 
@@ -105,33 +134,10 @@ class RelaxedPlanningProblem:
             local_inequality_duals=None,
         )
 
-        # TODO Incorporate true parameters
         operation_objective = self.problem.operation_objective(y, parameters=parameters, la=cp)
 
-        # Create full problem and solve
-        problem = cp.Problem(
-            cp.Minimize(investment_objective + operation_objective),
-            box_constraints + [sd_constraint] + list(primal_constraints) + list(dual_constraints),
-        )
-        problem.solve(solver=self.solver, **self.solver_kwargs)
+        return operation_objective, primal_constraints, dual_constraints, sd_constraint
 
-        data = {
-            "network_parameters": net_params,
-            "lower_bounds": lower,
-            "upper_bounds": upper,
-            "box_constraints": box_constraints,
-            "investment_objective": investment_objective,
-            "problem": problem,
-            "sd_constraint": sd_constraint,
-            "primal_costs": primal_costs,
-            "dual_costs": dual_costs,
-            "primal_constraints": primal_constraints,
-            "dual_constraints": dual_constraints,
-            "primal_data": primal_data,
-            "dual_data": dual_data,
-            "operation_objective": operation_objective,
-        }
-
-        relaxed_parameters = {p: net_params[p].value for p in net_params.keys()}
-
-        return relaxed_parameters, data
+    def setup_stochastic_inner_problem():
+        # TODO
+        raise NotImplementedError
