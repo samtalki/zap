@@ -76,6 +76,13 @@ def __(config, problem, runner):
 
 
 @app.cell
+def __(relax):
+    if relax is not None:
+        print("Solve time: ", relax["data"]["problem"].solver_stats.solve_time)
+    return
+
+
+@app.cell
 def __(problem, relax):
     if relax is not None:
         _J = problem["problem"]
