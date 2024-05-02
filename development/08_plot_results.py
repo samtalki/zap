@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.7"
+__generated_with = "0.4.3"
 app = marimo.App()
 
 
@@ -32,19 +32,24 @@ def __(importlib):
 
 
 @app.cell
-def __(runner):
+def __():
+    config_name = "warm_v04"
+    return config_name,
+
+
+@app.cell
+def __(config_name, model_version, runner):
     config_list = runner.expand_config(
-        runner.load_config("experiments/config/test_default.yaml")
+        runner.load_config(f"experiments/config/{config_name}.yaml")
     )
 
-    config = config_list[0]
+    config = config_list[model_version]
     return config, config_list
 
 
 @app.cell
 def __(config, runner):
     data = runner.load_dataset(**config["data"])
-
     devices = data["devices"]
     return data, devices
 
@@ -52,8 +57,7 @@ def __(config, runner):
 @app.cell
 def __(config, data, runner):
     problem_data = runner.setup_problem(**data, **config["problem"])
-
-    problem = problem_data["problem"]
+    problem = problem_data["stochastic_problem"].subproblems[0]
     return problem, problem_data
 
 
@@ -64,14 +68,14 @@ def __():
 
 
 @app.cell
-def __(initial_params, json, model_iter, np):
+def __(initial_params, json, model_iter, model_version, np):
     if model_iter == 0:
         model_state = initial_params
 
     else:
-        with open(f"./data/results/base_v05/000/model_{model_iter:05d}.json", "r") as f:
+        with open(f"./data/results/cost_battery_v01/{model_version:03d}/model_{model_iter:05d}.json", "r") as f:
             model_state = json.load(f)
-        
+
         _ref_shapes = {k: v.shape for k, v in initial_params.items()}
         model_state = {
             k: np.array(v).reshape(_ref_shapes[k]) for k, v in model_state.items()
@@ -94,8 +98,14 @@ def __(importlib):
 
 @app.cell
 def __():
-    model_iter = 0
+    model_iter = 90
     return model_iter,
+
+
+@app.cell
+def __():
+    model_version = 0
+    return model_version,
 
 
 @app.cell
@@ -104,19 +114,25 @@ def __(devices, initial_params, model_state, plotter):
     return
 
 
-@app.cell(hide_code=True)
-def __(model_state, problem):
-    print("System Cost:", problem(**model_state))
-    print("Investment Cost:", problem.inv_cost)
-    print("Operation Cost:", problem.op_cost)
-    y_model = problem.state
-    return y_model,
+@app.cell
+def __(model_state, model_version, plotter, problem, y_model):
+    fig, ax = plotter.stackplot(model_state, problem.layer, y_model)
+    _bat_cost = 100 + 25 * (model_version - 2)
+    ax.set_title(f"Battery Cost: {_bat_cost}%")
+    fig.tight_layout()
+
+    fig
+    return ax, fig
 
 
 @app.cell
-def __(model_state, plotter, problem, y_model):
-    plotter.stackplot(model_state, problem.layer, y_model)
-    return
+def __(model_state, problem):
+    _prob = problem
+    print("System Cost:", _prob(**model_state, batch=[0]))
+    print("Investment Cost:", _prob.inv_cost)
+    print("Operation Cost:", _prob.op_cost)
+    y_model = _prob.state
+    return y_model,
 
 
 if __name__ == "__main__":

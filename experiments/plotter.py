@@ -153,6 +153,7 @@ def stackplot(p1, layer, y1=None):
     # Tune figure
     ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
     ax.set_xlim(np.min(t), np.max(t))
+    ax.set_ylim(0, 275)
 
     fig.tight_layout()
 

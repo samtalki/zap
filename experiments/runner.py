@@ -629,7 +629,7 @@ def device_index(devices, kind):
 
 def get_total_load_curve(devices, every=1, reducer=np.sum):
     devs = [d for d in devices if isinstance(d, zap.Load)]
-    total_hourly_load = sum([d.load for d in devs])
+    total_hourly_load = sum([d.load * d.nominal_capacity for d in devs])
 
     return [
         reducer(total_hourly_load[:, t : t + every])
@@ -673,19 +673,26 @@ def sort_hours_by_peak(pn: pypsa.Network, pn_args, by="load", period=24, reducer
         daily_peak = get_total_renewable_curve(year_devices, every=period, reducer=reducer)
 
     elif by == "hybrid":
-        peak_load = (
-            rankdata(get_total_load_curve(year_devices, every=period, reducer=reducer)) + 0.1
-        )
-        peak_renew = rankdata(
-            get_total_renewable_curve(year_devices, every=period, reducer=reducer)
-        )
+        lc = get_total_load_curve(year_devices, every=period, reducer=reducer)
+        rc = get_total_renewable_curve(year_devices, every=period, reducer=reducer)
 
-        daily_peak = np.maximum(peak_load, peak_renew)
+        peak_load = rankdata(lc, method="ordinal") + 0.4
+        peak_net_load = rankdata(lc - rc, method="ordinal") + 0.3
+        peak_renew = rankdata(rc, method="ordinal") + 0.2
+        worst_renew = rankdata(-rc, method="ordinal") + 0.1
+
+        daily_peak = np.max([peak_load, peak_net_load, peak_renew, worst_renew], axis=0)
+
+        # for d in np.argsort(-np.array(daily_peak))[:30]:
+        #     d = int(d)
+        #     print(lc[d], rc[d], lc[d] - rc[d])
+        #     print(peak_load[d], peak_net_load[d], peak_renew[d], worst_renew[d])
+        #     print(PYPSA_START_DAY + dt.timedelta(hours=d * period), "\n")
 
     else:
         raise ValueError("Unknown peak type.")
 
-    # Sort periods
+    # Sort periods in descending order (biggest values first)
     sorted_periods = np.argsort(-np.array(daily_peak))
 
     # Expand periods and concatenate
