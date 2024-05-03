@@ -76,9 +76,10 @@ def __(config, problem, runner):
 
 
 @app.cell
-def __(config, problem, relax, runner):
-    result = runner.solve_problem(problem, relax, config, **config["optimizer"])
-    return result,
+def __(relax):
+    if relax is not None:
+        print("Solve time: ", relax["data"]["problem"].solver_stats.solve_time)
+    return
 
 
 @app.cell
@@ -88,6 +89,12 @@ def __(problem, relax):
         print(_J(**relax["relaxed_parameters"]))
         print(relax["lower_bound"])
     return
+
+
+@app.cell(disabled=True)
+def __(config, problem, relax, runner):
+    result = runner.solve_problem(problem, relax, config, **config["optimizer"])
+    return result,
 
 
 @app.cell

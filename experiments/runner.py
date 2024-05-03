@@ -354,7 +354,10 @@ def setup_problem(
 
 
 def solve_relaxed_problem(problem, *, should_solve=True, price_bound=50.0, inf_value=50.0):
-    problem = problem["problem"]
+    if problem["stochastic_problem"] is not None:
+        problem = problem["stochastic_problem"]
+    else:
+        problem = problem["problem"]
 
     if not should_solve:
         print("Skipping relaxation...")
@@ -373,6 +376,7 @@ def solve_relaxed_problem(problem, *, should_solve=True, price_bound=50.0, inf_v
 
         relaxed_parameters, data = relaxation.solve()
         print(f"Solved relaxation in {data['problem'].solver_stats.solve_time / 60:.2f} minutes.")
+        print("Lower bound: ", data["problem"].value)
 
         return {
             "relaxation": relaxation,

@@ -44,9 +44,9 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 10
-  initial_state: initial  # initial, base_v02/000/model_00050
-  use_wandb: true
+  num_iterations: 3
+  initial_state: relaxation  # initial, relaxation, base_v02/000/model_00050
+  use_wandb: false
   log_wandb_every: 1
   checkpoint_every: 1
   parallel: false
@@ -57,6 +57,6 @@ optimizer:
     clip: 1.0e+3
 
 relaxation:
-  should_solve: false
+  should_solve: true
   price_bound: 50.0  # In scaled units
   inf_value: 50.0  # Relative to maximum lower bound of that device type
