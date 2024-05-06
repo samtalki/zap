@@ -30,20 +30,17 @@ FUEL_COLORS = {
     "oil": "black",
 }
 
-# rc=Dict(
-#     "axes.titlesize" => 8,
-#     "legend.fontsize" => 8,
-# )
+SEABORN_RC = {
+    "font.size": 10,
+    "axes.labelsize": 10,
+    "axes.titlesize": 10,
+    "legend.fontsize": 10,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+}
 
-seaborn.set_theme(
-    style="white",
-    rc={
-        "font.size": 10,
-        "axes.labelsize": 10,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-    },
-)
+
+seaborn.set_theme(style="white", rc=SEABORN_RC)
 
 
 def total_capacity(capacities, fuels, fuel=None):

@@ -172,8 +172,8 @@ def load_dataset(
                 assert 0.0 <= reconductoring_cost <= 1.0
                 assert 1.0 <= reconductoring_threshold
 
-                d.reconductoring_cost = reconductoring_cost * d.capital_cost
-                d.reconductoring_threshold = reconductoring_threshold * d.nominal_capacity
+                d.reconductoring_cost = reconductoring_cost * np.ones_like(d.capital_cost)
+                d.reconductoring_threshold = reconductoring_threshold * np.ones_like(d.capital_cost)
 
     return {
         "net": net,
@@ -746,6 +746,19 @@ def get_results_path(config_name, index=None):
         return datadir("results", config_name)
     else:
         return datadir("results", config_name, f"{index:03d}")
+
+
+def load_model(model):
+    # Check if file exists
+    initial_path = datadir("results", f"{model}.json")
+    if not initial_path.exists():
+        raise ValueError(f"Could not find model: {model}")
+
+    with open(initial_path, "r") as f:
+        model = json.load(f)
+
+    model = {k: np.array(v).reshape((-1, 1)) for k, v in model.items()}
+    return model
 
 
 def parse_scientific_notation(s):

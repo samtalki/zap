@@ -163,7 +163,7 @@ class Transporter(AbstractDevice):
             print("No capital cost or nominal capacity")
             return 0.0
 
-        pnom_min = data.nominal_capacity
+        pnom_min = data.min_nominal_capacity
         c = data.capital_cost
 
         if self.reconductoring_cost is None:
