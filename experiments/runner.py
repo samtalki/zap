@@ -31,6 +31,7 @@ ALGORITHMS = {
     "gradient_descent": zap.planning.GradientDescent,
 }
 
+MOSEK_THREADS = 32
 UTC_TIME_SHIFT = 7
 TOTAL_PYPSA_HOUR = 8760 - 24
 PYPSA_START_DAY = dt.datetime(2019, 1, 1, UTC_TIME_SHIFT)
@@ -286,7 +287,13 @@ def setup_problem(
     layer_args = {
         "parameter_names": parameter_names,
         "solver": cp.MOSEK,
-        "solver_kwargs": {"verbose": False, "accept_unknown": True},
+        "solver_kwargs": {
+            "verbose": False,
+            "accept_unknown": True,
+            "mosek_params": {
+                "MSK_IPAR_NUM_THREADS": MOSEK_THREADS,
+            },
+        },
         "add_ground": False,
     }
     layer = zap.DispatchLayer(net, devices, time_horizon=time_horizon, **layer_args)
@@ -373,7 +380,14 @@ def solve_relaxed_problem(problem, *, should_solve=True, price_bound=50.0, inf_v
             inf_value=inf_value,
             sd_tolerance=1e-3,
             solver=cp.MOSEK,
-            solver_kwargs={"verbose": True, "accept_unknown": True},
+            solver_kwargs={
+                "verbose": True,
+                "accept_unknown": True,
+                "mosek_params": {
+                    "MSK_IPAR_NUM_THREADS": MOSEK_THREADS,
+                    "MSK_IPAR_INTPNT_BASIS": 0,
+                },
+            },
         )
 
         relaxed_parameters, data = relaxation.solve()

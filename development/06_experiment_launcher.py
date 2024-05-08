@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.7"
+__generated_with = "0.4.3"
 app = marimo.App()
 
 
@@ -91,7 +91,7 @@ def __(problem, relax):
     return
 
 
-@app.cell(disabled=True)
+@app.cell
 def __(config, problem, relax, runner):
     result = runner.solve_problem(problem, relax, config, **config["optimizer"])
     return result,
@@ -199,7 +199,7 @@ def __(devices, p0, p1, plotter):
 
 @app.cell
 def __(layer, p1, plotter, y1):
-    plotter.stackplot(p1, layer, y1)
+    plotter.stackplot(p1, layer, y1)[0]
     return
 
 
