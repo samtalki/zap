@@ -172,7 +172,9 @@ def load_dataset(
                 assert 0.0 <= reconductoring_cost <= 1.0
                 assert 1.0 <= reconductoring_threshold
 
+                # This is an absolute quantity
                 d.reconductoring_cost = reconductoring_cost * d.capital_cost
+                # This is a relative quantity
                 d.reconductoring_threshold = reconductoring_threshold * np.ones_like(d.capital_cost)
 
     return {
