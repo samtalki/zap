@@ -6,7 +6,7 @@ app = marimo.App()
 
 @app.cell
 def __():
-    import marimo as mo
+    # import marimo as mo
     import numpy as np
     import torch
     import importlib
@@ -14,7 +14,7 @@ def __():
     from pathlib import Path
 
     import zap
-    return Path, importlib, mo, np, torch, zap
+    return Path, importlib, np, torch, zap
 
 
 @app.cell
@@ -91,14 +91,26 @@ def __():
 
 
 @app.cell
-def __():
-    config_version = 6
+def __(config_version, mo, slider):
+    mo.md(f"""Battery Cost: {slider} {100 + 25 * (config_version - 2)}% reference value""")
+    return
+
+
+@app.cell
+def __(mo):
+    slider = mo.ui.slider(0, 6)
+    return slider,
+
+
+@app.cell
+def __(slider):
+    config_version = slider.value
     return config_version,
 
 
 @app.cell
 def __():
-    model_iter = 90
+    model_iter = 100
     return model_iter,
 
 
@@ -120,12 +132,23 @@ def __(config_version, model_state, plotter, problem, y_model):
 
 
 @app.cell
-def __(model_state, problem):
-    _prob = problem
-    print("System Cost:", _prob(**model_state, batch=[0]))
-    print("Investment Cost:", _prob.inv_cost)
-    print("Operation Cost:", _prob.op_cost)
-    y_model = _prob.state
+def __():
+    y_cache = {}
+    return y_cache,
+
+
+@app.cell
+def __(config_version, model_state, problem, y_cache):
+    # _prob = problem
+    # print("System Cost:", _prob(**model_state, batch=[0]))
+    # print("Investment Cost:", _prob.inv_cost)
+    # print("Operation Cost:", _prob.op_cost)
+    if config_version not in y_cache:
+        _prob = problem
+        _prob(**model_state, batch=[0])
+        y_cache[config_version] = _prob.state
+        
+    y_model = y_cache[config_version]
     return y_model,
 
 
@@ -195,7 +218,7 @@ def __(pd, runs):
         _wd["id"].append(r.config.get("id", ""))
         _wd["index"].append(r.config.get("index", -1))
         _wd["hash"].append(r.id)
-        
+
         _wd["emissions_weight"].append(
             float(r.config["problem"]["emissions_weight"])
         )
@@ -207,8 +230,14 @@ def __(pd, runs):
 
 @app.cell
 def __(convergence_config, wandb_data):
-    job_data = wandb_data[wandb_data["id"] == convergence_config]
+    job_data = wandb_data[wandb_data["id"] == convergence_config].reset_index()
     return job_data,
+
+
+@app.cell
+def __(job_data):
+    job_data
+    return
 
 
 @app.cell
@@ -235,7 +264,7 @@ def __(CTOL, LAG, np):
 
             current_loss = best_loss[iter]
             last_loss = best_loss[iter-lag]
-            
+
             if current_loss > (1 - tolerance) * last_loss:
                 return iter
 
@@ -338,7 +367,7 @@ def __(
     def plot_convergence_results():
         speedups = cold_converge_times / warm_converge_times
         perturb = (EMISSIONS_WEIGHTS - REFERENCE_WEIGHT) / REFERENCE_WEIGHT
-        
+
         fig, ax = plt.subplots(figsize=(6.5, 3.0))
         ax.set_xlabel("Perturbation Size")
         ax.set_ylabel("Speedup")
@@ -362,7 +391,7 @@ def __(
 @app.cell
 def __(runner):
     _cfg = runner.expand_config(
-        runner.load_config(f"experiments/config/cost_reconductor_v01.yaml")
+        runner.load_config(f"experiments/config/cost_reconductor_v02.yaml")
     )
 
     _cfg = _cfg[0]
@@ -374,9 +403,37 @@ def __(runner):
 
 
 @app.cell
-def __(lines):
-    print(lines.reconductoring_cost)
-    return
+def __(lines, np):
+    _x = np.copy(lines.nominal_capacity)
+
+    b = lines.nominal_capacity
+    c = lines.capital_cost
+    _r = lines.reconductoring_cost
+    alpha = lines.reconductoring_threshold
+
+    z = b * (_r + c * alpha - _r * alpha)
+
+    def foo(shift):    
+        return np.sum(
+            np.maximum(
+                np.multiply(_r, (_x - b)),
+                np.multiply(c, _x) - z,
+            )
+        )
+
+        return np.multiply(c, _x) - z
+
+
+    # _t = np.arange(b, 3.0, 0.01)
+    # _y = [foo(ti) for ti in _t]
+    # plt.plot(_t, _y)
+
+    # print(_x[223], b[223], c[223], _r[223], alpha[223])
+    # print(c[223] * _x[223], z[223])
+    # np.multiply(c[223], _x[223])
+
+    print(foo(_x))
+    return alpha, b, c, foo, z
 
 
 if __name__ == "__main__":
