@@ -768,7 +768,7 @@ def load_model(model):
     # Check if file exists
     initial_path = datadir("results", f"{model}.json")
     if not initial_path.exists():
-        raise ValueError(f"Could not find model: {model}")
+        raise ValueError(f"Could not find model at {initial_path}")
 
     with open(initial_path, "r") as f:
         model = json.load(f)
