@@ -6,7 +6,7 @@ tags: []
 
 system:
   threads: 128
-  runtime: 240
+  runtime: 1000  # minutes (about 16 hours)
   memory: auto
 
 data:
@@ -17,7 +17,7 @@ data:
   num_nodes: 500
   use_extra_components: true
   start_hour: peak_hybrid_day
-  num_hours: [expand, 384, 8640]  # days = 360
+  num_hours: 8640  # days = 360
   battery_cost_scale: 1.0
   generator_cost_scale:
     hydro: 1.0
@@ -53,7 +53,8 @@ optimizer:
   parallel: true
   batch_size: 8  # total batches = 360 / 8 = 45
   num_parallel_workers: 8
-  track_full_loss_every: 0  # Once per epoch
+  track_full_loss_every: 25
+  batch_strategy: [expand, fixed, sequential]
   args:
     step_size: 1.0e-2
     clip: 1.0e+4

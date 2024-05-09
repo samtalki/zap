@@ -170,6 +170,7 @@ class PlanningProblem:
         checkpoint_every=100_000,
         checkpoint_func=lambda x: None,
         batch_size=None,
+        batch_strategy="sequential",
     ):
         if algorithm is None:
             algorithm = GradientDescent()
@@ -181,6 +182,8 @@ class PlanningProblem:
             batch_size = self.num_subproblems
 
         assert all([t in TRACKER_MAPS for t in trackers])
+        assert batch_strategy in ["sequential", "fixed"]
+
         self.start_time = time.time()
         self.lower_bound = lower_bound
         self.extra_wandb_trackers = extra_wandb_trackers
@@ -189,6 +192,7 @@ class PlanningProblem:
         state = self.initialize_parameters(deepcopy(initial_state))
         history = self.initialize_history(trackers)
         batch = list(range(batch_size))
+        print(batch)
 
         # Run full forward pass to initialize everything
         self.forward_and_back(**state)
@@ -214,7 +218,12 @@ class PlanningProblem:
             state = self.project(state)
 
             # Update batch and loss
-            batch = get_next_batch(batch, batch_size, self.num_subproblems)
+            if batch_strategy == "sequential":
+                batch = get_next_batch(batch, batch_size, self.num_subproblems)
+            else:  # fixed
+                batch = batch
+            print(batch)
+
             J, grad = self.forward_and_back(**state, batch=batch)
 
             # Record stuff

@@ -34,7 +34,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 24
+  hours_per_scenario: 8
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -49,7 +49,8 @@ optimizer:
   checkpoint_every: 1
   parallel: false
   batch_size: 1
-  track_full_loss_every: 1000
+  track_full_loss_every: 2
+  batch_strategy: fixed
   args:
     step_size: 1.0e-2
     clip: 1.0e+3

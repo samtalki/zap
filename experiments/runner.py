@@ -418,6 +418,7 @@ def solve_problem(
     num_parallel_workers=-1,
     batch_size=0,
     track_full_loss_every=0,
+    batch_strategy="sequential",
 ):
     print("Solving problem...")
 
@@ -481,6 +482,7 @@ def solve_problem(
         checkpoint_every=checkpoint_every,
         checkpoint_func=lambda *args: checkpoint_model(*args, config),
         batch_size=batch_size,
+        batch_strategy=batch_strategy,
     )
 
     if parallel:
@@ -631,7 +633,9 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
             iteration = _stoch_prob.iteration
 
             if iteration % track_full_loss_every == 0:
+                print("Updating full problem loss...  ", end="")
                 problem.full_loss = _stoch_prob(**params)
+                print("Done!")
                 return problem.full_loss
             else:
                 return getattr(problem, "full_loss", np.inf)
