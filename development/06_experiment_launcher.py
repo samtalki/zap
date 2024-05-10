@@ -22,7 +22,7 @@ def __():
     import matplotlib.pyplot as plt
     import seaborn
 
-    seaborn.set_theme(style="white", rc={
+    seaborn.set_theme(style="whitegrid", rc={
         "font.size" : 10,
         "axes.labelsize": 10,
         "xtick.labelsize": 8,
@@ -98,25 +98,28 @@ def __(config, problem, relax, runner):
 
 
 @app.cell
-def __(problem):
-    _J = problem["problem"]
-    print(_J(**_J.initialize_parameters(None)))
+def __():
+    # _J = problem["problem"]
+    # print(_J(**_J.initialize_parameters(None)))
     return
 
 
 @app.cell
-def __(problem, result):
-    print(problem["problem"](**result["parameters"]))
+def __():
+    # print(problem["problem"](**result["parameters"]))
     return
 
 
 @app.cell
-def __(plt, result):
+def __(np, plt, result):
     _fig, _axes = plt.subplots(2, 1, figsize=(8, 3))
 
     _axes[0].plot(result["history"]["loss"])
-    _axes[1].plot(result["history"]["proj_grad_norm"])
+    _axes[1].plot(result["history"]["grad_norm"])
     _axes[1].set_yscale("log")
+
+    print(np.log10(result["history"]["grad_norm"]))
+    print(np.min(result["history"]["loss"]))
 
     _fig
     return

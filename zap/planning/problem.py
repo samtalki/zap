@@ -22,11 +22,12 @@ class GradientDescent:
     clip: float = 1e3
 
     def step(self, state: dict, grad: dict):
-        for param in state.keys():
-            grad_norm = torch.linalg.vector_norm(grad[param], ord=2)
+        grad_norms = [torch.linalg.vector_norm(grad[param], ord=2) for param in state.keys()]
+        total_grad_norm = torch.linalg.vector_norm(torch.stack(grad_norms), ord=2)
 
-            if grad_norm > self.clip:
-                clipped_grad = (self.clip / grad_norm) * grad[param]
+        for param in state.keys():
+            if total_grad_norm > self.clip:
+                clipped_grad = (self.clip / total_grad_norm) * grad[param]
             else:
                 clipped_grad = grad[param]
 

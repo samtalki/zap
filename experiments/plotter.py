@@ -31,10 +31,10 @@ FUEL_COLORS = {
 }
 
 SEABORN_RC = {
-    "font.size": 10,
-    "axes.labelsize": 10,
-    "axes.titlesize": 10,
-    "legend.fontsize": 10,
+    "font.size": 8,
+    "axes.labelsize": 8,
+    "axes.titlesize": 8,
+    "legend.fontsize": 8,
     "xtick.labelsize": 8,
     "ytick.labelsize": 8,
 }

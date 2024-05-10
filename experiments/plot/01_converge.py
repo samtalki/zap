@@ -1,12 +1,12 @@
 import marimo
 
-__generated_with = "0.4.7"
+__generated_with = "0.4.3"
 app = marimo.App()
 
 
 @app.cell
 def __():
-    # import marimo as mo
+    import marimo as mo
     import numpy as np
     import torch
     import importlib
@@ -14,7 +14,7 @@ def __():
     from pathlib import Path
 
     import zap
-    return Path, importlib, np, torch, zap
+    return Path, importlib, mo, np, torch, zap
 
 
 @app.cell
@@ -31,6 +31,12 @@ def __(importlib):
     from experiments import runner
     _ = importlib.reload(runner)
     return runner,
+
+
+@app.cell
+def __(Path):
+    FIG_DIR = Path().home() / "figures/zap"
+    return FIG_DIR,
 
 
 @app.cell
@@ -147,7 +153,7 @@ def __(config_version, model_state, problem, y_cache):
         _prob = problem
         _prob(**model_state, batch=[0])
         y_cache[config_version] = _prob.state
-        
+
     y_model = y_cache[config_version]
     return y_model,
 
@@ -159,8 +165,8 @@ def __(mo):
 
 
 @app.cell
-def __(np):
-    EMISSIONS_WEIGHTS = np.arange(100.0, 300.0 + 1, 20.0)
+def __(job_data, np):
+    EMISSIONS_WEIGHTS = np.sort(job_data.emissions_weight.unique())
     return EMISSIONS_WEIGHTS,
 
 
@@ -172,7 +178,7 @@ def __():
 
 @app.cell
 def __():
-    convergence_config = "warm_v05"
+    convergence_config = "warm_v06"
     return convergence_config,
 
 
@@ -282,37 +288,124 @@ def __(get_run_history, job_data):
 
 @app.cell
 def __(job_data):
-    job_data[job_data.emissions_weight == 100.0].index
+    _df = job_data[job_data.emissions_weight == 100.0]
+    _df = _df[_df.initial_state != "initial"]
+
+    _df.index[0]
     return
 
 
-@app.cell
-def __(REFERENCE_WEIGHT, has_converged, job_data, losses, np, plt):
-    _carbon = 160.0
-    _df = job_data[job_data.emissions_weight == _carbon]
+@app.cell(hide_code=True)
+def __(job_data, losses, np):
+    def findfirst(cond):
+        all = np.where(cond)[0]
 
-    _fig = plt.figure(figsize=(6, 2.5))
-    plt.title(f"emissions weight: {_carbon} (warm start weight: {REFERENCE_WEIGHT})")
+        if len(all) > 0:
+            return all[0]
+        else:
+            return cond.size - 1
 
-    for _i in _df.index:
-        _loss = losses[_i]
-        _bl = [np.min(_loss[: t + 1]) for t in range(_loss.size)]
-        _cvg_iter = has_converged(_loss)
+    def convergence_data(carbon_weight, subopt=0.00):
+        df = job_data[job_data.emissions_weight == carbon_weight]
+        df_cold = df[df.initial_state == "initial"]
+        df_warm = df[df.initial_state != "initial"]
 
-        print(
-            f"Converged in {_cvg_iter} iterations with subopt: {100 * _bl[_cvg_iter] / _bl[-1] - 100.0:.2f}%"
+        loss_cold = losses[df_cold.index[0]]
+        loss_warm = losses[df_warm.index[0]]
+
+        # Set convergence loss
+        cvg_loss = (1.0 + subopt) * np.min(loss_cold)
+
+        cold_converge = findfirst(loss_cold <= cvg_loss)
+        warm_converge = findfirst(loss_warm <= cvg_loss)
+
+        return loss_cold, loss_warm, cold_converge, warm_converge
+    return convergence_data, findfirst
+
+
+@app.cell(hide_code=True)
+def __(convergence_data):
+    def get_speedup(carbon_weight, subopt=0.00):
+        loss_cold, loss_warm, cold_converge, warm_converge = convergence_data(
+            carbon_weight, subopt
         )
 
-        # plt.plot(_bl)
-        plt.plot(_loss)
-        plt.scatter([_cvg_iter], [_bl[_cvg_iter]], c="red", zorder=1000)
+        return cold_converge / warm_converge
+    return get_speedup,
 
 
-    plt.xlabel("Iteration")
-    plt.ylabel("Loss")
-    plt.ylim(6500, 12_000)
-    plt.tight_layout()
+@app.cell
+def __(REFERENCE_WEIGHT, convergence_data, plt):
+    def convergence_plot(carbon_weight, subopt=0.00, fig=None, ax=None):
+        loss_cold, loss_warm, cold_converge, warm_converge = convergence_data(
+            carbon_weight, subopt
+        )
+
+        if fig is None:
+            fig, ax = plt.subplots(figsize=(6, 2.5))
+
+        # Plot losses
+        ax.plot(loss_cold, label="Cold Start")
+        ax.plot(loss_warm, label="Warm Start")
+
+        # Plot convergence times
+        ax.scatter([cold_converge], [loss_warm[cold_converge]])
+        ax.scatter([warm_converge], [loss_warm[warm_converge]])
+
+        ax.legend()
+        ax.set_xlabel("Iteration")
+        ax.set_ylabel("Loss")
+        ax.set_title(
+            f"Carbon Weight: {carbon_weight} (Warm Start Weight: {REFERENCE_WEIGHT})"
+        )
+        fig.tight_layout()
+
+        return fig, ax
+    return convergence_plot,
+
+
+@app.cell
+def __(FIG_DIR, convergence_plot):
+    _carbon_weight, _subopt = 150.0, 0.02
+
+    _fig, _ax = convergence_plot(_carbon_weight, subopt=_subopt)
+    _fig.savefig(
+        FIG_DIR
+        / f"warm_start_convergence_{int(_carbon_weight):02d}_{int(100*_subopt):02d}.pdf"
+    )
     _fig
+    return
+
+
+@app.cell(hide_code=True)
+def __():
+    # OLD CELL - Convergence plots using traditional convergence criteria (different loss values)
+
+    # _carbon = 160.0
+    # _df = job_data[job_data.emissions_weight == _carbon]
+
+    # _fig = plt.figure(figsize=(6, 2.5))
+    # plt.title(
+    #     f"emissions weight: {_carbon} (warm start weight: {REFERENCE_WEIGHT})"
+    # )
+
+    # for _i in _df.index:
+    #     _loss = losses[_i]
+    #     _bl = [np.min(_loss[: t + 1]) for t in range(_loss.size)]
+    #     _cvg_iter = has_converged(_loss)
+
+    #     plt.plot(_loss)
+    #     plt.scatter([_cvg_iter], [_bl[_cvg_iter]], c="red", zorder=1000)
+    #     print(
+    #         f"Converged in {_cvg_iter} iterations with subopt: {100 * _bl[_cvg_iter] / _bl[-1] - 100.0:.2f}%"
+    #     )
+
+
+    # plt.xlabel("Iteration")
+    # plt.ylabel("Loss")
+    # plt.ylim(6500, 12_000)
+    # plt.tight_layout()
+    # _fig
     return
 
 
@@ -357,83 +450,152 @@ def __():
 
 
 @app.cell
-def __(
-    EMISSIONS_WEIGHTS,
-    REFERENCE_WEIGHT,
-    cold_converge_times,
-    plt,
-    warm_converge_times,
-):
-    def plot_convergence_results():
-        speedups = cold_converge_times / warm_converge_times
+def __(EMISSIONS_WEIGHTS, REFERENCE_WEIGHT, get_speedup, np, plt):
+    def plot_convergence_results(subopt=0.0, fig=None, ax=None):
+        speedups = np.array([get_speedup(c, subopt) for c in EMISSIONS_WEIGHTS])
         perturb = (EMISSIONS_WEIGHTS - REFERENCE_WEIGHT) / REFERENCE_WEIGHT
+        mean_speedup = np.mean(speedups)
 
-        fig, ax = plt.subplots(figsize=(6.5, 3.0))
+        # Sort values
+        perturb = np.abs(perturb)
+        best_fit_line = np.poly1d(np.polyfit(perturb, np.log10(speedups), 1))
+
+        if fig is None:
+            fig, ax = plt.subplots(figsize=(6.5, 3.0))
+
+        ax.plot(
+            np.unique(perturb),
+            np.power(10.0, best_fit_line(np.unique(perturb))),
+            c="C1",
+            label="Best Fit Line",
+        )
+        ax.scatter(perturb, speedups, s=12)
+
+        ax.legend()
+        ax.set_title(
+            f"Mean Speedup: {mean_speedup:.1f}x"
+        )
         ax.set_xlabel("Perturbation Size")
         ax.set_ylabel("Speedup")
-
-        # Absolute time
-        # ax.plot(perturb, cold_converge_times, marker=".")
-        # ax.plot(perturb, warm_converge_times, marker=".")
-        # ax.set_ylim(0, 250)
-
-        # Speedup
-        ax.plot(perturb, speedups)
-        ax.set_ylim(0, ax.get_ylim()[1])
+        ax.set_ylim(1.0, 500.0)
+        ax.set_yscale("log")
         fig.tight_layout()
 
-        return fig
-
-    plot_convergence_results()
+        return fig, ax
     return plot_convergence_results,
 
 
 @app.cell
-def __(runner):
-    _cfg = runner.expand_config(
-        runner.load_config(f"experiments/config/cost_reconductor_v02.yaml")
-    )
+def __(FIG_DIR, plot_convergence_results):
+    _subopt = 0.02
+    _fig, _ax = plot_convergence_results(subopt=_subopt)
 
-    _cfg = _cfg[0]
-    _data = runner.load_dataset(**_cfg["data"])
-    _devs = _data["devices"]
-
-    lines = _devs[3]
-    return lines,
+    _fig.savefig(FIG_DIR / f"warm_start_speedup_{int(100*_subopt):02d}.pdf")
+    _fig
+    return
 
 
 @app.cell
-def __(lines, np):
-    _x = np.copy(lines.nominal_capacity)
+def __(FIG_DIR, convergence_plot, plot_convergence_results, plt):
+    _carbon_weight, _subopt = 150.0, 0.02
 
-    b = lines.nominal_capacity
-    c = lines.capital_cost
-    _r = lines.reconductoring_cost
-    alpha = lines.reconductoring_threshold
+    _fig, _axes = plt.subplots(1, 2, figsize=(7.5, 2.5))
 
-    z = b * (_r + c * alpha - _r * alpha)
-
-    def foo(shift):    
-        return np.sum(
-            np.maximum(
-                np.multiply(_r, (_x - b)),
-                np.multiply(c, _x) - z,
-            )
-        )
-
-        return np.multiply(c, _x) - z
+    convergence_plot(_carbon_weight, subopt=_subopt, fig=_fig, ax=_axes[0])
+    plot_convergence_results(subopt=_subopt, fig=_fig, ax=_axes[1])
 
 
-    # _t = np.arange(b, 3.0, 0.01)
-    # _y = [foo(ti) for ti in _t]
-    # plt.plot(_t, _y)
+    _fig.savefig(
+        FIG_DIR
+        / f"warm_start_full_{int(_carbon_weight):02d}_{int(100*_subopt):02d}.pdf"
+    )
 
-    # print(_x[223], b[223], c[223], _r[223], alpha[223])
-    # print(c[223] * _x[223], z[223])
-    # np.multiply(c[223], _x[223])
+    _fig
+    return
 
-    print(foo(_x))
-    return alpha, b, c, foo, z
+
+@app.cell
+def __(EMISSIONS_WEIGHTS, get_speedup, np, plt):
+    def speedup_curve():
+        subopts = np.arange(0.0, 0.05, step=0.002)
+
+        mean_speedups = []
+        for s in subopts:
+            speedups = np.array([get_speedup(c, s) for c in EMISSIONS_WEIGHTS])
+            mean_speedups += [np.mean(speedups)]
+
+        fig, ax = plt.subplots(figsize=(6.5, 2))
+        ax.plot(100*subopts, mean_speedups)
+
+        ax.set_xlabel("Percent Suboptimality")
+        ax.set_ylabel("Speedup")
+        fig.tight_layout()
+
+        return fig, ax
+
+    speedup_curve()[0]
+    return speedup_curve,
+
+
+@app.cell
+def __():
+    # _cfg = runner.expand_config(
+    #     runner.load_config(f"experiments/config/cost_reconductor_v02.yaml")
+    # )
+
+    # _cfg = _cfg[0]
+    # _data = runner.load_dataset(**_cfg["data"])
+    # _devs = _data["devices"]
+
+    # lines = _devs[3]
+    return
+
+
+@app.cell
+def __():
+    # _x = np.copy(lines.nominal_capacity)
+
+    # b = lines.nominal_capacity
+    # c = lines.capital_cost
+    # _r = lines.reconductoring_cost
+    # alpha = lines.reconductoring_threshold
+
+    # z = b * (_r + c * alpha - _r * alpha)
+
+    # def foo(shift):    
+    #     return np.sum(
+    #         np.maximum(
+    #             np.multiply(_r, (_x - b)),
+    #             np.multiply(c, _x) - z,
+    #         )
+    #     )
+
+    #     return np.multiply(c, _x) - z
+
+
+    # # _t = np.arange(b, 3.0, 0.01)
+    # # _y = [foo(ti) for ti in _t]
+    # # plt.plot(_t, _y)
+
+    # # print(_x[223], b[223], c[223], _r[223], alpha[223])
+    # # print(c[223] * _x[223], z[223])
+    # # np.multiply(c[223], _x[223])
+
+    # print(foo(_x))
+    return
+
+
+@app.cell
+def __(torch):
+    _x = torch.tensor([1.0, 2.0, 3.0])
+    _y = torch.tensor([3.0, 4.0, 5.0])
+
+    _grad_norms = [torch.linalg.vector_norm(z, ord=2) for z in [_x, _y]]
+
+    torch.linalg.vector_norm(torch.stack(_grad_norms), ord=2)
+    # torch.linalg.vector_norm(torch.concat([_x, _y]))
+    # torch.tensor(_grad_norms)
+    return
 
 
 if __name__ == "__main__":
