@@ -347,6 +347,7 @@ def __(REFERENCE_WEIGHT, convergence_data, plt):
         # Plot losses
         ax.plot(loss_cold, label="Cold Start")
         ax.plot(loss_warm, label="Warm Start")
+        print(warm_converge, cold_converge)
 
         # Plot convergence times
         ax.scatter([cold_converge], [loss_warm[cold_converge]])

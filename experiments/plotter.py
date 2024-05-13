@@ -16,6 +16,28 @@ FUEL_NAMES = [
     "oil",
 ]
 
+FUELS_JOINED = {
+    "nuclear": "Nuclear",
+    "coal": "Coal",
+    "CCGT": "Gas",
+    "OCGT": "Gas",
+    "hydro": "Hydro",
+    "geothermal": "Geo",
+    "onwind": "Wind",
+    "offwind_floating": "Wind",
+    "solar": "Solar",
+}
+
+JOINED_FUEL_NAMES = [
+    "Nuclear",
+    "Hydro",
+    "Geo",
+    "Wind",
+    "Solar",
+    "Coal",
+    "Gas",
+]
+
 FUEL_COLORS = {
     "solar": "yellow",
     "onwind": "lightblue",
@@ -28,7 +50,18 @@ FUEL_COLORS = {
     "OCGT": "red",
     "coal": "gray",
     "oil": "black",
+    "Nuclear": "purple",
+    "Coal": "gray",
+    "Gas": "khaki",
+    "Hydro": "blue",
+    "Geo": "green",
+    "Wind": "lightblue",
+    "Solar": "yellow",
+    "Biomass": "green",
+    "Oil": "black",
 }
+for k in FUEL_COLORS:
+    FUEL_COLORS[k] = "xkcd:" + FUEL_COLORS[k]
 
 SEABORN_RC = {
     "font.size": 8,
@@ -43,41 +76,88 @@ SEABORN_RC = {
 seaborn.set_theme(style="white", rc=SEABORN_RC)
 
 
-def total_capacity(capacities, fuels, fuel=None):
+def total_capacity(capacities, fuels, fuel=None, group_fuels=False):
     if fuel is None:
-        return {f: total_capacity(capacities, fuels, f) for f in np.unique(fuels)}
+        capacities = {f: total_capacity(capacities, fuels, f) for f in np.unique(fuels)}
+
+        if group_fuels:
+            # Group fuels according to FUELS_JOINED
+            new_caps = {}
+            for v in FUELS_JOINED.values():
+                new_caps[v] = 0.0
+
+            for f, cap in capacities.items():
+                if f in FUELS_JOINED:
+                    new_caps[FUELS_JOINED[f]] += cap
+
+            return new_caps
+
+        else:
+            return capacities
+
     else:
         return np.sum(capacities[fuels == fuel])
 
 
-def make_bar(ax, p0, p1, key=None, order=None):
+def make_bar(
+    ax,
+    p0,
+    p1,
+    key=None,
+    order=None,
+    shift=0.0,
+    base_color="C0",
+    expansion_color="C1",
+    width=0.8,
+    label=None,
+    label_base=True,
+):
+    if isinstance(p1, list):
+        for i, pii in enumerate(p1):
+            # Center shifts
+            subshift = shift + (i + 1) * (1.0 / (len(p1) + 1)) - 0.5
+            subwidth = width / (len(p1) + 1)
+            make_bar(
+                ax,
+                p0,
+                pii,
+                key,
+                order,
+                subshift,
+                expansion_color=f"C{i + 1}",
+                width=subwidth,
+                label_base=(i == 0),
+                label=None if label is None else label[i],
+            )
+        return ax
+
     if key is not None:
         init = np.sum(p0[key])
         final = np.sum(p1[key])
-        x = [0]
+        x = [0 + shift]
 
     else:
         init = np.array([p0[k] for k in order])
         final = np.array([p1[k] for k in order])
-        x = np.arange(init.size)
+        x = np.arange(init.size) + shift
 
-    ax.bar(x, init)
-    ax.bar(x, final - init, bottom=init)
-
-    ax.set_xlim(np.min(x) - 0.6, np.max(x) + 0.6)
+    base_label = "Initial" if label_base else None
+    ax.bar(x, init, color=base_color, width=width, label=base_label)
+    ax.bar(x, final - init, bottom=init, color=expansion_color, width=width, label=label)
 
     if key is not None:
         ax.set_xticks([])
         ax.set_xlabel(key)
     else:
-        ax.set_xticks(x, [o[:7] for o in order])
+        ax.set_xticks(range(len(x)), [o for o in order])
 
     return ax
 
 
-def capacity_plot(p0, p1, devices):
+def capacity_plot(p0, p1, devices, group_fuels=True, fig=None, axes=None, label=None):
     # Make bar plot
-    fig, axes = plt.subplots(1, 4, figsize=(6.5, 2.5), width_ratios=[1, 1, 1, 12])
+    if fig is None:
+        fig, axes = plt.subplots(1, 4, figsize=(6.5, 2.5), width_ratios=[1, 1, 1, 10])
 
     # Plot transmission and storage expansion
     make_bar(axes[0], p0, p1, "ac_line")
@@ -87,19 +167,30 @@ def capacity_plot(p0, p1, devices):
     # Plot generation expansion
     generators = devices[0]
     fuels = generators.fuel_type.reshape(-1, 1)
-    gen0 = total_capacity(p0["generator"], fuels)
-    gen1 = total_capacity(p1["generator"], fuels)
+    gen0 = total_capacity(p0["generator"], fuels, group_fuels=group_fuels)
 
-    make_bar(axes[3], gen0, gen1, order=FUEL_NAMES)
-    axes[3].set_xlabel("generator")
-    axes[3].tick_params(axis="x", labelrotation=45, labelsize=8)
+    if isinstance(p1, list):
+        gen1 = [total_capacity(pii["generator"], fuels, group_fuels=group_fuels) for pii in p1]
+    else:
+        gen1 = total_capacity(p1["generator"], fuels, group_fuels=group_fuels)
+
+    order = JOINED_FUEL_NAMES if group_fuels else FUEL_NAMES
+
+    make_bar(axes[3], gen0, gen1, order=order, label=label)
+    axes[3].tick_params(axis="x", labelrotation=0, labelsize=8)
 
     # Labels / limits
+    axes[0].set_xlabel("AC Line")
+    axes[1].set_xlabel("DC Line")
+    axes[2].set_xlabel("Battery")
+    axes[3].set_xlabel("Generator")
     axes[0].set_ylabel("Capacity (GW)")
     axes[0].set_ylim(0, 1500)
-    axes[1].set_ylim(0, 100)
-    axes[2].set_ylim(0, 100)
-    axes[3].set_ylim(0, 300)
+    axes[1].set_ylim(0, 60)
+    axes[2].set_ylim(0, 60)
+    axes[3].set_ylim(0, 250)
+
+    axes[3].legend()
 
     # Finalize figure
     fig.align_labels()
@@ -107,8 +198,9 @@ def capacity_plot(p0, p1, devices):
     return fig, axes
 
 
-def stackplot(p1, layer, y1=None):
-    fig, ax = plt.subplots(figsize=(6.5, 3))
+def stackplot(p1, layer, y1=None, fig=None, ax=None, legend=True, group_fuels=True):
+    if fig is None:
+        fig, ax = plt.subplots(figsize=(6.5, 3))
 
     if y1 is None:
         y1 = layer(**p1)
@@ -127,12 +219,20 @@ def stackplot(p1, layer, y1=None):
     fuels = gens.fuel_type
 
     gen_per_period = [np.sum(gen_power[fuels == f, :], axis=0) for f in FUEL_NAMES]
+    if group_fuels:
+        new_gen_per_period = {f: np.zeros_like(gen_per_period[0]) for f in JOINED_FUEL_NAMES}
+        for f, cap in zip(FUEL_NAMES, gen_per_period):
+            if f in FUELS_JOINED:
+                new_gen_per_period[FUELS_JOINED[f]] += cap
 
+        gen_per_period = [new_gen_per_period[f] for f in JOINED_FUEL_NAMES]
+
+    fuel_names = JOINED_FUEL_NAMES if group_fuels else FUEL_NAMES
     ax.stackplot(
         t,
         gen_per_period,
-        labels=[f[:7] for f in FUEL_NAMES],
-        colors=[FUEL_COLORS[f] for f in FUEL_NAMES],
+        labels=[f[:7] for f in fuel_names],
+        colors=[FUEL_COLORS[f] for f in fuel_names],
     )
 
     # Plot battery output
@@ -142,15 +242,16 @@ def stackplot(p1, layer, y1=None):
         t,
         total_load,
         total_load - total_bat_power,
-        color="pink",
+        color="xkcd:pink",
         alpha=0.5,
-        label="battery",
+        label="Battery",
     )
 
     # Tune figure
-    ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
+    if legend:
+        ax.legend(fontsize=8, bbox_to_anchor=(1.2, 0.5), loc="center right")
     ax.set_xlim(np.min(t), np.max(t))
-    ax.set_ylim(0, 275)
+    ax.set_ylim(0, 200)
 
     fig.tight_layout()
 
