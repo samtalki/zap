@@ -52,7 +52,7 @@ FUEL_COLORS = {
     "oil": "black",
     "Nuclear": "purple",
     "Coal": "gray",
-    "Gas": "khaki",
+    "Gas": "brown",
     "Hydro": "blue",
     "Geo": "green",
     "Wind": "lightblue",

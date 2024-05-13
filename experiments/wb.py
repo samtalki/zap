@@ -12,6 +12,7 @@ def get_wandb_data(api: wandb.Api):
         "emissions_weight": [],
         "battery_cost_scale": [],
         "initial_state": [],
+        "batch_strategy": [],
         "hash": [],
     }
 
@@ -25,6 +26,19 @@ def get_wandb_data(api: wandb.Api):
         wandb_data["battery_cost_scale"].append(
             float(r.config["data"].get("battery_cost_scale", 1.0))
         )
+
         wandb_data["initial_state"].append(r.config["optimizer"]["initial_state"])
+        wandb_data["batch_strategy"].append(r.config["optimizer"].get("batch_strategy", ""))
 
     return pd.DataFrame(wandb_data)
+
+
+def get_run_history(api, _hash, cache=None):
+    if cache is None:
+        cache = {}
+
+    if _hash not in cache:
+        run = api.run(f"s3l/zap/{_hash}")
+        cache[_hash] = run.history()
+
+    return cache[_hash]
