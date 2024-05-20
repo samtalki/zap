@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.3"
+__generated_with = "0.4.7"
 app = marimo.App()
 
 
@@ -86,7 +86,7 @@ def __(importlib, seaborn):
     from experiments import plotter
     _ = importlib.reload(plotter)
 
-    seaborn.set_theme(style="whitegrid", rc=plotter.SEABORN_RC)
+    seaborn.set_theme(style="white", rc=plotter.SEABORN_RC)
     return plotter,
 
 
@@ -353,7 +353,9 @@ def __(REFERENCE_WEIGHT, convergence_data, plt):
         ax.scatter([cold_converge], [loss_warm[cold_converge]])
         ax.scatter([warm_converge], [loss_warm[warm_converge]])
 
+        ax.grid(which="major")
         ax.legend()
+        ax.set_xlim(-1, 500)
         ax.set_xlabel("Iteration")
         ax.set_ylabel("Loss")
         ax.set_title(
@@ -472,6 +474,8 @@ def __(EMISSIONS_WEIGHTS, REFERENCE_WEIGHT, get_speedup, np, plt):
         )
         ax.scatter(perturb, speedups, s=12)
 
+        ax.grid(which="major")
+        ax.grid(which="minor", alpha=0.5)
         ax.legend()
         ax.set_title(
             f"Mean Speedup: {mean_speedup:.1f}x"
@@ -500,15 +504,40 @@ def __(FIG_DIR, plot_convergence_results):
 def __(FIG_DIR, convergence_plot, plot_convergence_results, plt):
     _carbon_weight, _subopt = 150.0, 0.02
 
-    _fig, _axes = plt.subplots(1, 2, figsize=(7.5, 2.5))
+    _fig, _axes = plt.subplots(1, 2, figsize=(7.5, 2))
+
+    convergence_plot(_carbon_weight, subopt=_subopt, fig=_fig, ax=_axes[0])
+    plot_convergence_results(subopt=_subopt, fig=_fig, ax=_axes[1])
+
+    _fig.tight_layout()
+    _fig.subplots_adjust(wspace=0.3)
+
+    _fig.savefig(
+        FIG_DIR
+        / f"warm_start_full_{int(_carbon_weight):02d}_{int(100*_subopt):02d}.pdf"
+    )
+
+    _fig
+    return
+
+
+@app.cell
+def __(FIG_DIR, convergence_plot, plot_convergence_results, plt):
+    _carbon_weight, _subopt = 150.0, 0.02
+
+    _fig, _axes = plt.subplots(2, 1, figsize=(3.65, 4.5))
 
     convergence_plot(_carbon_weight, subopt=_subopt, fig=_fig, ax=_axes[0])
     plot_convergence_results(subopt=_subopt, fig=_fig, ax=_axes[1])
 
 
+    _fig.tight_layout()
+    _fig.subplots_adjust(hspace=0.55)
+
+
     _fig.savefig(
         FIG_DIR
-        / f"warm_start_full_{int(_carbon_weight):02d}_{int(100*_subopt):02d}.pdf"
+        / f"warm_start_full_vertical_{int(_carbon_weight):02d}_{int(100*_subopt):02d}.pdf"
     )
 
     _fig

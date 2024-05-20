@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.3"
+__generated_with = "0.4.7"
 app = marimo.App()
 
 
@@ -47,7 +47,7 @@ def __(mo):
 
 @app.cell
 def __():
-    config_name = "cost_battery_v02"
+    config_name = "cost_battery_v03"
     return config_name,
 
 
@@ -122,7 +122,7 @@ def __(devices, initial_params, model_state, plotter):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(mo, slider):
     mo.md(f"""Battery Cost: {slider} {100 * slider.value}% reference value""")
     return
@@ -136,9 +136,9 @@ def __(config, data, runner):
 
 
 @app.cell(hide_code=True)
-def __(config_version, model_state, plotter, problem, y_model):
+def __(model_state, plotter, problem, slider, y_model):
     fig, ax = plotter.stackplot(model_state, problem.layer, y_model)
-    _bat_cost = 100 + 25 * (config_version - 2)
+    _bat_cost = 100 * slider.value
     ax.set_title(f"Battery Cost: {_bat_cost}%")
     fig.tight_layout()
 
@@ -209,15 +209,7 @@ def __():
 
 
 @app.cell
-def __(
-    EXPANSION_COSTS,
-    FIG_DIR,
-    devices,
-    initial_params,
-    models,
-    plotter,
-    plt,
-):
+def __(EXPANSION_COSTS, devices, initial_params, models, plotter, plt):
     def final_expansions_plot(fig=None, axes=None):
         if fig is None:
             fig, axes = plt.subplots(
@@ -236,11 +228,9 @@ def __(
         axes[1].set_ylim(0, 30)
         axes[2].set_ylim(0, 30)
 
-        fig.savefig(FIG_DIR / "battery_expansion.pdf")
-
+        # fig.savefig(FIG_DIR / "battery_expansion.pdf")
 
         return fig, axes
-
 
     final_expansions_plot()[0]
     return final_expansions_plot,
@@ -276,7 +266,7 @@ def __(models, plotter, plt, problem, ys):
         plotter.stackplot(
             models[2], problem.layer, ys[2], fig=fig, ax=axes[1], legend=False
         )
-        
+
         axes[0].set_ylabel("Power (MW)")
         [ax.set_xlabel("Hour") for ax in axes]
         [ax.set_xticks(range(0, 24, 6)) for ax in axes]

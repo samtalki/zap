@@ -38,7 +38,7 @@ def __(importlib, seaborn):
     from experiments import plotter
     _ = importlib.reload(plotter)
 
-    seaborn.set_theme(style="whitegrid", rc=plotter.SEABORN_RC)
+    seaborn.set_theme(style="white", rc=plotter.SEABORN_RC)
     return plotter,
 
 
@@ -105,16 +105,19 @@ def __(api, wandb_cache, wb, wbdf):
 @app.cell
 def __(FIG_DIR, np, plt, runs):
     def scalability_plot():
-        fig, ax = plt.subplots(figsize=(7.5/2, 2))
+        fig, ax = plt.subplots(figsize=(3.75 - 0.1, 2))
 
-        best = np.min(runs[1].full_loss)
-        
+        best = 1.0  # np.min(runs[1].full_loss)
+
         ax.plot(runs[0].full_loss / best, label="16 Days")
         ax.plot(runs[1].full_loss / best, label="360 Days")
+
+        print(np.min(runs[0].full_loss) / np.min(runs[1].full_loss))
 
         ax.set_xlabel("Iteration")
         ax.set_ylabel("Objective (360 Days)")
         ax.legend()
+        ax.grid(which="major")
 
         fig.tight_layout()
         fig.savefig(FIG_DIR / "scalability.pdf")
