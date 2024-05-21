@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.3.10"
+__generated_with = "0.4.3"
 app = marimo.App()
 
 
@@ -64,20 +64,13 @@ def __():
 
 
 @app.cell
-def __(pypsa):
-    pn = pypsa.Network(
-        f"~/pypsa-usa/workflow/resources/western/elec_s_100_ec.nc"
-    )
-    return pn,
-
-
-@app.cell
-def __(pn):
-    pn
+def __():
+    # pn = pypsa.Network()
+    # pn.import_from_csv_folder("data/pypsa/western/elec_s_100_ec")
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, pypsa, zap):
     def load_pypsa_network(
         time_horizon=1,
@@ -90,9 +83,9 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, pypsa, zap):
         all_kwargs.update(pypsa_kwargs)
         print(all_kwargs)
 
-        pn = pypsa.Network(
-            f"~/pypsa-usa/workflow/resources/western/elec_s_{num_nodes}.nc"
-        )
+        pn = pypsa.Network()
+        pn.import_from_csv_folder(f"data/pypsa/western/elec_s_{num_nodes}")
+
         dates = pd.date_range(
             start_date,
             start_date + dt.timedelta(hours=time_horizon),
@@ -118,12 +111,6 @@ def __(load_pypsa_network):
 
 
 @app.cell
-def __(devices):
-    devices[3]
-    return
-
-
-@app.cell
 def __(cp, devices, net, time_horizon):
     result = net.dispatch(
         devices,
@@ -136,25 +123,7 @@ def __(cp, devices, net, time_horizon):
     return result,
 
 
-@app.cell
-def __(devices):
-    len(devices)
-    return
-
-
-@app.cell
-def __(result):
-    result.shape
-    return
-
-
-@app.cell
-def __(result):
-    result.problem.solver_stats
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def __(
     devices,
     get_nodal_average,
@@ -193,7 +162,7 @@ def __(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
     simple_devices = deepcopy(devices[:3])
     use_ac = True
@@ -233,6 +202,7 @@ def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
 
     print(nested_norm(simple_result.angle))
     print(nested_norm(simple_result.power))
+
     for _d in simple_devices:
         print(type(_d))
     return simple_devices, simple_result, use_ac
@@ -276,7 +246,7 @@ def __(mo):
 
 @app.cell
 def __(
-    WeightedADMMSolver,
+    ADMMSolver,
     admm_num_iters,
     eps_pd,
     net,
@@ -285,17 +255,16 @@ def __(
     simple_devices,
     simple_result,
     time_horizon,
-    weighting_strategy,
 ):
-    admm = WeightedADMMSolver(
+    admm = ADMMSolver(
         num_iterations=admm_num_iters,
         rho_power=rho_power,
         rho_angle=rho_angle,
         rtol=eps_pd,
         resid_norm=2,
         safe_mode=True,
-        weighting_strategy=weighting_strategy,
-        weighting_seed=0,
+        # weighting_strategy=weighting_strategy,
+        # weighting_seed=0,
     )
 
     state, history = admm.solve(
@@ -307,18 +276,6 @@ def __(
 @app.cell
 def __(mo):
     mo.md("### Results")
-    return
-
-
-@app.cell
-def __(devices, np):
-    np.min(devices[0].nominal_capacity)
-    return
-
-
-@app.cell
-def __(np, state):
-    np.sort(state.power_weights[0][0][:, 0])[[0,1,2,-3,-2,-1]]
     return
 
 
@@ -335,18 +292,6 @@ def __():
 def __():
     weighting_strategy = "uniform"
     return weighting_strategy,
-
-
-@app.cell
-def __(simple_devices):
-    [type(d) for d in simple_devices]
-    return
-
-
-@app.cell
-def __(devices):
-    devices[3].num_devices
-    return
 
 
 @app.cell
@@ -403,7 +348,7 @@ def __(history, plot_convergence):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __():
     # _admm = WeightedADMMSolver(
     #     num_iterations=admm_num_iters,
@@ -420,6 +365,21 @@ def __():
     # )
 
     # plot_convergence(_history)
+
+    # admm = WeightedADMMSolver(
+    #     num_iterations=admm_num_iters,
+    #     rho_power=rho_power,
+    #     rho_angle=rho_angle,
+    #     rtol=eps_pd,
+    #     resid_norm=2,
+    #     safe_mode=True,
+    #     weighting_strategy=weighting_strategy,
+    #     weighting_seed=0,
+    # )
+
+    # state, history = admm.solve(
+    #     net, simple_devices, time_horizon, nu_star=-simple_result.prices
+    # )
     return
 
 

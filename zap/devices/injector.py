@@ -164,6 +164,9 @@ class Injector(AbstractDevice):
         data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         assert angle is None
 
+        if power_weights is None:
+            power_weights = [1.0]
+
         Dp2 = [np.power(p, 2) for p in power_weights]
 
         # Problem is

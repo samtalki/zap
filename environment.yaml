@@ -1,8 +1,13 @@
+# To install torch_scatter
+# mamba install pytorch-scatter=2.1.2=py311_torch_2.1.0_cu118 -c pyg -c conda-forge -c pytorch -c cuda -c nvidia
+
 name: zap
 channels:
 - conda-forge
 - mosek
 - pytorch
+- nvidia
+- pyg
 dependencies:
 - cvxpy
 - marimo
@@ -14,10 +19,11 @@ dependencies:
 - pypsa
 - pytest
 - python=3.11
-- pytorch
 - seaborn
 - setuptools
 - conda-forge::sparse_dot_mkl
 - torchvision
 - wandb
-- conda-forge::ray-default
+- conda-forge::cuda-toolkit=11.1
+- pytorch::pytorch=2.1.2
+- pytorch-scatter=2.1.2=py311_torch_2.1.0_cu118

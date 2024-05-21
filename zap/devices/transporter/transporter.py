@@ -212,6 +212,9 @@ class Transporter(AbstractDevice):
         pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
         pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
 
+        if power_weights is None:
+            power_weights = [1.0, 1.0]
+
         Dp2 = [np.power(p, 2) for p in power_weights]
 
         assert angle is None
