@@ -104,8 +104,11 @@ class Injector(AbstractDevice):
             power - la.multiply(data.max_power, data.nominal_capacity),
         ]
 
-    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+    def operation_cost(
+        self, power, angle, _, nominal_capacity=None, la=np, envelope=None, data=None
+    ):
+        if data is None:
+            data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
         power = power[0] - la.multiply(data.min_power, data.nominal_capacity)
 
@@ -145,10 +148,10 @@ class Injector(AbstractDevice):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int):
-        return [torch.zeros((self.num_devices, time_horizon))]
+    def admm_initialize_power_variables(self, time_horizon: int, device="cpu"):
+        return [torch.zeros((self.num_devices, time_horizon), device=device)]
 
-    def admm_initialize_angle_variables(self, time_horizon: int):
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
         return None
 
     def admm_prox_update(
@@ -160,12 +163,18 @@ class Injector(AbstractDevice):
         nominal_capacity=None,
         power_weights=None,
         angle_weights=None,
+        data=None,
     ):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=torch)
+        machine = power[0].device
+
+        if data is None:
+            print("Warning: prox update recreating device data.")
+            data = self.device_data(nominal_capacity=nominal_capacity, la=torch, machine=machine)
+
         assert angle is None
 
         if power_weights is None:
-            power_weights = [torch.tensor(1.0)]
+            power_weights = [torch.tensor(1.0, device=machine)]
 
         Dp2 = [torch.pow(p, 2) for p in power_weights]
 

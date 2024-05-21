@@ -31,7 +31,10 @@ def grad_or_zero(x, to_numpy=False):
             return grad
 
 
-def torchify(x, requires_grad=False):
+def torchify(x, requires_grad=False, machine=None):
+    if machine is None:
+        machine = "cuda" if torch.cuda.is_available() else "cpu"
+
     if isinstance(x, torch.Tensor):
         if requires_grad and (not x.requires_grad):
             x.requires_grad = True
@@ -39,11 +42,11 @@ def torchify(x, requires_grad=False):
     elif x is None:
         return None
     elif isinstance(x, dict):
-        return {k: torchify(v, requires_grad=requires_grad) for k, v in x.items()}
+        return {k: torchify(v, requires_grad=requires_grad, machine=machine) for k, v in x.items()}
     elif isinstance(x, list):
-        return [torchify(xi, requires_grad=requires_grad) for xi in x]
+        return [torchify(xi, requires_grad=requires_grad, machine=machine) for xi in x]
     else:
-        return torch.tensor(x, requires_grad=requires_grad)
+        return torch.tensor(x, requires_grad=requires_grad, device=machine)
 
 
 def torch_sparse(A):

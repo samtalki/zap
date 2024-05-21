@@ -57,7 +57,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_100")
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_1000")
     return pn,
 
 
@@ -91,7 +91,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
 
 @app.cell
 def __(load_pypsa_network, pn):
-    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=8)
+    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=1536)
 
     for _d in devices:
         print(type(_d))
@@ -99,16 +99,16 @@ def __(load_pypsa_network, pn):
 
 
 @app.cell
-def __(cp, devices, net, time_horizon):
-    result = net.dispatch(
-        devices,
-        time_horizon,
-        solver=cp.MOSEK,
-        add_ground=False,
-        solver_kwargs={"verbose": False}
-    )
-    result.problem.value
-    return result,
+def __():
+    # result = net.dispatch(
+    #     devices,
+    #     time_horizon,
+    #     solver=cp.MOSEK,
+    #     add_ground=False,
+    #     solver_kwargs={"verbose": False}
+    # )
+    # result.problem.value
+    return
 
 
 @app.cell
@@ -122,7 +122,7 @@ def __(
     time_horizon,
     torch,
 ):
-    _x = result.torchify()
+    _x = result.torchify(machine="cuda")
 
     # Compute global power / phase imbalance
     average_power = get_nodal_average(_x.power, net, devices, time_horizon)
@@ -236,45 +236,54 @@ def __(mo):
 
 
 @app.cell
-def __(torch):
-    # torch.concatenate([torch.tensor(1.0), torch.linalg.norm(torch.rand(4, 4).ravel(), 1)])
-    torch.tensor([torch.tensor(1.0), torch.linalg.norm(torch.rand(4, 4).ravel(), 1)])
+def __(devices, simple_result, torch, zap):
+    _i = 0
+    _dev = devices[_i]
+
+    _x = simple_result.torchify().power[_i]
+    _y_cpu = zap.admm.util.apply_incidence(_dev, _x)
+    _y_gpu = zap.admm.util.apply_incidence_gpu(_dev, _x)
+    print(torch.linalg.norm(torch.tensor(_y_cpu[0]) - _y_gpu[0]).item())
+
+    _xt = simple_result.torchify().prices
+    _y_cpu = zap.admm.util.apply_incidence_transpose(_dev, _xt)
+    _y_gpu = zap.admm.util.apply_incidence_transpose_gpu(_dev, _xt)
+    print(torch.linalg.norm(torch.tensor(_y_cpu[0]) - _y_gpu[0]).item())
     return
 
 
 @app.cell
-def __(
-    ADMMSolver,
-    admm_num_iters,
-    eps_pd,
-    net,
-    rho_angle,
-    rho_power,
-    simple_devices,
-    simple_result,
-    time_horizon,
-):
+def __(simple_devices):
+    print("Total Devices: ", sum([d.num_devices for d in simple_devices]))
+    return
+
+
+@app.cell
+def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power):
     admm = ADMMSolver(
         num_iterations=admm_num_iters,
         rho_power=rho_power,
         rho_angle=rho_angle,
         rtol=eps_pd,
         resid_norm=2,
-        safe_mode=True,
+        safe_mode=False,
+        machine="cuda",
         # weighting_strategy=weighting_strategy,
         # weighting_seed=0,
     )
-
-    state, history = admm.solve(
-        net, simple_devices, time_horizon, nu_star=-simple_result.prices
-    )
-    return admm, history, state
+    print("ADMM solving with ", admm.machine)
+    return admm,
 
 
 @app.cell
-def __(state):
-    state.power[0]
-    return
+def __(admm, net, simple_devices, simple_result, time_horizon, torch):
+    state, history = admm.solve(
+        net,
+        simple_devices,
+        time_horizon,
+        nu_star=torch.tensor(-simple_result.prices, device=admm.machine),
+    )
+    return history, state
 
 
 @app.cell
@@ -288,7 +297,7 @@ def __():
     rho_power = 2.0  # 0.5
     rho_angle = 5.0 * rho_power  # 5.0 * rho_power
 
-    admm_num_iters = 300
+    admm_num_iters = 1000
     return admm_num_iters, rho_angle, rho_power
 
 
@@ -389,6 +398,7 @@ def __():
 
 @app.cell(hide_code=True)
 def __(
+    admm,
     fstar,
     history,
     nested_norm,
@@ -397,7 +407,7 @@ def __(
     state,
     torch,
 ):
-    _x = simple_result.torchify()
+    _x = simple_result.torchify(machine=admm.machine)
 
     print("f/f* =", history.objective[-1] / fstar)
     print(
@@ -417,8 +427,8 @@ def __(
 
 
 @app.cell(hide_code=True)
-def __(plt, rho_power, simple_result, state, torch):
-    _x = simple_result.torchify()
+def __(admm, plt, rho_power, simple_result, state, torch):
+    _x = simple_result.torchify(machine=admm.machine)
 
     print(
         torch.linalg.norm(_x.prices + state.dual_power * rho_power, 1)
@@ -426,7 +436,7 @@ def __(plt, rho_power, simple_result, state, torch):
     )
     price_errs = ((_x.prices + state.dual_power * rho_power) / torch.maximum(
         torch.abs(_x.prices), torch.tensor(1.0)
-    )).numpy()
+    )).cpu().numpy()
 
     plt.figure(figsize=(7, 2))
     plt.scatter(range(price_errs.size), price_errs.flatten(), s=4)
@@ -489,8 +499,8 @@ def __(np, simple_devices, sp):
 
 
 @app.cell
-def __(np, state):
-    np.max(state.phase[3][0] - state.phase[3][1])
+def __():
+    # np.max(state.phase[3][0] - state.phase[3][1])
     return
 
 

@@ -11,6 +11,8 @@ from zap.admm.util import (
     dc_average,
     ac_average,
     get_terminal_residual,
+    apply_incidence,
+    apply_incidence_transpose,
 )
 
 
@@ -53,6 +55,12 @@ class ADMMSolver:
     resid_norm: object = None
     safe_mode: bool = False
     track_objective: bool = True
+    machine: str = None
+
+    def __post_init__(self):
+        if self.machine is None:
+            # Infer machine
+            self.machine = "cuda" if torch.cuda.is_available() else "cpu"
 
     def get_rho(self):
         rho_power = self.rho_power
@@ -72,6 +80,11 @@ class ADMMSolver:
         # Initialize
         st = self.initialize_solver(net, devices, time_horizon)
         history = self.initialize_history()
+
+        # Cache device data
+        self.device_data = [
+            d.device_data(la=torch, machine=self.machine, **p) for d, p in zip(devices, parameters)
+        ]
 
         for iteration in range(self.num_iterations):
             # (1) Device proximal updates
@@ -121,6 +134,7 @@ class ADMMSolver:
                 power_weights=w_p,
                 angle_weights=w_v,
                 **parameters[i],
+                data=self.device_data[i],
             )
             st.power[i] = p
             st.phase[i] = v
@@ -128,10 +142,15 @@ class ADMMSolver:
         return st
 
     def set_power(self, dev: AbstractDevice, dev_index: int, st: ADMMState):
+        AT_pbar_plus_nu = apply_incidence_transpose(dev, st.avg_power + st.dual_power)
         return [
-            p - Ai.T @ (st.avg_power + st.dual_power)
-            for p, Ai in zip(st.power[dev_index], dev.incidence_matrix)
+            p - AT_pbar_plus_nu_i
+            for p, AT_pbar_plus_nu_i in zip(st.power[dev_index], AT_pbar_plus_nu)
         ]
+        # return [
+        #     p - Ai.T @ (st.avg_power + st.dual_power)
+        #     for p, Ai in zip(st.power[dev_index], dev.incidence_matrix)
+        # ]
 
     def set_phase(self, dev: AbstractDevice, dev_index: int, st: ADMMState):
         if st.dual_phase[dev_index] is None:
@@ -146,8 +165,12 @@ class ADMMSolver:
         # Note: it's important to do this in two steps so that the correct averages
         # are used to calculate residuals.
         st = st.update(
-            avg_power=dc_average(st.power, net, devices, time_horizon, st.num_terminals),
-            avg_phase=ac_average(st.phase, net, devices, time_horizon, st.num_ac_terminals),
+            avg_power=dc_average(
+                st.power, net, devices, time_horizon, st.num_terminals, self.machine
+            ),
+            avg_phase=ac_average(
+                st.phase, net, devices, time_horizon, st.num_ac_terminals, self.machine
+            ),
         )
         st = st.update(
             resid_power=get_terminal_residual(st.power, st.avg_power, devices),
@@ -178,17 +201,19 @@ class ADMMSolver:
 
     def numerical_checks(self, st: ADMMState, net, devices, time_horizon):
         # Dual phases should average to zero
-        avg_dual_phase = ac_average(st.dual_phase, net, devices, time_horizon, st.num_ac_terminals)
+        avg_dual_phase = ac_average(
+            st.dual_phase, net, devices, time_horizon, st.num_ac_terminals, self.machine
+        )
         torch.testing.assert_allclose(nested_norm(avg_dual_phase), 0.0, rtol=1e-8, atol=1e-8)
         return True
 
     def compute_objective(self, st: ADMMState, devices: list[AbstractDevice]):
         # TODO Incorporate local variables
         costs = [
-            d.operation_cost(st.power[i], st.phase[i], None, la=torch)
+            d.operation_cost(st.power[i], st.phase[i], None, la=torch, data=self.device_data[i])
             for i, d in enumerate(devices)
         ]
-        return sum(costs)
+        return sum(costs).item()
 
     def has_converged(self, st: ADMMState):
         return False
@@ -252,17 +277,23 @@ class ADMMSolver:
         self.angle_weights = [None for _ in devices]
 
         # Setup state
-        num_terminals = get_num_terminals(net, devices)
-        num_ac_terminals = get_num_terminals(net, devices, only_ac=True)
+        num_terminals = get_num_terminals(net, devices, machine=self.machine)
+        num_ac_terminals = get_num_terminals(net, devices, only_ac=True, machine=self.machine)
 
-        power_var = [d.admm_initialize_power_variables(time_horizon) for d in devices]
-        phase_var = [d.admm_initialize_angle_variables(time_horizon) for d in devices]
+        power_var = [d.admm_initialize_power_variables(time_horizon, self.machine) for d in devices]
+        phase_var = [d.admm_initialize_angle_variables(time_horizon, self.machine) for d in devices]
 
-        power_dual = dc_average(power_var, net, devices, time_horizon, num_terminals)
-        phase_dual = [d.admm_initialize_angle_variables(time_horizon) for d in devices]
+        power_dual = dc_average(
+            power_var, net, devices, time_horizon, num_terminals, machine=self.machine
+        )
+        phase_dual = [
+            d.admm_initialize_angle_variables(time_horizon, self.machine) for d in devices
+        ]
 
-        power_bar = dc_average(power_var, net, devices, time_horizon, num_terminals)
-        theta_bar = ac_average(phase_var, net, devices, time_horizon, num_ac_terminals)
+        power_bar = dc_average(power_var, net, devices, time_horizon, num_terminals, self.machine)
+        theta_bar = ac_average(
+            phase_var, net, devices, time_horizon, num_ac_terminals, self.machine
+        )
 
         theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
         power_tilde = get_terminal_residual(power_var, power_bar, devices)

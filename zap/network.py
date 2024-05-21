@@ -156,18 +156,22 @@ class DispatchOutcome(Sequence):
     def _total_len(self, variable):
         return sum([0 if x is None else sum([xi.size for xi in x]) for x in variable])
 
-    def torchify(self, requires_grad=False):
+    def torchify(self, requires_grad=False, machine=None):
         return DispatchOutcome(
-            phase_duals=torchify(self.phase_duals, requires_grad=requires_grad),
-            local_equality_duals=torchify(self.local_equality_duals, requires_grad=requires_grad),
-            local_inequality_duals=torchify(
-                self.local_inequality_duals, requires_grad=requires_grad
+            phase_duals=torchify(self.phase_duals, requires_grad=requires_grad, machine=machine),
+            local_equality_duals=torchify(
+                self.local_equality_duals, requires_grad=requires_grad, machine=machine
             ),
-            local_variables=torchify(self.local_variables, requires_grad=requires_grad),
-            power=torchify(self.power, requires_grad=requires_grad),
-            angle=torchify(self.angle, requires_grad=requires_grad),
-            prices=torchify(self.prices, requires_grad=requires_grad),
-            global_angle=torchify(self.global_angle, requires_grad=requires_grad),
+            local_inequality_duals=torchify(
+                self.local_inequality_duals, requires_grad=requires_grad, machine=machine
+            ),
+            local_variables=torchify(
+                self.local_variables, requires_grad=requires_grad, machine=machine
+            ),
+            power=torchify(self.power, requires_grad=requires_grad, machine=machine),
+            angle=torchify(self.angle, requires_grad=requires_grad, machine=machine),
+            prices=torchify(self.prices, requires_grad=requires_grad, machine=machine),
+            global_angle=torchify(self.global_angle, requires_grad=requires_grad, machine=machine),
         )
 
     def vectorize(self):

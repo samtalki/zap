@@ -152,6 +152,33 @@ class AbstractDevice:
         else:
             return terminals.shape[1]
 
+    def torch_terminals(self, time_horizon, machine="cpu") -> list[torch.Tensor]:
+        # Effectively caching manually
+        if (
+            hasattr(self, "_torch_terminals")
+            and self._torch_terminal_time_horizon == time_horizon
+            and self._torch_terminal_machine == machine
+        ):
+            return self._torch_terminals
+
+        if len(self.terminals.shape) == 1:
+            torch_terminals = [
+                torch.tensor(self.terminals, device=machine).reshape(-1, 1).expand(-1, time_horizon)
+            ]
+        else:
+            torch_terminals = [
+                torch.tensor(self.terminals[:, i], device=machine)
+                .reshape(-1, 1)
+                .expand(-1, time_horizon)
+                for i in range(self.num_terminals_per_device)
+            ]
+
+        self._torch_terminals = torch_terminals
+        self._torch_terminal_time_horizon = time_horizon
+        self._torch_terminal_machine = machine
+
+        return torch_terminals
+
     @property
     def num_devices(self) -> int:
         return self.terminals.shape[0]
@@ -177,10 +204,16 @@ class AbstractDevice:
 
     # Modeling Tools
 
-    def device_data(self, la=np, **kwargs):
+    def device_data(self, la=np, machine=None, **kwargs):
         data = self._device_data(**kwargs)
+        if machine is None:
+            machine = "cuda" if torch.cuda.is_available() else "cpu"
+
+        if machine == "cuda":
+            print(f"Warning: moving data to GPU for device {type(self)}")
+
         if la == torch:
-            data = type(data)(*[torchify(x) for x in data])
+            data = type(data)(*[torchify(x, machine=machine) for x in data])
 
         return data
 
