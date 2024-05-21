@@ -1,6 +1,6 @@
 import dataclasses
 import functools
-import numpy as np
+import torch
 
 from zap.devices.abstract import AbstractDevice
 from zap.admm.util import (
@@ -179,12 +179,15 @@ class ADMMSolver:
     def numerical_checks(self, st: ADMMState, net, devices, time_horizon):
         # Dual phases should average to zero
         avg_dual_phase = ac_average(st.dual_phase, net, devices, time_horizon, st.num_ac_terminals)
-        np.testing.assert_allclose(nested_norm(avg_dual_phase), 0.0, atol=1e-8)
+        torch.testing.assert_allclose(nested_norm(avg_dual_phase), 0.0, rtol=1e-8, atol=1e-8)
         return True
 
     def compute_objective(self, st: ADMMState, devices: list[AbstractDevice]):
         # TODO Incorporate local variables
-        costs = [d.operation_cost(st.power[i], st.phase[i], None) for i, d in enumerate(devices)]
+        costs = [
+            d.operation_cost(st.power[i], st.phase[i], None, la=torch)
+            for i, d in enumerate(devices)
+        ]
         return sum(costs)
 
     def has_converged(self, st: ADMMState):
@@ -202,15 +205,15 @@ class ADMMSolver:
 
         if nu_star is not None:
             history.price_error += [
-                np.linalg.norm((st.dual_power * self.rho_power - nu_star).ravel(), p)
+                torch.linalg.norm((st.dual_power * self.rho_power - nu_star).ravel(), p).item()
             ]
 
         return history
 
     def update_primal_residuals(self, history: ADMMState, st: ADMMState):
         p = self.resid_norm
-        history.power += [np.linalg.norm(st.avg_power.ravel(), p)]
-        history.phase += [nested_norm(st.resid_phase, p)]
+        history.power += [torch.linalg.norm(st.avg_power.ravel(), p).item()]
+        history.phase += [nested_norm(st.resid_phase, p).item()]
         return history
 
     def update_dual_residuals(
@@ -219,9 +222,9 @@ class ADMMSolver:
         p = self.resid_norm
 
         dual_resid_power = nested_subtract(st.resid_power, last_resid_power, self.rho_power)
-        history.dual_power += [nested_norm(dual_resid_power, p)]
+        history.dual_power += [nested_norm(dual_resid_power, p).item()]
         history.dual_phase += [
-            np.linalg.norm((st.avg_phase - last_avg_phase).ravel() * self.rho_angle, p)
+            torch.linalg.norm((st.avg_phase - last_avg_phase).ravel() * self.rho_angle, p).item()
         ]
 
         return history

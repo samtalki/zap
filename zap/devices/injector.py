@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
+import torch
 
 from collections import namedtuple
 from dataclasses import dataclass
@@ -145,7 +146,7 @@ class Injector(AbstractDevice):
     # ====
 
     def admm_initialize_power_variables(self, time_horizon: int):
-        return [np.zeros((self.num_devices, time_horizon))]
+        return [torch.zeros((self.num_devices, time_horizon))]
 
     def admm_initialize_angle_variables(self, time_horizon: int):
         return None
@@ -157,17 +158,16 @@ class Injector(AbstractDevice):
         power,
         angle,
         nominal_capacity=None,
-        la=np,
         power_weights=None,
         angle_weights=None,
     ):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        data = self.device_data(nominal_capacity=nominal_capacity, la=torch)
         assert angle is None
 
         if power_weights is None:
-            power_weights = [1.0]
+            power_weights = [torch.tensor(1.0)]
 
-        Dp2 = [np.power(p, 2) for p in power_weights]
+        Dp2 = [torch.pow(p, 2) for p in power_weights]
 
         # Problem is
         #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}
@@ -179,12 +179,12 @@ class Injector(AbstractDevice):
 
         num = rho_power * Dp2[0] * power[0] - data.linear_cost
         denom = 2 * quadratic_cost + rho_power * Dp2[0]
-        p = np.divide(num, denom)
+        p = torch.divide(num, denom)
 
         # Finally, we project onto the box constraints
-        pmax = np.multiply(data.max_power, data.nominal_capacity)
-        pmin = np.multiply(data.min_power, data.nominal_capacity)
-        p = np.clip(p, pmin, pmax)
+        pmax = torch.multiply(data.max_power, data.nominal_capacity)
+        pmin = torch.multiply(data.min_power, data.nominal_capacity)
+        p = torch.clip(p, pmin, pmax)
 
         return [p], None
 

@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 def nested_map(f, *args, none_value=None):
@@ -24,18 +25,26 @@ def nested_subtract(x1, x2, alpha=None):
 
 def nested_norm(data, p=None):
     mini_norms = [
-        ([0.0] if x_dev is None else [np.linalg.norm(x.ravel(), p) for x in x_dev])
+        (
+            torch.tensor([0.0])
+            if x_dev is None
+            else torch.tensor([torch.linalg.norm(x.ravel(), p) for x in x_dev])
+        )
         for x_dev in data
     ]
-    return np.linalg.norm(np.concatenate(mini_norms), p)
+    return torch.linalg.norm(torch.concatenate(mini_norms), p)
 
 
 def get_discrep(power1, power2):
     discreps = [
-        ([0.0] if p_admm is None else [np.linalg.norm(p1 - p2, 1) for p1, p2 in zip(p_admm, p_cvx)])
+        (
+            [0.0]
+            if p_admm is None
+            else [torch.linalg.norm(p1 - p2, 1) for p1, p2 in zip(p_admm, p_cvx)]
+        )
         for p_admm, p_cvx in zip(power1, power2)
     ]
-    return np.sum(np.concatenate(discreps))
+    return torch.sum(torch.tensor(discreps))
 
 
 def get_num_terminals(net, devices, only_ac=False):
@@ -48,21 +57,28 @@ def get_num_terminals(net, devices, only_ac=False):
         for t, c in zip(values, counts):
             terminal_counts[t] += c
 
-    return np.expand_dims(terminal_counts, 1)
+    return torch.tensor(np.expand_dims(terminal_counts, 1))
 
 
 def get_nodal_average(
-    powers, net, devices, time_horizon, num_terminals=None, only_ac=False, check_connections=True
+    powers,
+    net,
+    devices,
+    time_horizon,
+    num_terminals=None,
+    only_ac=False,
+    check_connections=True,
+    tol=torch.tensor(1e-8),
 ):
     if num_terminals is None:
         num_terminals = get_num_terminals(net, devices, only_ac=only_ac)
 
     if check_connections:
-        assert np.all(num_terminals > 0)
+        assert torch.all(num_terminals > 0)
     else:
-        num_terminals = np.maximum(num_terminals, 1e-8)
+        num_terminals = torch.maximum(num_terminals, tol)
 
-    average_x = np.zeros((net.num_nodes, time_horizon))
+    average_x = torch.zeros((net.num_nodes, time_horizon))
 
     for dev, x_dev in zip(devices, powers):
         if x_dev is None:
@@ -70,7 +86,7 @@ def get_nodal_average(
         for A_dt, x_dt in zip(dev.incidence_matrix, x_dev):
             average_x += A_dt @ x_dt
 
-    return np.divide(average_x, num_terminals)
+    return torch.divide(average_x, num_terminals)
 
 
 def get_terminal_residual(angles, average_angle, devices):

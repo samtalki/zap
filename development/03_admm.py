@@ -18,23 +18,14 @@ def __():
     import datetime as dt
 
     from copy import deepcopy
+    return cp, deepcopy, dt, importlib, mo, np, pd, pypsa, sp, torch
 
+
+@app.cell
+def __():
     import zap
     from zap import DispatchLayer
-    return (
-        DispatchLayer,
-        cp,
-        deepcopy,
-        dt,
-        importlib,
-        mo,
-        np,
-        pd,
-        pypsa,
-        sp,
-        torch,
-        zap,
-    )
+    return DispatchLayer, zap
 
 
 @app.cell
@@ -64,17 +55,17 @@ def __():
 
 
 @app.cell
-def __():
-    # pn = pypsa.Network()
-    # pn.import_from_csv_folder("data/pypsa/western/elec_s_100_ec")
-    return
+def __(pypsa):
+    pn = pypsa.Network()
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_100")
+    return pn,
 
 
 @app.cell(hide_code=True)
-def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, pypsa, zap):
+def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
     def load_pypsa_network(
+        pn,
         time_horizon=1,
-        num_nodes=100,
         start_date=dt.datetime(2019, 1, 2, 0),
         exclude_batteries=False,
         **pypsa_kwargs,
@@ -82,9 +73,6 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, pypsa, zap):
         all_kwargs = deepcopy(DEFAULT_PYPSA_KWARGS)
         all_kwargs.update(pypsa_kwargs)
         print(all_kwargs)
-
-        pn = pypsa.Network()
-        pn.import_from_csv_folder(f"data/pypsa/western/elec_s_{num_nodes}")
 
         dates = pd.date_range(
             start_date,
@@ -102,8 +90,8 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, pypsa, zap):
 
 
 @app.cell
-def __(load_pypsa_network):
-    net, devices, time_horizon = load_pypsa_network(time_horizon=8)
+def __(load_pypsa_network, pn):
+    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=8)
 
     for _d in devices:
         print(type(_d))
@@ -123,29 +111,31 @@ def __(cp, devices, net, time_horizon):
     return result,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(
     devices,
     get_nodal_average,
     get_terminal_residual,
     nested_norm,
     net,
-    np,
     result,
     time_horizon,
+    torch,
 ):
-    # Compute global power / phase imbalance
-    average_power = get_nodal_average(result.power, net, devices, time_horizon)
-    average_angle = get_nodal_average(
-        result.angle, net, devices, time_horizon, only_ac=True
-    )
-    global_phase_imbalance = average_angle - result.global_angle
+    _x = result.torchify()
 
-    print(f"Power Imbalance: {np.linalg.norm(average_power, 1)}")
-    print(f"Global Phase Imbalance: {np.linalg.norm(global_phase_imbalance, 1)}")
+    # Compute global power / phase imbalance
+    average_power = get_nodal_average(_x.power, net, devices, time_horizon)
+    average_angle = get_nodal_average(
+        _x.angle, net, devices, time_horizon, only_ac=True
+    )
+    global_phase_imbalance = average_angle - _x.global_angle
+
+    print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
+    print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
 
     # Compute local phase imbalance
-    phase_residual = get_terminal_residual(result.angle, average_angle, devices)
+    phase_residual = get_terminal_residual(_x.angle, average_angle, devices)
 
     print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
     return (
@@ -162,35 +152,36 @@ def __(mo):
     return
 
 
-@app.cell(hide_code=True)
-def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
-    simple_devices = deepcopy(devices[:3])
+@app.cell
+def __(cp, deepcopy, devices, nested_norm, net, time_horizon):
+    simple_devices = deepcopy(devices[:2])
     use_ac = True
 
     # Add AC or DC lines
-    if use_ac:
-        simple_devices += [deepcopy(devices[3])]
-    else:
-        simple_devices += [
-            deepcopy(
-                zap.DCLine(
-                    num_nodes=devices[3].num_nodes,
-                    source_terminal=devices[3].source_terminal,
-                    sink_terminal=devices[3].sink_terminal,
-                    capacity=devices[3].capacity,
-                    nominal_capacity=devices[3].nominal_capacity,
-                    linear_cost=devices[3].linear_cost,
-                )
-            )
-        ]
+    # if use_ac:
+    #     simple_devices += [deepcopy(devices[3])]
+    #     _ground = zap.Ground(
+    #         num_nodes=net.num_nodes,
+    #         terminal=np.array([0]),
+    #         voltage=np.array([0.0]),
+    #     )
+    #     simple_devices += [_ground]
+    # else:
+    #     simple_devices += [
+    #         deepcopy(
+    #             zap.DCLine(
+    #                 num_nodes=devices[3].num_nodes,
+    #                 source_terminal=devices[3].source_terminal,
+    #                 sink_terminal=devices[3].sink_terminal,
+    #                 capacity=devices[3].capacity,
+    #                 nominal_capacity=devices[3].nominal_capacity,
+    #                 linear_cost=devices[3].linear_cost,
+    #             )
+    #         )
+    #     ]
 
     # simple_devices[0].linear_cost = np.ones_like(simple_devices[0].linear_cost)
 
-    # # Add ground
-    # _ground = zap.Ground(
-    #     num_nodes=net.num_nodes, terminal=np.array([0]), voltage=np.array([0.0])
-    # )
-    # simple_devices += [_ground]
 
     # Dispatch
     simple_result = net.dispatch(
@@ -200,8 +191,8 @@ def __(cp, deepcopy, devices, nested_norm, net, time_horizon, zap):
         add_ground=False,
     )
 
-    print(nested_norm(simple_result.angle))
-    print(nested_norm(simple_result.power))
+    print(nested_norm(simple_result.torchify().angle))
+    print(nested_norm(simple_result.torchify().power))
 
     for _d in simple_devices:
         print(type(_d))
@@ -245,6 +236,13 @@ def __(mo):
 
 
 @app.cell
+def __(torch):
+    # torch.concatenate([torch.tensor(1.0), torch.linalg.norm(torch.rand(4, 4).ravel(), 1)])
+    torch.tensor([torch.tensor(1.0), torch.linalg.norm(torch.rand(4, 4).ravel(), 1)])
+    return
+
+
+@app.cell
 def __(
     ADMMSolver,
     admm_num_iters,
@@ -274,6 +272,12 @@ def __(
 
 
 @app.cell
+def __(state):
+    state.power[0]
+    return
+
+
+@app.cell
 def __(mo):
     mo.md("### Results")
     return
@@ -281,8 +285,8 @@ def __(mo):
 
 @app.cell
 def __():
-    rho_power = 0.5
-    rho_angle = 5.0 * rho_power
+    rho_power = 2.0  # 0.5
+    rho_angle = 5.0 * rho_power  # 5.0 * rho_power
 
     admm_num_iters = 300
     return admm_num_iters, rho_angle, rho_power
@@ -327,7 +331,7 @@ def __(admm_num_iters, eps_pd, fstar, np, plt, simple_result):
         ax.set_title("dual residuals")
 
         ax = axes[1][0]
-        ax.plot(np.abs(hist.objective - fstar) / fstar)
+        ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
         ax.set_yscale("log")
         ax.set_title("|f - f*| / f*")
 
@@ -384,44 +388,61 @@ def __():
 
 
 @app.cell(hide_code=True)
-def __(fstar, history, nested_norm, np, rho_power, simple_result, state):
+def __(
+    fstar,
+    history,
+    nested_norm,
+    rho_power,
+    simple_result,
+    state,
+    torch,
+):
+    _x = simple_result.torchify()
+
     print("f/f* =", history.objective[-1] / fstar)
     print(
-        "Power Imbalance:", np.linalg.norm(state.avg_power, 1) / nested_norm(simple_result.power)
+        "Power Imbalance:",
+        torch.linalg.norm(state.avg_power, 1) / nested_norm(_x.power),
     )
     print(
         "Phase Inconsistency:",
-        nested_norm(state.resid_phase) / (nested_norm(simple_result.angle) + 1e-8),
+        nested_norm(state.resid_phase) / (nested_norm(_x.angle) + 1e-8),
     )
     print(
         "Price Error:",
-        np.linalg.norm(state.dual_power * rho_power + simple_result.prices, 1)
-        / np.linalg.norm(simple_result.prices, 1),
+        torch.linalg.norm(state.dual_power * rho_power + _x.prices, 1)
+        / torch.linalg.norm(_x.prices, 1),
     )
     return
 
 
 @app.cell(hide_code=True)
-def __(np, plt, rho_power, simple_result, state):
+def __(plt, rho_power, simple_result, state, torch):
+    _x = simple_result.torchify()
+
     print(
-        np.linalg.norm(simple_result.prices + state.dual_power * rho_power, 1)
+        torch.linalg.norm(_x.prices + state.dual_power * rho_power, 1)
         / simple_result.prices.size
     )
-    price_errs = (simple_result.prices + state.dual_power * rho_power) / np.maximum(
-        np.abs(simple_result.prices), 1.0
-    )
+    price_errs = ((_x.prices + state.dual_power * rho_power) / torch.maximum(
+        torch.abs(_x.prices), torch.tensor(1.0)
+    )).numpy()
+
+    plt.figure(figsize=(7, 2))
     plt.scatter(range(price_errs.size), price_errs.flatten(), s=4)
     return price_errs,
 
 
-@app.cell
-def __(nested_norm, simple_devices, simple_result):
-    total_power = nested_norm(simple_result.power)
-    total_phase = nested_norm(simple_result.angle) + 1e-8
+@app.cell(hide_code=True)
+def __(nested_norm, simple_devices, simple_result, torch):
+    _x = simple_result.torchify()
+
+    total_power = nested_norm(_x.power)
+    total_phase = nested_norm(_x.angle) + 1e-8
     fstar = sum([
-        d.operation_cost(simple_result.power[i], simple_result.angle[i], None)
+        d.operation_cost(_x.power[i], _x.angle[i], None, la=torch)
         for i, d in enumerate(simple_devices)
-    ])
+    ]).item()
 
     # print(f"Absolute Power Error: {power_errors[-1]}")
     # print(f"Relative Power Error: {power_errors[-1] / total_power}\n")
