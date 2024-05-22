@@ -64,9 +64,10 @@ class Ground(AbstractDevice):
     def inequality_constraints(self, power, angle, local_variables, la=np, envelope=None):
         return []
 
-    def operation_cost(self, power, angle, local_variables, la=np, envelope=None):
+    def operation_cost(self, power, angle, local_variables, la=np, envelope=None, data=None):
         if la == torch:
-            return la.zeros(1)
+            machine = power[0].device
+            return la.zeros(1, device=machine)
         else:
             return 0.0
 

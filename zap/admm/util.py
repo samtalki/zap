@@ -20,18 +20,20 @@ def gather_sum(index, source):
 
 def apply_incidence(device: AbstractDevice, x_list: list[torch.Tensor]):
     machine = x_list[0].device
-    if machine.type == "cpu":
-        return apply_incidence_cpu(device, x_list)
-    else:
-        return apply_incidence_gpu(device, x_list)
+    # if machine.type == "cpu":
+    #     return apply_incidence_cpu(device, x_list)
+    # else:
+    #     return apply_incidence_gpu(device, x_list)
+    return apply_incidence_gpu(device, x_list)
 
 
 def apply_incidence_transpose(device: AbstractDevice, x: torch.Tensor):
     machine = x.device
-    if machine.type == "cpu":
-        return apply_incidence_transpose_cpu(device, x)
-    else:
-        return apply_incidence_transpose_gpu(device, x)
+    # if machine.type == "cpu":
+    #     return apply_incidence_transpose_cpu(device, x)
+    # else:
+    #     return apply_incidence_transpose_gpu(device, x)
+    return apply_incidence_transpose_gpu(device, x)
 
 
 def apply_incidence_cpu(device: AbstractDevice, x_list: list[torch.Tensor]):

@@ -156,10 +156,15 @@ class ADMMSolver:
         if st.dual_phase[dev_index] is None:
             return None
         else:
+            AT_theta_bar = apply_incidence_transpose(dev, st.avg_phase)
             return [
-                Ai.T @ st.avg_phase - v
-                for v, Ai in zip(st.dual_phase[dev_index], dev.incidence_matrix)
+                AT_theta_bar_i - v
+                for v, AT_theta_bar_i in zip(st.dual_phase[dev_index], AT_theta_bar)
             ]
+            # return [
+            #     Ai.T @ st.avg_phase - v
+            #     for v, Ai in zip(st.dual_phase[dev_index], dev.incidence_matrix)
+            # ]
 
     def update_averages_and_residuals(self, st: ADMMState, net, devices, time_horizon):
         # Note: it's important to do this in two steps so that the correct averages
