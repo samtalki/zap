@@ -88,23 +88,30 @@ class Ground(AbstractDevice):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int):
-        return [np.zeros((self.num_devices, time_horizon))]
+    def admm_initialize_power_variables(self, time_horizon: int, device="cpu"):
+        return [torch.zeros((self.num_devices, time_horizon), device=device)]
 
-    def admm_initialize_angle_variables(self, time_horizon: int):
-        return [np.zeros((self.num_devices, time_horizon))]
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
+        return [torch.zeros((self.num_devices, time_horizon), device=device)]
 
     def admm_prox_update(
-        self, rho_power, rho_angle, power, angle, power_weights=None, angle_weights=None, la=np
+        self,
+        rho_power,
+        rho_angle,
+        power,
+        angle,
+        power_weights=None,
+        angle_weights=None,
+        data=None,
     ):
-        data = self.device_data(la=la)
+        machine = power[0].device
 
         # Problem is
         #     min_p    {p = 0} + {a = voltage} + (rho/2) || p - power ||_2^2 + (rho/2) || a - angle ||_2^2
         # Solution is just
         #     p = 0, a = voltage
 
-        p = np.zeros_like(power[0])
-        a = np.zeros_like(angle[0]) + data.voltage
+        p = torch.zeros_like(power[0], device=machine)
+        a = torch.zeros_like(angle[0], device=machine) + data.voltage
 
         return [p], [a]

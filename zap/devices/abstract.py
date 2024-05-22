@@ -209,10 +209,10 @@ class AbstractDevice:
         if machine is None:
             machine = "cuda" if torch.cuda.is_available() else "cpu"
 
-        if machine == "cuda":
-            print(f"Warning: moving data to GPU for device {type(self)}")
-
         if la == torch:
+            if machine == "cuda":
+                print(f"Warning: moving data to GPU for device {type(self)}")
+
             data = type(data)(*[torchify(x, machine=machine) for x in data])
 
         return data

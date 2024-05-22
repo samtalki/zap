@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
+import torch
 
 from collections import namedtuple
 from dataclasses import dataclass
@@ -121,8 +122,11 @@ class Transporter(AbstractDevice):
             power[1] - la.multiply(data.max_power, data.nominal_capacity) - data.slack,
         ]
 
-    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+    def operation_cost(
+        self, power, angle, _, nominal_capacity=None, la=np, envelope=None, data=None
+    ):
+        if data is None:
+            data = self.device_data(nominal_capacity=nominal_capacity, la=la)
 
         cost = la.sum(la.multiply(data.linear_cost, la.abs(power[1])))
         if data.quadratic_cost is not None:
@@ -154,10 +158,11 @@ class Transporter(AbstractDevice):
     # PLANNING
     # ====
 
-    def get_investment_cost(self, nominal_capacity=None, la=np):
+    def get_investment_cost(self, nominal_capacity=None, la=np, data=None):
         # Get original nominal capacity and capital cost
         # Nominal capacity isn't passed here because we want to use the original value
-        data = self.device_data(la=la)
+        if data is None:
+            data = self.device_data(la=la)
 
         if self.capital_cost is None or nominal_capacity is None:
             print("No capital cost or nominal capacity")
@@ -187,13 +192,13 @@ class Transporter(AbstractDevice):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int):
+    def admm_initialize_power_variables(self, time_horizon: int, device="cpu"):
         return [
-            np.zeros((self.num_devices, time_horizon)),
-            np.zeros((self.num_devices, time_horizon)),
+            torch.zeros((self.num_devices, time_horizon), device=device),
+            torch.zeros((self.num_devices, time_horizon), device=device),
         ]
 
-    def admm_initialize_angle_variables(self, time_horizon: int):
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
         return None
 
     def admm_prox_update(
@@ -203,27 +208,28 @@ class Transporter(AbstractDevice):
         power,
         angle,
         nominal_capacity=None,
-        la=np,
         power_weights=None,
         angle_weights=None,
+        data=None,
     ):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        assert data is not None
+        assert angle is None
+        machine = power[0].device
+
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
-        pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
-        pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
+        pmax = torch.multiply(data.max_power, data.nominal_capacity) + data.slack
+        pmin = torch.multiply(data.min_power, data.nominal_capacity) - data.slack
 
         if power_weights is None:
-            power_weights = [1.0, 1.0]
+            power_weights = [torch.tensor(1.0, device=machine) for _ in power]
 
-        Dp2 = [np.power(p, 2) for p in power_weights]
-
-        assert angle is None
+        Dp2 = [torch.pow(p, 2) for p in power_weights]
 
         # TODO
         # This shouldn't be too hard, we just solve the two cases (p1 < 0) and (p1 > 0)
         # Then project onto [pmin, 0] and [0, pmax]
         # Then pick the better of the two
-        assert np.sum(np.abs(data.linear_cost)) == 0.0
+        # assert torch.sum(torch.abs(data.linear_cost)) == 0.0
 
         # Problem is
         #     min_p    a p1^2 + b |p1|
@@ -248,10 +254,10 @@ class Transporter(AbstractDevice):
 
         # This term is always positive, so we can pick it after choosing the sign
         denom = 2 * quadratic_cost + rho_power * (Dp2[0] + Dp2[1])
-        p1 = np.divide(num, denom)
+        p1 = torch.divide(num, denom)
 
         # Finally, we project onto the box constraints
-        p1 = np.clip(p1, pmin, pmax)
+        p1 = torch.clip(p1, pmin, pmax)
         p0 = -p1
 
         return [p0, p1], None

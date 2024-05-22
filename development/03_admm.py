@@ -91,7 +91,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
 
 @app.cell
 def __(load_pypsa_network, pn):
-    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=1536)
+    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24)
 
     for _d in devices:
         print(type(_d))
@@ -99,16 +99,16 @@ def __(load_pypsa_network, pn):
 
 
 @app.cell
-def __():
-    # result = net.dispatch(
-    #     devices,
-    #     time_horizon,
-    #     solver=cp.MOSEK,
-    #     add_ground=False,
-    #     solver_kwargs={"verbose": False}
-    # )
-    # result.problem.value
-    return
+def __(cp, devices, net, time_horizon):
+    result = net.dispatch(
+        devices,
+        time_horizon,
+        solver=cp.MOSEK,
+        add_ground=False,
+        solver_kwargs={"verbose": False}
+    )
+    result.problem.value
+    return result,
 
 
 @app.cell
@@ -153,36 +153,41 @@ def __(mo):
 
 
 @app.cell
-def __(cp, deepcopy, devices, nested_norm, net, time_horizon):
+def __(deepcopy, devices, net, np, zap):
     simple_devices = deepcopy(devices[:2])
-    use_ac = True
+    use_ac = False
 
     # Add AC or DC lines
-    # if use_ac:
-    #     simple_devices += [deepcopy(devices[3])]
-    #     _ground = zap.Ground(
-    #         num_nodes=net.num_nodes,
-    #         terminal=np.array([0]),
-    #         voltage=np.array([0.0]),
-    #     )
-    #     simple_devices += [_ground]
-    # else:
-    #     simple_devices += [
-    #         deepcopy(
-    #             zap.DCLine(
-    #                 num_nodes=devices[3].num_nodes,
-    #                 source_terminal=devices[3].source_terminal,
-    #                 sink_terminal=devices[3].sink_terminal,
-    #                 capacity=devices[3].capacity,
-    #                 nominal_capacity=devices[3].nominal_capacity,
-    #                 linear_cost=devices[3].linear_cost,
-    #             )
-    #         )
-    #     ]
+    if use_ac:
+        simple_devices += [deepcopy(devices[3])]
+    else:
+        simple_devices += [
+            deepcopy(
+                zap.DCLine(
+                    num_nodes=devices[3].num_nodes,
+                    source_terminal=devices[3].source_terminal,
+                    sink_terminal=devices[3].sink_terminal,
+                    capacity=devices[3].capacity,
+                    nominal_capacity=devices[3].nominal_capacity,
+                    linear_cost=devices[3].linear_cost,
+                )
+            )
+        ]
 
-    # simple_devices[0].linear_cost = np.ones_like(simple_devices[0].linear_cost)
+    _ground = zap.Ground(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0]),
+        voltage=np.array([0.0]),
+    )
+    simple_devices += [_ground]
+
+    for _d in simple_devices:
+        print(type(_d))
+    return simple_devices, use_ac
 
 
+@app.cell
+def __(cp, nested_norm, net, simple_devices, time_horizon):
     # Dispatch
     simple_result = net.dispatch(
         simple_devices,
@@ -191,12 +196,10 @@ def __(cp, deepcopy, devices, nested_norm, net, time_horizon):
         add_ground=False,
     )
 
+    print(simple_result.problem.solver_stats)
     print(nested_norm(simple_result.torchify().angle))
     print(nested_norm(simple_result.torchify().power))
-
-    for _d in simple_devices:
-        print(type(_d))
-    return simple_devices, simple_result, use_ac
+    return simple_result,
 
 
 @app.cell(hide_code=True)
@@ -252,7 +255,7 @@ def __(devices, simple_result, torch, zap):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(simple_devices):
     print("Total Devices: ", sum([d.num_devices for d in simple_devices]))
     return
@@ -268,10 +271,8 @@ def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power):
         resid_norm=2,
         safe_mode=False,
         machine="cuda",
-        # weighting_strategy=weighting_strategy,
-        # weighting_seed=0,
     )
-    print("ADMM solving with ", admm.machine)
+    print("ADMM solving with", admm.machine)
     return admm,
 
 
@@ -297,7 +298,7 @@ def __():
     rho_power = 2.0  # 0.5
     rho_angle = 5.0 * rho_power  # 5.0 * rho_power
 
-    admm_num_iters = 1000
+    admm_num_iters = 500
     return admm_num_iters, rho_angle, rho_power
 
 
@@ -308,14 +309,18 @@ def __():
 
 
 @app.cell
-def __(nested_map, np, simple_result, time_horizon):
+def __():
     eps_abs = 1e-3
+    return eps_abs,
+
+
+@app.cell(hide_code=True)
+def __(eps_abs, nested_map, np, simple_result, time_horizon):
     _total_num_terminals = sum(
         [sum(x) for x in nested_map(lambda x: x.shape[0], simple_result.power)]
     )
     eps_pd = eps_abs * np.sqrt(_total_num_terminals * time_horizon)
-    eps_pd
-    return eps_abs, eps_pd
+    return eps_pd,
 
 
 @app.cell(hide_code=True)

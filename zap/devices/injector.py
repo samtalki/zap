@@ -165,11 +165,12 @@ class Injector(AbstractDevice):
         angle_weights=None,
         data=None,
     ):
+        assert data is not None
         machine = power[0].device
 
-        if data is None:
-            print("Warning: prox update recreating device data.")
-            data = self.device_data(nominal_capacity=nominal_capacity, la=torch, machine=machine)
+        # if data is None:
+        #     print("Warning: prox update recreating device data.")
+        #     data = self.device_data(nominal_capacity=nominal_capacity, la=torch, machine=machine)
 
         assert angle is None
 
