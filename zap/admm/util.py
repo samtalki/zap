@@ -19,7 +19,7 @@ def gather_sum(index, source):
 
 
 def apply_incidence(device: AbstractDevice, x_list: list[torch.Tensor]):
-    machine = x_list[0].device
+    # machine = x_list[0].device
     # if machine.type == "cpu":
     #     return apply_incidence_cpu(device, x_list)
     # else:
@@ -28,7 +28,7 @@ def apply_incidence(device: AbstractDevice, x_list: list[torch.Tensor]):
 
 
 def apply_incidence_transpose(device: AbstractDevice, x: torch.Tensor):
-    machine = x.device
+    # machine = x.device
     # if machine.type == "cpu":
     #     return apply_incidence_transpose_cpu(device, x)
     # else:

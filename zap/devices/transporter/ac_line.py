@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
+import torch
 from collections import namedtuple
 
 from zap.devices.abstract import make_dynamic
@@ -146,10 +147,10 @@ class ACLine(PowerLine):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_angle_variables(self, time_horizon: int):
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
         return [
-            np.zeros((self.num_devices, time_horizon)),
-            np.zeros((self.num_devices, time_horizon)),
+            torch.zeros((self.num_devices, time_horizon), device=device),
+            torch.zeros((self.num_devices, time_horizon), device=device),
         ]
 
     def admm_prox_update(
@@ -161,21 +162,24 @@ class ACLine(PowerLine):
         nominal_capacity=None,
         power_weights=None,
         angle_weights=None,
-        la=np,
         cvx_mode=False,
+        data=None,
     ):
+        assert data is not None
+        # machine = power[0].device
+        # data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+
         if cvx_mode:
             return self.cvx_admm_prox_update(
                 rho_power, rho_angle, power, angle, nominal_capacity=None
             )
 
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
-        pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
-        pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
-        susceptance = la.multiply(data.susceptance, data.nominal_capacity)
+        pmax = torch.multiply(data.max_power, data.nominal_capacity) + data.slack
+        pmin = torch.multiply(data.min_power, data.nominal_capacity) - data.slack
+        susceptance = torch.multiply(data.susceptance, data.nominal_capacity)
 
-        assert np.sum(np.abs(data.linear_cost)) == 0.0  # TODO
+        # assert torch.sum(torch.abs(data.linear_cost)) == 0.0  # TODO
 
         # See transporter for details on derivation
         # Here, we also have angle variables
@@ -188,7 +192,7 @@ class ACLine(PowerLine):
         # where:
         #   mu = 1 / (2 * susceptance)
 
-        mu = 1 / (2 * susceptance)
+        mu = torch.divide(1, 2 * susceptance)
 
         # Now we can solve a minimization problem over just p1
         # with solution:
@@ -196,10 +200,10 @@ class ACLine(PowerLine):
         #   =
         #   rho (power1 - power0 + mu angle[1] - mu angle[0])
         num = rho_power * (power[1] - power[0]) + rho_angle * mu * (angle[0] - angle[1])
-        denom = 2 * (quadratic_cost + rho_power + rho_angle * np.power(mu, 2))
+        denom = 2 * (quadratic_cost + rho_power + rho_angle * torch.pow(mu, 2))
 
-        p1 = np.divide(num, denom)
-        p1 = np.clip(p1, pmin, pmax)
+        p1 = torch.divide(num, denom)
+        p1 = torch.clip(p1, pmin, pmax)
 
         # Solve for other variables
         p0 = -p1

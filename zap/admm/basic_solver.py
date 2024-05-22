@@ -11,7 +11,6 @@ from zap.admm.util import (
     dc_average,
     ac_average,
     get_terminal_residual,
-    apply_incidence,
     apply_incidence_transpose,
 )
 

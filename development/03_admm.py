@@ -57,7 +57,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_1000")
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_500")
     return pn,
 
 
@@ -91,7 +91,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
 
 @app.cell
 def __(load_pypsa_network, pn):
-    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24)
+    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * 64)
 
     for _d in devices:
         print(type(_d))
@@ -99,16 +99,16 @@ def __(load_pypsa_network, pn):
 
 
 @app.cell
-def __(cp, devices, net, time_horizon):
-    result = net.dispatch(
-        devices,
-        time_horizon,
-        solver=cp.MOSEK,
-        add_ground=False,
-        solver_kwargs={"verbose": False}
-    )
-    result.problem.value
-    return result,
+def __():
+    # result = net.dispatch(
+    #     devices,
+    #     time_horizon,
+    #     solver=cp.MOSEK,
+    #     add_ground=False,
+    #     solver_kwargs={"verbose": False}
+    # )
+    # result.problem.value
+    return
 
 
 @app.cell
@@ -154,8 +154,8 @@ def __(mo):
 
 @app.cell
 def __(deepcopy, devices, net, np, zap):
-    simple_devices = deepcopy(devices[:2])
-    use_ac = False
+    simple_devices = deepcopy(devices[:3])
+    use_ac = True
 
     # Add AC or DC lines
     if use_ac:
@@ -287,7 +287,7 @@ def __(admm, net, simple_devices, simple_result, time_horizon, torch):
     return history, state
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(mo):
     mo.md("### Results")
     return
@@ -295,7 +295,7 @@ def __(mo):
 
 @app.cell
 def __():
-    rho_power = 2.0  # 0.5
+    rho_power = 0.5  # 0.5
     rho_angle = 5.0 * rho_power  # 5.0 * rho_power
 
     admm_num_iters = 500
