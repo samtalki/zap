@@ -29,19 +29,19 @@ class DualACLine(ACLine):
         return []
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
-        assert data.quadratic_cost is None
-        np.testing.assert_allclose(data.linear_cost, 0.0)
+        assert self.quadratic_cost is None
+        np.testing.assert_allclose(self.linear_cost, 0.0)
 
         # Absolutely hate 1-indexing
         z1, z2 = power[0], power[1]
         mu1, _ = angle[0], angle[1]
 
-        b = data.susceptance
-        pnom = data.nominal_capacity
-        pmax = data.max_power
-        slack = data.slack
+        b = self.susceptance
+        pnom = nominal_capacity
+        pmax = self.max_power
+        slack = self.slack
 
         # The cost function is
         #   = | (z2 - z1) * upper + mu1 * upper / (b * pnom) |

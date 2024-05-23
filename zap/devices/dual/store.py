@@ -33,27 +33,27 @@ class DualBattery(Battery):
         return []
 
     def operation_cost(self, power, angle, state, power_capacity=None, la=np, envelope=None):
-        data = self.device_data(power_capacity=power_capacity, la=la)
-        assert data.quadratic_cost is None
+        assert self.quadratic_cost is None
+        power_capacity = self.parameterize(power_capacity=power_capacity, la=la)
 
         # Dual variables
         z = power[0]
         lamb = state[0]
 
         # Parameters
-        rho = data.charge_efficiency
-        pmax = data.power_capacity
+        rho = self.charge_efficiency
+        pmax = power_capacity
 
         if not use_envelope(envelope):
-            smax = pmax * data.duration
+            smax = pmax * self.duration
 
             # Charge and discharge terms
             c_term = la.multiply(-z - la.multiply(rho, lamb), pmax)
-            d_term = la.multiply(lamb + z - data.linear_cost, pmax)
+            d_term = la.multiply(lamb + z - self.linear_cost, pmax)
 
             # Energy terms
-            s1_term = la.multiply(-lamb[:, [0]], data.initial_soc * smax)
-            sT_term = la.multiply(lamb[:, [-1]], data.final_soc * smax)
+            s1_term = la.multiply(-lamb[:, [0]], self.initial_soc * smax)
+            sT_term = la.multiply(lamb[:, [-1]], self.final_soc * smax)
 
             # Note - this should have (T-1) columns
             s_term = la.multiply(lamb[:, :-1] - lamb[:, 1:], smax)
@@ -68,17 +68,17 @@ class DualBattery(Battery):
 
             z_pmax = envelope_variable(pmax, z, lb, ub, -max_z, max_z, *env)
             lamb_pmax = envelope_variable(pmax, lamb, lb, ub, -max_z, max_z, *env)
-            lamb_smax = la.multiply(data.duration, lamb_pmax)
+            lamb_smax = la.multiply(self.duration, lamb_pmax)
 
             # Charge and discharge terms
             # c = z * pmax - rho * lamb * lmax
             # d = lamb * pmax - z * pmax - c_lin * pmax
             c_term = z_pmax - la.multiply(rho, lamb_pmax)
-            d_term = lamb_pmax - z_pmax - la.multiply(data.linear_cost, pmax)
+            d_term = lamb_pmax - z_pmax - la.multiply(self.linear_cost, pmax)
 
             # Energy terms
-            s1_term = la.multiply(-lamb_pmax[:, [0]], data.initial_soc)
-            sT_term = la.multiply(lamb_pmax[:, [-1]], data.final_soc)
+            s1_term = la.multiply(-lamb_pmax[:, [0]], self.initial_soc)
+            sT_term = la.multiply(lamb_pmax[:, [-1]], self.final_soc)
             s_term = lamb_smax[:, :-1] - lamb_smax[:, 1:]
 
         op_cost = la.sum(la.maximum(0.0, c_term))

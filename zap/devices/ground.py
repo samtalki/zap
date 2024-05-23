@@ -2,20 +2,12 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 
-from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
 from zap.util import replace_none
 from .abstract import AbstractDevice, make_dynamic
-
-GroundData = namedtuple(
-    "GroundData",
-    [
-        "voltage",
-    ],
-)
 
 
 @dataclass(kw_only=True)
@@ -41,9 +33,6 @@ class Ground(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def _device_data(self):
-        return GroundData(self.voltage)
-
     def scale_costs(self, scale):
         pass
 
@@ -55,10 +44,9 @@ class Ground(AbstractDevice):
     # ====
 
     def equality_constraints(self, power, angle, local_variables, la=np, envelope=None):
-        data = self.device_data(la=la)
         return [
             power[0],
-            angle[0] - data.voltage,
+            angle[0] - self.voltage,
         ]
 
     def inequality_constraints(self, power, angle, local_variables, la=np, envelope=None):
@@ -67,7 +55,7 @@ class Ground(AbstractDevice):
     def operation_cost(self, power, angle, local_variables, la=np, envelope=None, data=None):
         if la == torch:
             machine = power[0].device
-            return la.zeros(1, device=machine)
+            return torch.zeros(1, device=machine)
         else:
             return 0.0
 
@@ -97,7 +85,6 @@ class Ground(AbstractDevice):
         angle,
         power_weights=None,
         angle_weights=None,
-        data=None,
     ):
         machine = power[0].device
 
@@ -107,6 +94,6 @@ class Ground(AbstractDevice):
         #     p = 0, a = voltage
 
         p = torch.zeros_like(power[0], device=machine)
-        a = torch.zeros_like(angle[0], device=machine) + data.voltage
+        a = torch.zeros_like(angle[0], device=machine) + self.voltage
 
         return [p], [a]

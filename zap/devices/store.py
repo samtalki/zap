@@ -7,7 +7,6 @@ from collections import namedtuple
 from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
-from zap.util import replace_none
 
 BatteryVariable = namedtuple(
     "BatteryVariable",
@@ -15,20 +14,6 @@ BatteryVariable = namedtuple(
         "energy",
         "charge",
         "discharge",
-    ],
-)
-
-BatteryData = namedtuple(
-    "BatteryData",
-    [
-        "power_capacity",
-        "duration",
-        "charge_efficiency",
-        "initial_soc",
-        "final_soc",
-        "linear_cost",
-        "quadratic_cost",
-        "capital_cost",
     ],
 )
 
@@ -88,18 +73,6 @@ class Battery(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def _device_data(self, power_capacity=None):
-        return BatteryData(
-            make_dynamic(replace_none(power_capacity, self.power_capacity)),
-            self.duration,
-            self.charge_efficiency,
-            self.initial_soc,
-            self.final_soc,
-            self.linear_cost,
-            self.quadratic_cost,
-            self.capital_cost,
-        )
-
     def scale_costs(self, scale):
         self.linear_cost /= scale
         if self.quadratic_cost is not None:
@@ -126,54 +99,52 @@ class Battery(AbstractDevice):
         )
 
     def equality_constraints(self, power, angle, state, power_capacity=None, la=np, envelope=None):
-        data = self.device_data(power_capacity=power_capacity, la=la)
+        power_capacity = self.parameterize(power_capacity=power_capacity, la=la)
 
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
         T = power[0].shape[1]
-        energy_capacity = la.multiply(data.power_capacity, data.duration)
+        energy_capacity = la.multiply(power_capacity, self.duration)
 
         soc_evolution = (
             state.energy[:, :-1]
-            + la.multiply(state.charge, data.charge_efficiency)
+            + la.multiply(state.charge, self.charge_efficiency)
             - state.discharge
         )
         return [
             power[0] - (state.discharge - state.charge),
             state.energy[:, 1:] - soc_evolution,
-            state.energy[:, 0:1] - la.multiply(data.initial_soc, energy_capacity),
-            state.energy[:, T : (T + 1)] - la.multiply(data.final_soc, energy_capacity),
+            state.energy[:, 0:1] - la.multiply(self.initial_soc, energy_capacity),
+            state.energy[:, T : (T + 1)] - la.multiply(self.final_soc, energy_capacity),
         ]
 
     def inequality_constraints(
         self, power, angle, state, power_capacity=None, la=np, envelope=None
     ):
-        data = self.device_data(power_capacity=power_capacity, la=la)
+        power_capacity = self.parameterize(power_capacity=power_capacity, la=la)
 
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
-        energy_capacity = la.multiply(data.power_capacity, data.duration)
+        energy_capacity = la.multiply(power_capacity, self.duration)
 
         return [
             -state.energy,
             state.energy - energy_capacity,
             -state.charge,
-            state.charge - data.power_capacity,
+            state.charge - power_capacity,
             -state.discharge,
-            state.discharge - data.power_capacity,
+            state.discharge - power_capacity,
         ]
 
     def operation_cost(self, power, angle, state, power_capacity=None, la=np, envelope=None):
-        data = self.device_data(power_capacity=power_capacity, la=la)
-
         if not isinstance(state, BatteryVariable):
             state = BatteryVariable(*state)
 
-        cost = la.sum(la.multiply(data.linear_cost, state.discharge))
-        if data.quadratic_cost is not None:
-            cost += la.sum(la.multiply(data.quadratic_cost, la.square(state.discharge)))
+        cost = la.sum(la.multiply(self.linear_cost, state.discharge))
+        if self.quadratic_cost is not None:
+            cost += la.sum(la.multiply(self.quadratic_cost, la.square(state.discharge)))
 
         return cost
 
@@ -213,8 +184,6 @@ class Battery(AbstractDevice):
         return sp.coo_matrix((values, (rows, cols)), shape=shape)
 
     def _equality_matrices(self, equalities, power_capacity=None, la=np):
-        data = self.device_data(power_capacity=power_capacity, la=la)
-
         # Dimensions
         size = equalities[0].power[0].shape[1]
         time_horizon = int(size / self.num_devices)
@@ -226,7 +195,7 @@ class Battery(AbstractDevice):
         equalities[0].local_variables[2] += -sp.eye(size)
 
         # SOC evolution
-        alpha = shaped_zeros + data.charge_efficiency
+        alpha = shaped_zeros + self.charge_efficiency
         soc_diff = self._soc_difference_matrix(self.num_devices, time_horizon)
 
         equalities[1].local_variables[0] += soc_diff  # Energy
@@ -261,14 +230,14 @@ class Battery(AbstractDevice):
     # ====
 
     def get_investment_cost(self, power_capacity=None, la=np):
-        # Get original nominal capacity and capital cost
-        # Nominal capacity isn't passed here because we want to use the original value
-        data = self.device_data(la=la)
+        power_capacity = self.parameterize(power_capacity=power_capacity, la=la)
 
         if self.capital_cost is None or power_capacity is None:
             return 0.0
 
-        pnom_min = data.power_capacity
-        capital_cost = data.capital_cost
+        # Get original nominal capacity and capital cost
+        # Nominal capacity isn't passed here because we want to use the original value
+        pnom_min = self.power_capacity
+        capital_cost = self.capital_cost
 
         return la.sum(la.multiply(capital_cost, (power_capacity - pnom_min)))

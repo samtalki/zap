@@ -78,12 +78,6 @@ class ADMMSolver:
         if parameters is None:
             parameters = [{} for _ in devices]
 
-        # Cache device data
-        self.device_data = [
-            d.device_data(la=torch, machine=self.machine, dtype=self.dtype, **p)
-            for d, p in zip(devices, parameters)
-        ]
-
         # Initialize
         st = self.initialize_solver(net, devices, time_horizon)
         history = self.initialize_history()
@@ -136,7 +130,6 @@ class ADMMSolver:
                 power_weights=w_p,
                 angle_weights=w_v,
                 **parameters[i],
-                data=self.device_data[i],
             )
             st.power[i] = p
             st.phase[i] = v
@@ -217,7 +210,7 @@ class ADMMSolver:
     def compute_objective(self, st: ADMMState, devices: list[AbstractDevice]):
         # TODO Incorporate local variables
         costs = [
-            d.operation_cost(st.power[i], st.phase[i], None, la=torch, data=self.device_data[i])
+            d.operation_cost(st.power[i], st.phase[i], None, la=torch)
             for i, d in enumerate(devices)
         ]
         return sum(costs).item()

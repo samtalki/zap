@@ -99,16 +99,16 @@ def __(load_pypsa_network, pn):
 
 
 @app.cell
-def __():
-    # result = net.dispatch(
-    #     devices,
-    #     time_horizon,
-    #     solver=cp.MOSEK,
-    #     add_ground=False,
-    #     solver_kwargs={"verbose": False}
-    # )
-    # result.problem.value
-    return
+def __(cp, devices, net, time_horizon):
+    result = net.dispatch(
+        devices,
+        time_horizon,
+        solver=cp.MOSEK,
+        add_ground=False,
+        solver_kwargs={"verbose": False}
+    )
+    result.problem.value
+    return result,
 
 
 @app.cell
@@ -139,33 +139,33 @@ def __(mo):
 
 
 @app.cell
-def __(deepcopy, devices):
-    simple_devices = deepcopy(devices[:2])
+def __(deepcopy, devices, net, np, zap):
+    simple_devices = deepcopy(devices[:3])
     use_ac = True
 
     # Add AC or DC lines
-    # if use_ac:
-    #     simple_devices += [deepcopy(devices[3])]
-    # else:
-    #     simple_devices += [
-    #         deepcopy(
-    #             zap.DCLine(
-    #                 num_nodes=devices[3].num_nodes,
-    #                 source_terminal=devices[3].source_terminal,
-    #                 sink_terminal=devices[3].sink_terminal,
-    #                 capacity=devices[3].capacity,
-    #                 nominal_capacity=devices[3].nominal_capacity,
-    #                 linear_cost=devices[3].linear_cost,
-    #             )
-    #         )
-    #     ]
+    if use_ac:
+        simple_devices += [deepcopy(devices[3])]
+    else:
+        simple_devices += [
+            deepcopy(
+                zap.DCLine(
+                    num_nodes=devices[3].num_nodes,
+                    source_terminal=devices[3].source_terminal,
+                    sink_terminal=devices[3].sink_terminal,
+                    capacity=devices[3].capacity,
+                    nominal_capacity=devices[3].nominal_capacity,
+                    linear_cost=devices[3].linear_cost,
+                )
+            )
+        ]
 
-    # _ground = zap.Ground(
-    #     num_nodes=net.num_nodes,
-    #     terminal=np.array([0]),
-    #     voltage=np.array([0.0]),
-    # )
-    # simple_devices += [_ground]
+    _ground = zap.Ground(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0]),
+        voltage=np.array([0.0]),
+    )
+    simple_devices += [_ground]
 
     for _d in simple_devices:
         print(type(_d))
@@ -264,10 +264,18 @@ def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power, torch):
 
 
 @app.cell
-def __(admm, net, simple_devices, simple_result, time_horizon, torch):
+def __(admm, simple_devices):
+    torch_devices = [
+        d.torchify(machine=admm.machine, dtype=admm.dtype) for d in simple_devices
+    ]
+    return torch_devices,
+
+
+@app.cell
+def __(admm, net, simple_result, time_horizon, torch, torch_devices):
     state, history = admm.solve(
         net,
-        simple_devices,
+        torch_devices,
         time_horizon,
         nu_star=torch.tensor(-simple_result.prices, device=admm.machine),
     )
@@ -291,7 +299,7 @@ def __():
     rho_power = 0.5  # 0.5
     rho_angle = 5.0 * rho_power  # 5.0 * rho_power
 
-    admm_num_iters = 100
+    admm_num_iters = 500
     return admm_num_iters, rho_angle, rho_power
 
 
@@ -438,14 +446,14 @@ def __(admm, plt, rho_power, simple_result, state, torch):
 
 
 @app.cell(hide_code=True)
-def __(nested_norm, simple_devices, simple_result, torch):
+def __(nested_norm, simple_result, torch, torch_devices):
     _x = simple_result.torchify()
 
     total_power = nested_norm(_x.power)
     total_phase = nested_norm(_x.angle) + 1e-8
     fstar = sum([
         d.operation_cost(_x.power[i], _x.angle[i], None, la=torch)
-        for i, d in enumerate(simple_devices)
+        for i, d in enumerate(torch_devices)
     ]).item()
 
     # print(f"Absolute Power Error: {power_errors[-1]}")
@@ -459,43 +467,6 @@ def __(nested_norm, simple_devices, simple_result, torch):
 @app.cell(hide_code=True)
 def __(mo):
     mo.md("## Debug")
-    return
-
-
-@app.cell
-def __():
-    import numbers
-    return numbers,
-
-
-@app.cell
-def __(np):
-    np.int32(2)
-    return
-
-
-@app.cell
-def __(np):
-    np.issubdtype(int, np.integer)
-    return
-
-
-@app.cell
-def __(numbers, torch):
-    isinstance(torch.tensor(2, dtype=torch.int32).item(), numbers.Integral)
-    return
-
-
-@app.cell
-def __(deepcopy, simple_devices, torch):
-    _dev = deepcopy(simple_devices[1])
-
-    _dev.torchify(device="cuda", dtype=torch.float16)
-    return
-
-
-@app.cell
-def __():
     return
 
 

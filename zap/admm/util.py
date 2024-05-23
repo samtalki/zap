@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 from zap.devices.abstract import AbstractDevice
@@ -104,16 +103,16 @@ def get_num_terminals(net, devices, only_ac=False, machine=None, dtype=DEFAULT_D
     if machine is None:
         machine = infer_machine()
 
-    terminal_counts = np.zeros(net.num_nodes)
+    terminal_counts = torch.zeros(net.num_nodes, dtype=dtype, device=machine)
     for d in devices:
         if only_ac and (not d.is_ac):
             continue
 
-        values, counts = np.unique(d.terminals, return_counts=True)
+        values, counts = torch.unique(d.terminals, return_counts=True)
         for t, c in zip(values, counts):
             terminal_counts[t] += c
 
-    return torch.tensor(np.expand_dims(terminal_counts, 1), device=machine, dtype=dtype)
+    return torch.reshape(terminal_counts, (-1, 1))
 
 
 def get_nodal_average(

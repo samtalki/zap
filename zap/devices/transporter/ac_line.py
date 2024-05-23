@@ -1,28 +1,10 @@
 import numpy as np
 import scipy.sparse as sp
 import torch
-from collections import namedtuple
 
 from zap.devices.abstract import make_dynamic
-from zap.util import replace_none, envelope_variable, use_envelope
+from zap.util import envelope_variable, use_envelope
 from .dc_line import PowerLine
-
-
-ACLineData = namedtuple(
-    "ACLineData",
-    [
-        "min_power",
-        "max_power",
-        "linear_cost",
-        "quadratic_cost",
-        "nominal_capacity",
-        "susceptance",
-        "capital_cost",
-        "reconductoring_cost",
-        "reconductoring_threshold",
-        "slack",
-    ],
-)
 
 
 class ACLine(PowerLine):
@@ -68,26 +50,12 @@ class ACLine(PowerLine):
     def is_ac(self):
         return True
 
-    def _device_data(self, nominal_capacity=None):
-        return ACLineData(
-            self.min_power,
-            self.max_power,
-            self.linear_cost,
-            self.quadratic_cost,
-            make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
-            self.susceptance,
-            self.capital_cost,
-            self.reconductoring_cost,
-            self.reconductoring_threshold,
-            self.slack,
-        )
-
     # ====
     # CORE MODELING FUNCTIONS
     # ====
 
     def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
         # Regular transporter constraints
         eq_constraints = super().equality_constraints(
@@ -99,22 +67,22 @@ class ACLine(PowerLine):
 
         if use_envelope(envelope):  # When line is plannable
             print("Envelope relaxation applied to AC line.")
-            pnom_dtheta = self.get_envelope_variable(*envelope, data, angle_diff)
+            pnom_dtheta = self.get_envelope_variable(*envelope, angle_diff, nominal_capacity)
         else:
-            pnom_dtheta = la.multiply(angle_diff, data.nominal_capacity)
+            pnom_dtheta = la.multiply(angle_diff, nominal_capacity)
 
-        eq_constraints += [power[1] - la.multiply(data.susceptance, pnom_dtheta)]
+        eq_constraints += [power[1] - la.multiply(self.susceptance, pnom_dtheta)]
 
         return eq_constraints
 
-    def get_envelope_variable(self, env, lb, ub, data, angle_diff):
+    def get_envelope_variable(self, env, lb, ub, angle_diff, nominal_capacity):
         # Get lower and upper bounds for the angle difference
         # dtheta_max = fmax / b = pnom * pmax / b
-        ub_angle_diff = ub["nominal_capacity"] * data.max_power / data.susceptance
+        ub_angle_diff = ub["nominal_capacity"] * self.max_power / self.susceptance
         lb_angle_diff = -ub_angle_diff
 
         return envelope_variable(
-            data.nominal_capacity,
+            nominal_capacity,
             angle_diff,
             lb["nominal_capacity"],
             ub["nominal_capacity"],
@@ -128,13 +96,13 @@ class ACLine(PowerLine):
     # ====
 
     def _equality_matrices(self, equalities, nominal_capacity=None, la=np):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
         size = equalities[0].power[0].shape[1]
 
         time_horizon = int(size / self.num_devices)
         shaped_zeros = np.zeros((self.num_devices, time_horizon))
 
-        susceptance = la.multiply(data.susceptance, data.nominal_capacity)
+        susceptance = la.multiply(self.susceptance, nominal_capacity)
         b_mat = shaped_zeros + susceptance
 
         equalities[1].power[1] += sp.eye(size)
@@ -157,23 +125,20 @@ class ACLine(PowerLine):
         power_weights=None,
         angle_weights=None,
         cvx_mode=False,
-        data=None,
     ):
-        assert data is not None
-        # machine = power[0].device
-        # data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
         if cvx_mode:
             return self.cvx_admm_prox_update(
                 rho_power, rho_angle, power, angle, nominal_capacity=None
             )
 
-        quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
-        pmax = torch.multiply(data.max_power, data.nominal_capacity) + data.slack
-        pmin = torch.multiply(data.min_power, data.nominal_capacity) - data.slack
-        susceptance = torch.multiply(data.susceptance, data.nominal_capacity)
+        quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
+        pmax = torch.multiply(self.max_power, nominal_capacity) + self.slack
+        pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
+        susceptance = torch.multiply(self.susceptance, nominal_capacity)
 
-        # assert torch.sum(torch.abs(data.linear_cost)) == 0.0  # TODO
+        # assert torch.sum(torch.abs(self.linear_cost)) == 0.0  # TODO
 
         # See transporter for details on derivation
         # Here, we also have angle variables
@@ -210,10 +175,11 @@ class ACLine(PowerLine):
         print("Solving AC line prox update via CVX...")
         import cvxpy as cp
 
-        data = self.device_data(nominal_capacity=nominal_capacity)
-        pmax = np.multiply(data.max_power, data.nominal_capacity) + data.slack
-        pmin = np.multiply(data.min_power, data.nominal_capacity) - data.slack
-        susceptance = np.multiply(data.susceptance, data.nominal_capacity)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
+
+        pmax = np.multiply(self.max_power, nominal_capacity) + self.slack
+        pmin = np.multiply(self.min_power, nominal_capacity) - self.slack
+        susceptance = np.multiply(self.susceptance, nominal_capacity)
 
         p0 = cp.Variable(power[0].shape)
         p1 = cp.Variable(power[0].shape)

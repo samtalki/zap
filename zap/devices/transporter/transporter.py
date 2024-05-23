@@ -2,7 +2,6 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 
-from collections import namedtuple
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
@@ -10,22 +9,6 @@ from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
 from zap.util import replace_none
-
-
-TransporterData = namedtuple(
-    "TransporterData",
-    [
-        "min_power",
-        "max_power",
-        "linear_cost",
-        "quadratic_cost",
-        "nominal_capacity",
-        "capital_cost",
-        "reconductoring_cost",
-        "reconductoring_threshold",
-        "slack",
-    ],
-)
 
 
 @dataclass(kw_only=True)
@@ -77,19 +60,6 @@ class Transporter(AbstractDevice):
     def time_horizon(self):
         return 0  # Static device
 
-    def _device_data(self, nominal_capacity=None):
-        return TransporterData(
-            self.min_power,
-            self.max_power,
-            self.linear_cost,
-            self.quadratic_cost,
-            make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
-            self.capital_cost,
-            self.reconductoring_cost,
-            self.reconductoring_threshold,
-            self.slack,
-        )
-
     def scale_costs(self, scale):
         self.linear_cost /= scale
         if self.quadratic_cost is not None:
@@ -115,22 +85,19 @@ class Transporter(AbstractDevice):
         return [power[1] + power[0]]
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
         return [
-            la.multiply(data.min_power, data.nominal_capacity) - power[1] - data.slack,
-            power[1] - la.multiply(data.max_power, data.nominal_capacity) - data.slack,
+            la.multiply(self.min_power, nominal_capacity) - power[1] - self.slack,
+            power[1] - la.multiply(self.max_power, nominal_capacity) - self.slack,
         ]
 
-    def operation_cost(
-        self, power, angle, _, nominal_capacity=None, la=np, envelope=None, data=None
-    ):
-        if data is None:
-            data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
-        cost = la.sum(la.multiply(data.linear_cost, la.abs(power[1])))
-        if data.quadratic_cost is not None:
-            cost += la.sum(la.multiply(data.quadratic_cost, la.square(power[1])))
+        cost = la.sum(la.multiply(self.linear_cost, la.abs(power[1])))
+        if self.quadratic_cost is not None:
+            cost += la.sum(la.multiply(self.quadratic_cost, la.square(power[1])))
 
         return cost
 
@@ -158,27 +125,24 @@ class Transporter(AbstractDevice):
     # PLANNING
     # ====
 
-    def get_investment_cost(self, nominal_capacity=None, la=np, data=None):
+    def get_investment_cost(self, nominal_capacity=None, la=np):
         # Get original nominal capacity and capital cost
         # Nominal capacity isn't passed here because we want to use the original value
-        if data is None:
-            data = self.device_data(la=la)
-
         if self.capital_cost is None or nominal_capacity is None:
             print("No capital cost or nominal capacity")
             return 0.0
 
         # Device nominal capacity = min nominal capacity
         # This is not the same as the input `nominal_capacity`
-        pnom_min = data.nominal_capacity
-        c = data.capital_cost
+        pnom_min = self.nominal_capacity
+        c = self.capital_cost
 
         if self.reconductoring_cost is None:
             return la.sum(la.multiply(c, (nominal_capacity - pnom_min)))
 
         else:
-            r = data.reconductoring_cost
-            alpha = data.reconductoring_threshold
+            r = self.reconductoring_cost
+            alpha = self.reconductoring_threshold
 
             z = pnom_min * (r + c * alpha - r * alpha)
             return la.sum(
@@ -201,15 +165,14 @@ class Transporter(AbstractDevice):
         nominal_capacity=None,
         power_weights=None,
         angle_weights=None,
-        data=None,
     ):
-        assert data is not None
         assert angle is None
         machine, dtype = power[0].device, power[0].dtype
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
-        quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
-        pmax = torch.multiply(data.max_power, data.nominal_capacity) + data.slack
-        pmin = torch.multiply(data.min_power, data.nominal_capacity) - data.slack
+        quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
+        pmax = torch.multiply(self.max_power, nominal_capacity) + self.slack
+        pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
 
         if power_weights is None:
             power_weights = [torch.tensor(1.0, device=machine, dtype=dtype) for _ in power]
@@ -220,7 +183,7 @@ class Transporter(AbstractDevice):
         # This shouldn't be too hard, we just solve the two cases (p1 < 0) and (p1 > 0)
         # Then project onto [pmin, 0] and [0, pmax]
         # Then pick the better of the two
-        # assert torch.sum(torch.abs(data.linear_cost)) == 0.0
+        # assert torch.sum(torch.abs(self.linear_cost)) == 0.0
 
         # Problem is
         #     min_p    a p1^2 + b |p1|
@@ -241,7 +204,7 @@ class Transporter(AbstractDevice):
         #     p1 = (rho D1^2 power1 - rho D0^2 power0 - b sign(p1)) / (2 a + rho D0^2 + rho D1^2)
 
         # Default is sign(num) = +1.0
-        num = rho_power * (Dp2[1] * power[1] - Dp2[0] * power[0]) - data.linear_cost
+        num = rho_power * (Dp2[1] * power[1] - Dp2[0] * power[0]) - self.linear_cost
 
         # This term is always positive, so we can pick it after choosing the sign
         denom = 2 * quadratic_cost + rho_power * (Dp2[0] + Dp2[1])

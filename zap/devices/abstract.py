@@ -84,9 +84,6 @@ class AbstractDevice:
     def inequality_constraints(self, power, angle, local_variables, **kwargs):
         raise NotImplementedError
 
-    def _device_data(self, **kwargs):
-        raise NotImplementedError
-
     def scale_costs(self, scale):
         raise NotImplementedError
 
@@ -233,6 +230,9 @@ class AbstractDevice:
         if machine is None:
             machine = infer_machine()
 
+        if machine == "cuda":
+            print(f"Warning: moving data to GPU for device {type(self)}")
+
         for k, v in new_device.__dict__.items():
             if isinstance(v, np.ndarray) and np.issubdtype(v.dtype, np.number):
                 v_dtype = TORCH_INTEGER_DTYPE if np.issubdtype(v.dtype, np.integer) else dtype
@@ -253,21 +253,7 @@ class AbstractDevice:
         new_params = {k: make_dynamic(replace_none(v, getattr(self, k))) for k, v in params.items()}
         if la == torch:
             new_params = torchify(new_params)
-        return new_params
-
-    # def device_data(self, la=np, machine=None, dtype=torch.float64, **kwargs):
-    #     data = self._device_data(**kwargs)
-
-    #     if la == torch:
-    #         if machine is None:
-    #             machine = infer_machine()
-
-    #         if machine == "cuda":
-    #             print(f"Warning: moving data to GPU for device {type(self)}")
-
-    #         data = type(data)(*[torchify(x, machine=machine, dtype=dtype) for x in data])
-
-    #     return data
+        return list(new_params.values())[0]
 
     def initialize_power(self, time_horizon: int) -> list[cp.Variable]:
         return [

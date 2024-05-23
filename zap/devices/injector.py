@@ -2,26 +2,11 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 
-from collections import namedtuple
 from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import replace_none
 from .abstract import AbstractDevice, get_time_horizon, make_dynamic
-
-# InjectorData = namedtuple(
-#     "InjectorData",
-#     [
-#         "min_power",
-#         "max_power",
-#         "linear_cost",
-#         "quadratic_cost",
-#         "nominal_capacity",
-#         "capital_cost",
-#         "emission_rates",
-#     ],
-# )
 
 
 @dataclass(kw_only=True)
@@ -62,17 +47,6 @@ class Injector(AbstractDevice):
     def time_horizon(self):
         return get_time_horizon(self.min_power)
 
-    # def _device_data(self, nominal_capacity=None):
-    #     return InjectorData(
-    #         self.min_power,
-    #         self.max_power,
-    #         self.linear_cost,
-    #         self.quadratic_cost,
-    #         make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
-    #         self.capital_cost,
-    #         self.emission_rates,
-    #     )
-
     def scale_costs(self, scale):
         self.linear_cost /= scale
         if self.quadratic_cost is not None:
@@ -96,9 +70,7 @@ class Injector(AbstractDevice):
         return []
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)[
-            "nominal_capacity"
-        ]
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
         power = power[0]
 
         return [
@@ -107,9 +79,7 @@ class Injector(AbstractDevice):
         ]
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)[
-            "nominal_capacity"
-        ]
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
         power = power[0] - la.multiply(self.min_power, nominal_capacity)
 
         cost = la.sum(la.multiply(self.linear_cost, power))
@@ -158,7 +128,7 @@ class Injector(AbstractDevice):
         power_weights=None,
         angle_weights=None,
     ):
-        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)["nominal_capacity"]
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
         machine, dtype = power[0].device, power[0].dtype
         assert angle is None
@@ -188,7 +158,7 @@ class Injector(AbstractDevice):
         return [p], None
 
     def get_admm_power_weights(self, power, strategy: str, nominal_capacity=None):
-        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)["nominal_capacity"]
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
         if strategy == "smart_cost":
             avg_cost = np.mean(self.linear_cost, axis=1).reshape((-1, 1))
@@ -256,24 +226,19 @@ class Generator(Injector):
     # ====
 
     def get_investment_cost(self, nominal_capacity=None, la=np):
-        # Get nominal capacity and capital cost
-        data = self.device_data(la=la)
-
         if self.capital_cost is None or nominal_capacity is None:
             return 0.0
 
-        pnom_min = data.nominal_capacity
-        capital_cost = data.capital_cost
+        pnom_min = self.nominal_capacity
+        capital_cost = self.capital_cost
 
         return la.sum(la.multiply(capital_cost, (nominal_capacity - pnom_min)))
 
     def get_emissions(self, power, nominal_capacity=None, la=np):
-        data = self.device_data(la=la)
-
-        if data.emission_rates is None:
+        if self.emission_rates is None:
             return 0.0
         else:
-            return la.sum(la.multiply(data.emission_rates, power[0]))
+            return la.sum(la.multiply(self.emission_rates, power[0]))
 
     def sample_time(self, time_periods, original_time_horizon):
         dev = super().sample_time(time_periods, original_time_horizon)

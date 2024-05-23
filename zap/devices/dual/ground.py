@@ -18,9 +18,7 @@ class DualGround(Ground):
         return []
 
     def operation_cost(self, power, angle, _, la=np, envelope=None):
-        data = self.device_data(la=la)
-
         mu = angle[0]
-        v = data.voltage
+        v = self.voltage
 
         return la.sum(la.multiply(mu, v))

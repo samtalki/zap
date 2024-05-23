@@ -5,7 +5,7 @@ import cvxpy as cp
 from numbers import Number
 
 DEFAULT_DTYPE = torch.float32
-TORCH_INTEGER_DTYPE = torch.int32
+TORCH_INTEGER_DTYPE = torch.int64
 TORCH_INTEGER_TYPES = [torch.int8, torch.int16, torch.int32, torch.int64]
 
 

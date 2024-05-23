@@ -30,15 +30,15 @@ class DualInjector(Injector):
         return []
 
     def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
-        assert data.quadratic_cost is None
+        assert self.quadratic_cost is None
 
         z = power[0]
-        pnom = data.nominal_capacity
-        pmin = data.min_power
-        pmax = data.max_power
-        c = data.linear_cost
+        pnom = nominal_capacity
+        pmin = self.min_power
+        pmax = self.max_power
+        c = self.linear_cost
 
         if use_envelope(envelope):
             print("Envelope relaxation applied to dual injector.")
