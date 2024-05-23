@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import cvxpy as cp
 
+DEFAULT_DTYPE = torch.float64
+
 
 def expand_params(params, devices):
     if params is None:
@@ -31,7 +33,7 @@ def grad_or_zero(x, to_numpy=False):
             return grad
 
 
-def torchify(x, requires_grad=False, machine=None):
+def torchify(x, requires_grad=False, machine=None, dtype=torch.float64):
     if machine is None:
         machine = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -42,11 +44,14 @@ def torchify(x, requires_grad=False, machine=None):
     elif x is None:
         return None
     elif isinstance(x, dict):
-        return {k: torchify(v, requires_grad=requires_grad, machine=machine) for k, v in x.items()}
+        return {
+            k: torchify(v, requires_grad=requires_grad, machine=machine, dtype=dtype)
+            for k, v in x.items()
+        }
     elif isinstance(x, list):
-        return [torchify(xi, requires_grad=requires_grad, machine=machine) for xi in x]
+        return [torchify(xi, requires_grad=requires_grad, machine=machine, dtype=dtype) for xi in x]
     else:
-        return torch.tensor(x, requires_grad=requires_grad, device=machine)
+        return torch.tensor(x, requires_grad=requires_grad, device=machine, dtype=dtype)
 
 
 def torch_sparse(A):

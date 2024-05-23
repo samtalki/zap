@@ -4,7 +4,7 @@ import torch
 from collections import namedtuple
 
 from zap.devices.abstract import make_dynamic
-from zap.util import replace_none, envelope_variable, use_envelope
+from zap.util import replace_none, envelope_variable, use_envelope, DEFAULT_DTYPE
 from .dc_line import PowerLine
 
 
@@ -147,10 +147,10 @@ class ACLine(PowerLine):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
         return [
-            torch.zeros((self.num_devices, time_horizon), device=device),
-            torch.zeros((self.num_devices, time_horizon), device=device),
+            torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype),
+            torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype),
         ]
 
     def admm_prox_update(

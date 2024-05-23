@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import replace_none
+from zap.util import replace_none, DEFAULT_DTYPE
 from .abstract import AbstractDevice, get_time_horizon, make_dynamic
 
 InjectorData = namedtuple(
@@ -148,10 +148,10 @@ class Injector(AbstractDevice):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int, device="cpu"):
-        return [torch.zeros((self.num_devices, time_horizon), device=device)]
+    def admm_initialize_power_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
+        return [torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype)]
 
-    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
         return None
 
     def admm_prox_update(
@@ -166,8 +166,7 @@ class Injector(AbstractDevice):
         data=None,
     ):
         assert data is not None
-        machine = power[0].device
-
+        machine, dtype = power[0].device, power[0].dtype
         # if data is None:
         #     print("Warning: prox update recreating device data.")
         #     data = self.device_data(nominal_capacity=nominal_capacity, la=torch, machine=machine)
@@ -175,7 +174,7 @@ class Injector(AbstractDevice):
         assert angle is None
 
         if power_weights is None:
-            power_weights = [torch.tensor(1.0, device=machine)]
+            power_weights = [torch.tensor(1.0, device=machine, dtype=dtype)]
 
         Dp2 = [torch.pow(p, 2) for p in power_weights]
 

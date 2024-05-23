@@ -57,7 +57,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_500")
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_100")
     return pn,
 
 
@@ -91,7 +91,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
 
 @app.cell
 def __(load_pypsa_network, pn):
-    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * 64)
+    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * 1)
 
     for _d in devices:
         print(type(_d))
@@ -112,38 +112,24 @@ def __():
 
 
 @app.cell
-def __(
-    devices,
-    get_nodal_average,
-    get_terminal_residual,
-    nested_norm,
-    net,
-    result,
-    time_horizon,
-    torch,
-):
-    _x = result.torchify(machine="cuda")
+def __():
+    # _x = result.torchify(machine="cuda")
 
-    # Compute global power / phase imbalance
-    average_power = get_nodal_average(_x.power, net, devices, time_horizon)
-    average_angle = get_nodal_average(
-        _x.angle, net, devices, time_horizon, only_ac=True
-    )
-    global_phase_imbalance = average_angle - _x.global_angle
+    # # Compute global power / phase imbalance
+    # average_power = get_nodal_average(_x.power, net, devices, time_horizon)
+    # average_angle = get_nodal_average(
+    #     _x.angle, net, devices, time_horizon, only_ac=True
+    # )
+    # global_phase_imbalance = average_angle - _x.global_angle
 
-    print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
-    print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
+    # print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
+    # print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
 
-    # Compute local phase imbalance
-    phase_residual = get_terminal_residual(_x.angle, average_angle, devices)
+    # # Compute local phase imbalance
+    # phase_residual = get_terminal_residual(_x.angle, average_angle, devices)
 
-    print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
-    return (
-        average_angle,
-        average_power,
-        global_phase_imbalance,
-        phase_residual,
-    )
+    # print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
+    return
 
 
 @app.cell
@@ -262,7 +248,7 @@ def __(simple_devices):
 
 
 @app.cell
-def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power):
+def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power, torch):
     admm = ADMMSolver(
         num_iterations=admm_num_iters,
         rho_power=rho_power,
@@ -271,8 +257,9 @@ def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power):
         resid_norm=2,
         safe_mode=False,
         machine="cuda",
+        dtype=torch.float32
     )
-    print("ADMM solving with", admm.machine)
+    print(f"ADMM solving with {admm.machine}")
     return admm,
 
 
@@ -285,6 +272,12 @@ def __(admm, net, simple_devices, simple_result, time_horizon, torch):
         nu_star=torch.tensor(-simple_result.prices, device=admm.machine),
     )
     return history, state
+
+
+@app.cell
+def __(state):
+    state.power[0][0].dtype
+    return
 
 
 @app.cell(hide_code=True)
@@ -417,7 +410,7 @@ def __(
     print("f/f* =", history.objective[-1] / fstar)
     print(
         "Power Imbalance:",
-        torch.linalg.norm(state.avg_power, 1) / nested_norm(_x.power),
+        torch.linalg.norm(state.avg_power) / nested_norm(_x.power),
     )
     print(
         "Phase Inconsistency:",
@@ -431,20 +424,16 @@ def __(
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(admm, plt, rho_power, simple_result, state, torch):
     _x = simple_result.torchify(machine=admm.machine)
 
-    print(
-        torch.linalg.norm(_x.prices + state.dual_power * rho_power, 1)
-        / simple_result.prices.size
-    )
-    price_errs = ((_x.prices + state.dual_power * rho_power) / torch.maximum(
-        torch.abs(_x.prices), torch.tensor(1.0)
-    )).cpu().numpy()
+    print(torch.linalg.norm(_x.prices + state.dual_power * rho_power, 1))
+    print(simple_result.prices.size)
+    price_errs = ((_x.prices + state.dual_power * rho_power)).cpu().numpy()
 
     plt.figure(figsize=(7, 2))
-    plt.scatter(range(price_errs.size), price_errs.flatten(), s=4)
+    plt.scatter(range(price_errs.size), price_errs.ravel(), s=1)
     return price_errs,
 
 

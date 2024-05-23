@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from zap.devices.abstract import AbstractDevice
+from zap.util import DEFAULT_DTYPE
 
 
 def infer_machine():
@@ -103,7 +104,7 @@ def get_discrep(power1, power2):
     return torch.sum(torch.tensor(discreps))
 
 
-def get_num_terminals(net, devices, only_ac=False, machine=None):
+def get_num_terminals(net, devices, only_ac=False, machine=None, dtype=DEFAULT_DTYPE):
     if machine is None:
         machine = infer_machine()
 
@@ -116,7 +117,7 @@ def get_num_terminals(net, devices, only_ac=False, machine=None):
         for t, c in zip(values, counts):
             terminal_counts[t] += c
 
-    return torch.tensor(np.expand_dims(terminal_counts, 1), device=machine)
+    return torch.tensor(np.expand_dims(terminal_counts, 1), device=machine, dtype=dtype)
 
 
 def get_nodal_average(
@@ -129,20 +130,23 @@ def get_nodal_average(
     check_connections=True,
     tol=1e-8,
     machine=None,
+    dtype=DEFAULT_DTYPE,
 ):
     if machine is None:
         machine = infer_machine()
 
     tol = torch.tensor(tol, device=machine)
     if num_terminals is None:
-        num_terminals = get_num_terminals(net, devices, only_ac=only_ac, machine=machine)
+        num_terminals = get_num_terminals(
+            net, devices, only_ac=only_ac, machine=machine, dtype=dtype
+        )
 
     if check_connections:
         assert torch.all(num_terminals > 0)
     else:
         num_terminals = torch.maximum(num_terminals, tol)
 
-    average_x = torch.zeros((net.num_nodes, time_horizon), device=machine)
+    average_x = torch.zeros((net.num_nodes, time_horizon), device=machine, dtype=dtype)
 
     for dev, x_dev in zip(devices, powers):
         if x_dev is None:
@@ -174,13 +178,13 @@ def get_terminal_residual(angles, average_angle, devices):
     return residuals
 
 
-def dc_average(x, net, devices, time_horizon, num_terminals, machine="cpu"):
+def dc_average(x, net, devices, time_horizon, num_terminals, machine="cpu", dtype=DEFAULT_DTYPE):
     return get_nodal_average(
-        x, net, devices, time_horizon, num_terminals, only_ac=False, machine=machine
+        x, net, devices, time_horizon, num_terminals, only_ac=False, machine=machine, dtype=dtype
     )
 
 
-def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine="cpu"):
+def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine="cpu", dtype=DEFAULT_DTYPE):
     return get_nodal_average(
         x,
         net,
@@ -190,4 +194,5 @@ def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine="cpu"):
         only_ac=True,
         check_connections=False,
         machine=machine,
+        dtype=dtype,
     )

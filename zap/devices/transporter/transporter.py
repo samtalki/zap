@@ -9,7 +9,7 @@ from typing import Optional
 from numpy.typing import NDArray
 
 from zap.devices.abstract import AbstractDevice, make_dynamic
-from zap.util import replace_none
+from zap.util import replace_none, DEFAULT_DTYPE
 
 
 TransporterData = namedtuple(
@@ -192,13 +192,13 @@ class Transporter(AbstractDevice):
     # ADMM FUNCTIONS
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int, device="cpu"):
+    def admm_initialize_power_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
         return [
-            torch.zeros((self.num_devices, time_horizon), device=device),
-            torch.zeros((self.num_devices, time_horizon), device=device),
+            torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype),
+            torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype),
         ]
 
-    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu"):
+    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
         return None
 
     def admm_prox_update(
@@ -214,14 +214,14 @@ class Transporter(AbstractDevice):
     ):
         assert data is not None
         assert angle is None
-        machine = power[0].device
+        machine, dtype = power[0].device, power[0].dtype
 
         quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
         pmax = torch.multiply(data.max_power, data.nominal_capacity) + data.slack
         pmin = torch.multiply(data.min_power, data.nominal_capacity) - data.slack
 
         if power_weights is None:
-            power_weights = [torch.tensor(1.0, device=machine) for _ in power]
+            power_weights = [torch.tensor(1.0, device=machine, dtype=dtype) for _ in power]
 
         Dp2 = [torch.pow(p, 2) for p in power_weights]
 

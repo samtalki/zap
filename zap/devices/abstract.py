@@ -204,7 +204,7 @@ class AbstractDevice:
 
     # Modeling Tools
 
-    def device_data(self, la=np, machine=None, **kwargs):
+    def device_data(self, la=np, machine=None, dtype=torch.float64, **kwargs):
         data = self._device_data(**kwargs)
         if machine is None:
             machine = "cuda" if torch.cuda.is_available() else "cpu"
@@ -213,7 +213,7 @@ class AbstractDevice:
             if machine == "cuda":
                 print(f"Warning: moving data to GPU for device {type(self)}")
 
-            data = type(data)(*[torchify(x, machine=machine) for x in data])
+            data = type(data)(*[torchify(x, machine=machine, dtype=dtype) for x in data])
 
         return data
 

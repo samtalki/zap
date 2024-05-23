@@ -55,6 +55,7 @@ class ADMMSolver:
     safe_mode: bool = False
     track_objective: bool = True
     machine: str = None
+    dtype: object = torch.float64
 
     def __post_init__(self):
         if self.machine is None:
@@ -76,14 +77,15 @@ class ADMMSolver:
         if parameters is None:
             parameters = [{} for _ in devices]
 
+        # Cache device data
+        self.device_data = [
+            d.device_data(la=torch, machine=self.machine, dtype=self.dtype, **p)
+            for d, p in zip(devices, parameters)
+        ]
+
         # Initialize
         st = self.initialize_solver(net, devices, time_horizon)
         history = self.initialize_history()
-
-        # Cache device data
-        self.device_data = [
-            d.device_data(la=torch, machine=self.machine, **p) for d, p in zip(devices, parameters)
-        ]
 
         for iteration in range(self.num_iterations):
             # (1) Device proximal updates
@@ -170,10 +172,10 @@ class ADMMSolver:
         # are used to calculate residuals.
         st = st.update(
             avg_power=dc_average(
-                st.power, net, devices, time_horizon, st.num_terminals, self.machine
+                st.power, net, devices, time_horizon, st.num_terminals, self.machine, self.dtype
             ),
             avg_phase=ac_average(
-                st.phase, net, devices, time_horizon, st.num_ac_terminals, self.machine
+                st.phase, net, devices, time_horizon, st.num_ac_terminals, self.machine, self.dtype
             ),
         )
         st = st.update(
@@ -206,7 +208,7 @@ class ADMMSolver:
     def numerical_checks(self, st: ADMMState, net, devices, time_horizon):
         # Dual phases should average to zero
         avg_dual_phase = ac_average(
-            st.dual_phase, net, devices, time_horizon, st.num_ac_terminals, self.machine
+            st.dual_phase, net, devices, time_horizon, st.num_ac_terminals, self.machine, self.dtype
         )
         torch.testing.assert_allclose(nested_norm(avg_dual_phase), 0.0, rtol=1e-8, atol=1e-8)
         return True
@@ -276,27 +278,35 @@ class ADMMSolver:
         return history
 
     def initialize_solver(self, net, devices, time_horizon) -> ADMMState:
+        machine, dtype = self.machine, self.dtype
+
         # Setup weights
         self.power_weights = [None for _ in devices]
         self.angle_weights = [None for _ in devices]
 
         # Setup state
-        num_terminals = get_num_terminals(net, devices, machine=self.machine)
-        num_ac_terminals = get_num_terminals(net, devices, only_ac=True, machine=self.machine)
-
-        power_var = [d.admm_initialize_power_variables(time_horizon, self.machine) for d in devices]
-        phase_var = [d.admm_initialize_angle_variables(time_horizon, self.machine) for d in devices]
-
-        power_dual = dc_average(
-            power_var, net, devices, time_horizon, num_terminals, machine=self.machine
+        num_terminals = get_num_terminals(net, devices, machine=machine, dtype=dtype)
+        num_ac_terminals = get_num_terminals(
+            net, devices, only_ac=True, machine=machine, dtype=dtype
         )
-        phase_dual = [
-            d.admm_initialize_angle_variables(time_horizon, self.machine) for d in devices
+
+        power_var = [
+            d.admm_initialize_power_variables(time_horizon, machine, dtype) for d in devices
+        ]
+        phase_var = [
+            d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
         ]
 
-        power_bar = dc_average(power_var, net, devices, time_horizon, num_terminals, self.machine)
+        power_dual = dc_average(
+            power_var, net, devices, time_horizon, num_terminals, machine, dtype
+        )
+        phase_dual = [
+            d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
+        ]
+
+        power_bar = dc_average(power_var, net, devices, time_horizon, num_terminals, machine, dtype)
         theta_bar = ac_average(
-            phase_var, net, devices, time_horizon, num_ac_terminals, self.machine
+            phase_var, net, devices, time_horizon, num_ac_terminals, machine, dtype
         )
 
         theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
