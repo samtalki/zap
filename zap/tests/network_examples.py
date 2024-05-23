@@ -4,6 +4,12 @@ import datetime as dt
 import pandas as pd
 import pypsa
 
+from pathlib import Path
+
+
+ZAP_PATH = Path(zap.__file__).parent.parent
+DATA_PATH = ZAP_PATH / "data"
+
 
 def load_pypsa24hour():
     return load_pypsa_network(num_hours=24)
@@ -20,8 +26,8 @@ def load_pypsa_network(num_hours=1, num_nodes=100):
         freq="1h",
         inclusive="left",
     )
-    # TODO - Remove explicit path
-    pn = pypsa.Network(f"../Epsilon/.pypsa/workflow/resources/western/elec_s_{num_nodes}.nc")
+    pn = pypsa.Network()
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_{num_nodes}")
 
     net, devices = zap.importers.load_pypsa_network(pn, dates, power_unit=1e3, cost_unit=10.0)
     parameters = None

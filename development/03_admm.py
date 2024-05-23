@@ -111,25 +111,40 @@ def __(cp, devices, net, time_horizon):
     return result,
 
 
-@app.cell
-def __():
-    # _x = result.torchify(machine="cuda")
+@app.cell(hide_code=True)
+def __(
+    devices,
+    get_nodal_average,
+    get_terminal_residual,
+    nested_norm,
+    net,
+    result,
+    time_horizon,
+    torch,
+):
+    _x = result.torchify(machine="cuda")
+    _devs = [d.torchify() for d in devices]
 
-    # # Compute global power / phase imbalance
-    # average_power = get_nodal_average(_x.power, net, devices, time_horizon)
-    # average_angle = get_nodal_average(
-    #     _x.angle, net, devices, time_horizon, only_ac=True
-    # )
-    # global_phase_imbalance = average_angle - _x.global_angle
+    # Compute global power / phase imbalance
+    average_power = get_nodal_average(_x.power, net, _devs, time_horizon)
+    average_angle = get_nodal_average(
+        _x.angle, net, _devs, time_horizon, only_ac=True
+    )
+    global_phase_imbalance = average_angle - _x.global_angle
 
-    # print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
-    # print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
+    print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
+    print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
 
-    # # Compute local phase imbalance
-    # phase_residual = get_terminal_residual(_x.angle, average_angle, devices)
+    # Compute local phase imbalance
+    phase_residual = get_terminal_residual(_x.angle, average_angle, _devs)
 
-    # print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
-    return
+    print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
+    return (
+        average_angle,
+        average_power,
+        global_phase_imbalance,
+        phase_residual,
+    )
 
 
 @app.cell
@@ -315,6 +330,12 @@ def __():
     return eps_abs,
 
 
+@app.cell
+def __(history, plot_convergence):
+    plot_convergence(history)
+    return
+
+
 @app.cell(hide_code=True)
 def __(eps_abs, nested_map, np, simple_result, time_horizon):
     _total_num_terminals = sum(
@@ -359,12 +380,6 @@ def __(admm_num_iters, eps_pd, fstar, np, plt, simple_result):
         fig.tight_layout()
         return fig
     return plot_convergence,
-
-
-@app.cell
-def __(history, plot_convergence):
-    plot_convergence(history)
-    return
 
 
 @app.cell(hide_code=True)

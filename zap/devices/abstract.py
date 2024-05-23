@@ -197,7 +197,9 @@ class AbstractDevice:
 
     # Torch Tools
 
-    def torch_terminals(self, time_horizon, machine="cpu") -> list[torch.Tensor]:
+    def torch_terminals(self, time_horizon, machine=None) -> list[torch.Tensor]:
+        machine = infer_machine() if machine is None else machine
+
         # Effectively caching manually
         if (
             hasattr(self, "_torch_terminals")

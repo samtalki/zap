@@ -15,20 +15,10 @@ def gather_sum(index, source):
 
 
 def apply_incidence(device: AbstractDevice, x_list: list[torch.Tensor]):
-    # machine = x_list[0].device
-    # if machine.type == "cpu":
-    #     return apply_incidence_cpu(device, x_list)
-    # else:
-    #     return apply_incidence_gpu(device, x_list)
     return apply_incidence_gpu(device, x_list)
 
 
 def apply_incidence_transpose(device: AbstractDevice, x: torch.Tensor):
-    # machine = x.device
-    # if machine.type == "cpu":
-    #     return apply_incidence_transpose_cpu(device, x)
-    # else:
-    #     return apply_incidence_transpose_gpu(device, x)
     return apply_incidence_transpose_gpu(device, x)
 
 
@@ -173,13 +163,13 @@ def get_terminal_residual(angles, average_angle, devices):
     return residuals
 
 
-def dc_average(x, net, devices, time_horizon, num_terminals, machine="cpu", dtype=DEFAULT_DTYPE):
+def dc_average(x, net, devices, time_horizon, num_terminals, machine=None, dtype=DEFAULT_DTYPE):
     return get_nodal_average(
         x, net, devices, time_horizon, num_terminals, only_ac=False, machine=machine, dtype=dtype
     )
 
 
-def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine="cpu", dtype=DEFAULT_DTYPE):
+def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine=None, dtype=DEFAULT_DTYPE):
     return get_nodal_average(
         x,
         net,
