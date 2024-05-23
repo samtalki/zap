@@ -5,6 +5,10 @@ import cvxpy as cp
 DEFAULT_DTYPE = torch.float64
 
 
+def infer_machine():
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def expand_params(params, devices):
     if params is None:
         params = [{} for _ in devices]
@@ -35,7 +39,7 @@ def grad_or_zero(x, to_numpy=False):
 
 def torchify(x, requires_grad=False, machine=None, dtype=torch.float64):
     if machine is None:
-        machine = "cuda" if torch.cuda.is_available() else "cpu"
+        machine = infer_machine()
 
     if isinstance(x, torch.Tensor):
         if requires_grad and (not x.requires_grad):

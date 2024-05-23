@@ -9,7 +9,7 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import grad_or_zero, torchify
+from zap.util import grad_or_zero, torchify, infer_machine
 
 
 ConstraintMatrix = namedtuple(
@@ -207,7 +207,7 @@ class AbstractDevice:
     def device_data(self, la=np, machine=None, dtype=torch.float64, **kwargs):
         data = self._device_data(**kwargs)
         if machine is None:
-            machine = "cuda" if torch.cuda.is_available() else "cpu"
+            machine = infer_machine()
 
         if la == torch:
             if machine == "cuda":

@@ -3,6 +3,7 @@ import functools
 import torch
 
 from zap.devices.abstract import AbstractDevice
+from zap.util import infer_machine
 from zap.admm.util import (
     nested_add,
     nested_subtract,
@@ -60,7 +61,7 @@ class ADMMSolver:
     def __post_init__(self):
         if self.machine is None:
             # Infer machine
-            self.machine = "cuda" if torch.cuda.is_available() else "cpu"
+            self.machine = infer_machine()
 
     def get_rho(self):
         rho_power = self.rho_power

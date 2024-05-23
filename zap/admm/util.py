@@ -2,11 +2,7 @@ import numpy as np
 import torch
 
 from zap.devices.abstract import AbstractDevice
-from zap.util import DEFAULT_DTYPE
-
-
-def infer_machine():
-    return "cuda" if torch.cuda.is_available() else "cpu"
+from zap.util import DEFAULT_DTYPE, infer_machine
 
 
 def scatter_sum(num_rows, index, source):
