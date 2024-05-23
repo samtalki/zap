@@ -10,18 +10,18 @@ from numpy.typing import NDArray
 from zap.util import replace_none
 from .abstract import AbstractDevice, get_time_horizon, make_dynamic
 
-InjectorData = namedtuple(
-    "InjectorData",
-    [
-        "min_power",
-        "max_power",
-        "linear_cost",
-        "quadratic_cost",
-        "nominal_capacity",
-        "capital_cost",
-        "emission_rates",
-    ],
-)
+# InjectorData = namedtuple(
+#     "InjectorData",
+#     [
+#         "min_power",
+#         "max_power",
+#         "linear_cost",
+#         "quadratic_cost",
+#         "nominal_capacity",
+#         "capital_cost",
+#         "emission_rates",
+#     ],
+# )
 
 
 @dataclass(kw_only=True)
@@ -62,16 +62,16 @@ class Injector(AbstractDevice):
     def time_horizon(self):
         return get_time_horizon(self.min_power)
 
-    def _device_data(self, nominal_capacity=None):
-        return InjectorData(
-            self.min_power,
-            self.max_power,
-            self.linear_cost,
-            self.quadratic_cost,
-            make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
-            self.capital_cost,
-            self.emission_rates,
-        )
+    # def _device_data(self, nominal_capacity=None):
+    #     return InjectorData(
+    #         self.min_power,
+    #         self.max_power,
+    #         self.linear_cost,
+    #         self.quadratic_cost,
+    #         make_dynamic(replace_none(nominal_capacity, self.nominal_capacity)),
+    #         self.capital_cost,
+    #         self.emission_rates,
+    #     )
 
     def scale_costs(self, scale):
         self.linear_cost /= scale
@@ -96,25 +96,25 @@ class Injector(AbstractDevice):
         return []
 
     def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)[
+            "nominal_capacity"
+        ]
         power = power[0]
 
         return [
-            la.multiply(data.min_power, data.nominal_capacity) - power,
-            power - la.multiply(data.max_power, data.nominal_capacity),
+            la.multiply(self.min_power, nominal_capacity) - power,
+            power - la.multiply(self.max_power, nominal_capacity),
         ]
 
-    def operation_cost(
-        self, power, angle, _, nominal_capacity=None, la=np, envelope=None, data=None
-    ):
-        if data is None:
-            data = self.device_data(nominal_capacity=nominal_capacity, la=la)
+    def operation_cost(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)[
+            "nominal_capacity"
+        ]
+        power = power[0] - la.multiply(self.min_power, nominal_capacity)
 
-        power = power[0] - la.multiply(data.min_power, data.nominal_capacity)
-
-        cost = la.sum(la.multiply(data.linear_cost, power))
-        if data.quadratic_cost is not None:
-            cost += la.sum(la.multiply(data.quadratic_cost, la.square(power)))
+        cost = la.sum(la.multiply(self.linear_cost, power))
+        if self.quadratic_cost is not None:
+            cost += la.sum(la.multiply(self.quadratic_cost, la.square(power)))
 
         return cost
 
@@ -157,14 +157,10 @@ class Injector(AbstractDevice):
         nominal_capacity=None,
         power_weights=None,
         angle_weights=None,
-        data=None,
     ):
-        assert data is not None
-        machine, dtype = power[0].device, power[0].dtype
-        # if data is None:
-        #     print("Warning: prox update recreating device data.")
-        #     data = self.device_data(nominal_capacity=nominal_capacity, la=torch, machine=machine)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)["nominal_capacity"]
 
+        machine, dtype = power[0].device, power[0].dtype
         assert angle is None
 
         if power_weights is None:
@@ -178,28 +174,28 @@ class Injector(AbstractDevice):
         #     2 a p + b +  rho Dp^2 (p - power) = 0
         # Which is solved by
         #     p = (rho Dp^2 power - b) / (2 a + rho Dp^2)
-        quadratic_cost = 0.0 if data.quadratic_cost is None else data.quadratic_cost
+        quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
 
-        num = rho_power * Dp2[0] * power[0] - data.linear_cost
+        num = rho_power * Dp2[0] * power[0] - self.linear_cost
         denom = 2 * quadratic_cost + rho_power * Dp2[0]
         p = torch.divide(num, denom)
 
         # Finally, we project onto the box constraints
-        pmax = torch.multiply(data.max_power, data.nominal_capacity)
-        pmin = torch.multiply(data.min_power, data.nominal_capacity)
+        pmax = torch.multiply(self.max_power, nominal_capacity)
+        pmin = torch.multiply(self.min_power, nominal_capacity)
         p = torch.clip(p, pmin, pmax)
 
         return [p], None
 
     def get_admm_power_weights(self, power, strategy: str, nominal_capacity=None):
-        data = self.device_data(nominal_capacity=nominal_capacity, la=np)
+        nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)["nominal_capacity"]
 
         if strategy == "smart_cost":
-            avg_cost = np.mean(data.linear_cost, axis=1).reshape((-1, 1))
+            avg_cost = np.mean(self.linear_cost, axis=1).reshape((-1, 1))
             return [np.maximum(np.sqrt(1 / (avg_cost + 0.01)), 1.0)]
 
         if strategy == "smart_bounds":
-            return [np.minimum(np.sqrt(1 / (data.nominal_capacity + 1.0)), 1.0)]
+            return [np.minimum(np.sqrt(1 / (nominal_capacity + 1.0)), 1.0)]
 
         else:
             return [np.ones_like(pi) for pi in power]

@@ -139,33 +139,33 @@ def __(mo):
 
 
 @app.cell
-def __(deepcopy, devices, net, np, zap):
-    simple_devices = deepcopy(devices[:3])
+def __(deepcopy, devices):
+    simple_devices = deepcopy(devices[:2])
     use_ac = True
 
     # Add AC or DC lines
-    if use_ac:
-        simple_devices += [deepcopy(devices[3])]
-    else:
-        simple_devices += [
-            deepcopy(
-                zap.DCLine(
-                    num_nodes=devices[3].num_nodes,
-                    source_terminal=devices[3].source_terminal,
-                    sink_terminal=devices[3].sink_terminal,
-                    capacity=devices[3].capacity,
-                    nominal_capacity=devices[3].nominal_capacity,
-                    linear_cost=devices[3].linear_cost,
-                )
-            )
-        ]
+    # if use_ac:
+    #     simple_devices += [deepcopy(devices[3])]
+    # else:
+    #     simple_devices += [
+    #         deepcopy(
+    #             zap.DCLine(
+    #                 num_nodes=devices[3].num_nodes,
+    #                 source_terminal=devices[3].source_terminal,
+    #                 sink_terminal=devices[3].sink_terminal,
+    #                 capacity=devices[3].capacity,
+    #                 nominal_capacity=devices[3].nominal_capacity,
+    #                 linear_cost=devices[3].linear_cost,
+    #             )
+    #         )
+    #     ]
 
-    _ground = zap.Ground(
-        num_nodes=net.num_nodes,
-        terminal=np.array([0]),
-        voltage=np.array([0.0]),
-    )
-    simple_devices += [_ground]
+    # _ground = zap.Ground(
+    #     num_nodes=net.num_nodes,
+    #     terminal=np.array([0]),
+    #     voltage=np.array([0.0]),
+    # )
+    # simple_devices += [_ground]
 
     for _d in simple_devices:
         print(type(_d))
@@ -475,23 +475,23 @@ def __(np):
 
 
 @app.cell
-def __(np, numbers):
-    isinstance(np.int32(2), numbers.Number)
+def __(np):
+    np.issubdtype(int, np.integer)
     return
 
 
 @app.cell
-def __(deepcopy, np, simple_devices, zap):
+def __(numbers, torch):
+    isinstance(torch.tensor(2, dtype=torch.int32).item(), numbers.Integral)
+    return
+
+
+@app.cell
+def __(deepcopy, simple_devices, torch):
     _dev = deepcopy(simple_devices[1])
 
-    for k, v in _dev.__dict__.items():
-        if isinstance(v, np.ndarray) and np.issubdtype(v.dtype, np.number):
-            _dev.__dict__[k] = zap.util.torchify(v)
-
-    [type(x) for x in _dev.__dict__.values()]
-
-    _dev
-    return k, v
+    _dev.torchify(device="cuda", dtype=torch.float16)
+    return
 
 
 @app.cell

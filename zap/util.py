@@ -4,8 +4,9 @@ import cvxpy as cp
 
 from numbers import Number
 
-DEFAULT_DTYPE = torch.float64
+DEFAULT_DTYPE = torch.float32
 TORCH_INTEGER_DTYPE = torch.int32
+TORCH_INTEGER_TYPES = [torch.int8, torch.int16, torch.int32, torch.int64]
 
 
 def infer_machine():
@@ -47,6 +48,11 @@ def torchify(x, requires_grad=False, machine=None, dtype=torch.float64):
     if isinstance(x, torch.Tensor):
         if requires_grad and (not x.requires_grad):
             x.requires_grad = True
+
+        if x.device != machine or x.dtype != dtype:
+            dtype = TORCH_INTEGER_DTYPE if dtype in TORCH_INTEGER_TYPES else dtype
+            x = x.to(device=machine, dtype=dtype)
+
         return x
 
     elif x is None:

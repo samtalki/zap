@@ -9,7 +9,15 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import grad_or_zero, torchify, infer_machine, DEFAULT_DTYPE
+from zap.util import (
+    grad_or_zero,
+    torchify,
+    infer_machine,
+    replace_none,
+    DEFAULT_DTYPE,
+    TORCH_INTEGER_DTYPE,
+    TORCH_INTEGER_TYPES,
+)
 
 
 ConstraintMatrix = namedtuple(
@@ -167,6 +175,31 @@ class AbstractDevice:
         else:
             return terminals.shape[1]
 
+    @property
+    def num_devices(self) -> int:
+        return self.terminals.shape[0]
+
+    @cached_property
+    def incidence_matrix(self):
+        dimensions = (self.num_nodes, self.num_devices)
+
+        matrices = []
+        for terminal_index in range(self.num_terminals_per_device):
+            vals = np.ones(self.num_devices)
+
+            if len(self.terminals.shape) == 1:
+                rows = self.terminals
+            else:
+                rows = self.terminals[:, terminal_index]
+
+            cols = np.arange(self.num_devices)
+
+            matrices.append(sp.csc_matrix((vals, (rows, cols)), shape=dimensions))
+
+        return matrices
+
+    # Torch Tools
+
     def torch_terminals(self, time_horizon, machine="cpu") -> list[torch.Tensor]:
         # Effectively caching manually
         if (
@@ -194,43 +227,47 @@ class AbstractDevice:
 
         return torch_terminals
 
-    @property
-    def num_devices(self) -> int:
-        return self.terminals.shape[0]
+    def torchify(self, machine=None, dtype=DEFAULT_DTYPE):
+        new_device = deepcopy(self)
 
-    @cached_property
-    def incidence_matrix(self):
-        dimensions = (self.num_nodes, self.num_devices)
-
-        matrices = []
-        for terminal_index in range(self.num_terminals_per_device):
-            vals = np.ones(self.num_devices)
-
-            if len(self.terminals.shape) == 1:
-                rows = self.terminals
-            else:
-                rows = self.terminals[:, terminal_index]
-
-            cols = np.arange(self.num_devices)
-
-            matrices.append(sp.csc_matrix((vals, (rows, cols)), shape=dimensions))
-
-        return matrices
-
-    # Modeling Tools
-
-    def device_data(self, la=np, machine=None, dtype=torch.float64, **kwargs):
-        data = self._device_data(**kwargs)
         if machine is None:
             machine = infer_machine()
 
+        for k, v in new_device.__dict__.items():
+            if isinstance(v, np.ndarray) and np.issubdtype(v.dtype, np.number):
+                v_dtype = TORCH_INTEGER_DTYPE if np.issubdtype(v.dtype, np.integer) else dtype
+                new_device.__dict__[k] = torch.tensor(v, device=machine, dtype=v_dtype)
+
+            elif isinstance(v, torch.Tensor):
+                v_dtype = TORCH_INTEGER_DTYPE if v.dtype in TORCH_INTEGER_TYPES else dtype
+                new_device.__dict__[k] = v.to(device=machine, dtype=v_dtype)
+
+        return new_device
+
+    def to(self, device=None, dtype=None):
+        return self.torchify(machine=device, dtype=dtype)
+
+    # Modeling Tools
+
+    def parameterize(self, la=np, **params):
+        new_params = {k: make_dynamic(replace_none(v, getattr(self, k))) for k, v in params.items()}
         if la == torch:
-            if machine == "cuda":
-                print(f"Warning: moving data to GPU for device {type(self)}")
+            new_params = torchify(new_params)
+        return new_params
 
-            data = type(data)(*[torchify(x, machine=machine, dtype=dtype) for x in data])
+    # def device_data(self, la=np, machine=None, dtype=torch.float64, **kwargs):
+    #     data = self._device_data(**kwargs)
 
-        return data
+    #     if la == torch:
+    #         if machine is None:
+    #             machine = infer_machine()
+
+    #         if machine == "cuda":
+    #             print(f"Warning: moving data to GPU for device {type(self)}")
+
+    #         data = type(data)(*[torchify(x, machine=machine, dtype=dtype) for x in data])
+
+    #     return data
 
     def initialize_power(self, time_horizon: int) -> list[cp.Variable]:
         return [
