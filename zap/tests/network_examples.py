@@ -27,7 +27,7 @@ def load_pypsa_network(num_hours=1, num_nodes=100):
         inclusive="left",
     )
     pn = pypsa.Network()
-    pn.import_from_csv_folder(DATA_PATH / "pypsa/western/elec_s_{num_nodes}")
+    pn.import_from_csv_folder(DATA_PATH / f"pypsa/western/elec_s_{num_nodes}")
 
     net, devices = zap.importers.load_pypsa_network(pn, dates, power_unit=1e3, cost_unit=10.0)
     parameters = None
