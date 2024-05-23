@@ -291,7 +291,7 @@ def __():
     rho_power = 0.5  # 0.5
     rho_angle = 5.0 * rho_power  # 5.0 * rho_power
 
-    admm_num_iters = 500
+    admm_num_iters = 100
     return admm_num_iters, rho_angle, rho_power
 
 
@@ -459,6 +459,43 @@ def __(nested_norm, simple_devices, simple_result, torch):
 @app.cell(hide_code=True)
 def __(mo):
     mo.md("## Debug")
+    return
+
+
+@app.cell
+def __():
+    import numbers
+    return numbers,
+
+
+@app.cell
+def __(np):
+    np.int32(2)
+    return
+
+
+@app.cell
+def __(np, numbers):
+    isinstance(np.int32(2), numbers.Number)
+    return
+
+
+@app.cell
+def __(deepcopy, np, simple_devices, zap):
+    _dev = deepcopy(simple_devices[1])
+
+    for k, v in _dev.__dict__.items():
+        if isinstance(v, np.ndarray) and np.issubdtype(v.dtype, np.number):
+            _dev.__dict__[k] = zap.util.torchify(v)
+
+    [type(x) for x in _dev.__dict__.values()]
+
+    _dev
+    return k, v
+
+
+@app.cell
+def __():
     return
 
 

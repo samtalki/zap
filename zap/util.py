@@ -2,7 +2,10 @@ import torch
 import numpy as np
 import cvxpy as cp
 
+from numbers import Number
+
 DEFAULT_DTYPE = torch.float64
+TORCH_INTEGER_DTYPE = torch.int32
 
 
 def infer_machine():
@@ -45,17 +48,29 @@ def torchify(x, requires_grad=False, machine=None, dtype=torch.float64):
         if requires_grad and (not x.requires_grad):
             x.requires_grad = True
         return x
+
     elif x is None:
         return None
+
     elif isinstance(x, dict):
         return {
             k: torchify(v, requires_grad=requires_grad, machine=machine, dtype=dtype)
             for k, v in x.items()
         }
+
     elif isinstance(x, list):
         return [torchify(xi, requires_grad=requires_grad, machine=machine, dtype=dtype) for xi in x]
-    else:
+
+    elif isinstance(x, np.ndarray) or isinstance(x, Number):  # np array
+        old_dtype = x.dtype if isinstance(x, np.ndarray) else type(x)
+
+        if np.issubdtype(old_dtype, np.integer):
+            dtype = TORCH_INTEGER_DTYPE
+
         return torch.tensor(x, requires_grad=requires_grad, device=machine, dtype=dtype)
+
+    else:
+        raise ValueError(f"Unknown type: {type(x)}. Cannot torchify.")
 
 
 def torch_sparse(A):

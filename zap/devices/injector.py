@@ -242,7 +242,7 @@ class Generator(Injector):
 
     @property
     def min_power(self):
-        return np.zeros(self.dynamic_capacity.shape)
+        return 0.0 * self.dynamic_capacity
 
     @property
     def max_power(self):
@@ -306,7 +306,7 @@ class Load(Injector):
 
     @property
     def max_power(self):
-        return np.zeros(self.load.shape)
+        return 0.0 * self.load
 
     def sample_time(self, time_periods, original_time_horizon):
         dev = super().sample_time(time_periods, original_time_horizon)
