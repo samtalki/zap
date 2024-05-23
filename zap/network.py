@@ -158,20 +158,7 @@ class DispatchOutcome(Sequence):
 
     def torchify(self, requires_grad=False, machine=None):
         return DispatchOutcome(
-            phase_duals=torchify(self.phase_duals, requires_grad=requires_grad, machine=machine),
-            local_equality_duals=torchify(
-                self.local_equality_duals, requires_grad=requires_grad, machine=machine
-            ),
-            local_inequality_duals=torchify(
-                self.local_inequality_duals, requires_grad=requires_grad, machine=machine
-            ),
-            local_variables=torchify(
-                self.local_variables, requires_grad=requires_grad, machine=machine
-            ),
-            power=torchify(self.power, requires_grad=requires_grad, machine=machine),
-            angle=torchify(self.angle, requires_grad=requires_grad, machine=machine),
-            prices=torchify(self.prices, requires_grad=requires_grad, machine=machine),
-            global_angle=torchify(self.global_angle, requires_grad=requires_grad, machine=machine),
+            *[torchify(x, requires_grad=requires_grad, machine=machine) for x in self]
         )
 
     def vectorize(self):
