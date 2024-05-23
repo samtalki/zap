@@ -9,7 +9,7 @@ from functools import cached_property
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import grad_or_zero, torchify, infer_machine
+from zap.util import grad_or_zero, torchify, infer_machine, DEFAULT_DTYPE
 
 
 ConstraintMatrix = namedtuple(
@@ -99,11 +99,26 @@ class AbstractDevice:
     # ADMM Functionality
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int):
-        raise NotImplementedError
+    def admm_initialize_power_variables(self, time_horizon: int, machine=None, dtype=DEFAULT_DTYPE):
+        if machine is None:
+            machine = infer_machine()
 
-    def admm_initialize_angle_variables(self, time_horizon: int):
-        raise NotImplementedError
+        return [
+            torch.zeros((self.num_devices, time_horizon), device=machine, dtype=dtype)
+            for _ in range(self.num_terminals_per_device)
+        ]
+
+    def admm_initialize_angle_variables(self, time_horizon: int, machine=None, dtype=DEFAULT_DTYPE):
+        if machine is None:
+            machine = infer_machine()
+
+        if self.is_ac:
+            return [
+                torch.zeros((self.num_devices, time_horizon), device=machine, dtype=dtype)
+                for _ in range(self.num_terminals_per_device)
+            ]
+        else:
+            return None
 
     def get_admm_power_weights(self, power, strategy: str, **kwargs):
         return [np.ones_like(pi) for pi in power]

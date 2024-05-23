@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 from numpy.typing import NDArray
 
-from zap.util import replace_none, DEFAULT_DTYPE
+from zap.util import replace_none
 from .abstract import AbstractDevice, make_dynamic
 
 GroundData = namedtuple(
@@ -88,12 +88,6 @@ class Ground(AbstractDevice):
     # ====
     # ADMM FUNCTIONS
     # ====
-
-    def admm_initialize_power_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
-        return [torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype)]
-
-    def admm_initialize_angle_variables(self, time_horizon: int, device="cpu", dtype=DEFAULT_DTYPE):
-        return [torch.zeros((self.num_devices, time_horizon), device=device, dtype=dtype)]
 
     def admm_prox_update(
         self,
