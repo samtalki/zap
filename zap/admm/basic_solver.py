@@ -1,7 +1,9 @@
 import dataclasses
 import functools
 import torch
+from typing import Optional
 
+from zap.devices import Battery
 from zap.devices.abstract import AbstractDevice
 from zap.util import infer_machine
 from zap.admm.util import (
@@ -49,7 +51,7 @@ class ADMMSolver:
 
     num_iterations: int
     rho_power: float
-    rho_angle: float = None
+    rho_angle: Optional[float] = None
     atol: float = 0.0
     rtol: float = 1e-3
     resid_norm: object = None
@@ -57,6 +59,10 @@ class ADMMSolver:
     track_objective: bool = True
     machine: str = None
     dtype: object = torch.float64
+    battery_window: Optional[int] = None
+    battery_inner_weight: float = 1.0
+    battery_inner_over_relaxation: float = 1.8
+    battery_inner_iterations: int = 10
 
     def __post_init__(self):
         if self.machine is None:
@@ -81,6 +87,9 @@ class ADMMSolver:
         # Initialize
         st = self.initialize_solver(net, devices, time_horizon)
         history = self.initialize_history()
+
+        for d in devices:
+            d.has_changed = True
 
         for iteration in range(self.num_iterations):
             # (1) Device proximal updates
@@ -122,6 +131,16 @@ class ADMMSolver:
             w_p = st.power_weights[i]
             w_v = st.angle_weights[i]
 
+            if isinstance(dev, Battery):
+                kwargs = {
+                    "window": self.battery_window,
+                    "inner_weight": self.battery_inner_weight,
+                    "inner_over_relaxation": self.battery_inner_over_relaxation,
+                    "inner_iterations": self.battery_inner_iterations,
+                }
+            else:
+                kwargs = {}
+
             p, v = dev.admm_prox_update(
                 rho_power,
                 rho_angle,
@@ -130,6 +149,7 @@ class ADMMSolver:
                 power_weights=w_p,
                 angle_weights=w_v,
                 **parameters[i],
+                **kwargs,
             )
             st.power[i] = p
             st.phase[i] = v

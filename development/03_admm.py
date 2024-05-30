@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.3"
+__generated_with = "0.6.13"
 app = marimo.App()
 
 
@@ -57,7 +57,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_100")
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_1000")
     return pn,
 
 
@@ -90,8 +90,8 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
 
 
 @app.cell
-def __(load_pypsa_network, pn):
-    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * 1)
+def __(load_pypsa_network, num_days, pn):
+    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * num_days)
 
     for _d in devices:
         print(type(_d))
@@ -99,52 +99,38 @@ def __(load_pypsa_network, pn):
 
 
 @app.cell
-def __(cp, devices, net, time_horizon):
-    result = net.dispatch(
-        devices,
-        time_horizon,
-        solver=cp.MOSEK,
-        add_ground=False,
-        solver_kwargs={"verbose": False}
-    )
-    result.problem.value
-    return result,
+def __():
+    # result = net.dispatch(
+    #     devices,
+    #     time_horizon,
+    #     solver=cp.MOSEK,
+    #     add_ground=False,
+    #     solver_kwargs={"verbose": False}
+    # )
+    # result.problem.value
+    return
 
 
-@app.cell(hide_code=True)
-def __(
-    devices,
-    get_nodal_average,
-    get_terminal_residual,
-    nested_norm,
-    net,
-    result,
-    time_horizon,
-    torch,
-):
-    _x = result.torchify(machine="cuda")
-    _devs = [d.torchify() for d in devices]
+@app.cell
+def __():
+    # _x = result.torchify(machine="cuda")
+    # _devs = [d.torchify() for d in devices]
 
-    # Compute global power / phase imbalance
-    average_power = get_nodal_average(_x.power, net, _devs, time_horizon)
-    average_angle = get_nodal_average(
-        _x.angle, net, _devs, time_horizon, only_ac=True
-    )
-    global_phase_imbalance = average_angle - _x.global_angle
+    # # Compute global power / phase imbalance
+    # average_power = get_nodal_average(_x.power, net, _devs, time_horizon)
+    # average_angle = get_nodal_average(
+    #     _x.angle, net, _devs, time_horizon, only_ac=True
+    # )
+    # global_phase_imbalance = average_angle - _x.global_angle
 
-    print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
-    print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
+    # print(f"Power Imbalance: {torch.linalg.norm(average_power, 1)}")
+    # print(f"Global Phase Imbalance: {torch.linalg.norm(global_phase_imbalance, 1)}")
 
-    # Compute local phase imbalance
-    phase_residual = get_terminal_residual(_x.angle, average_angle, _devs)
+    # # Compute local phase imbalance
+    # phase_residual = get_terminal_residual(_x.angle, average_angle, _devs)
 
-    print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
-    return (
-        average_angle,
-        average_power,
-        global_phase_imbalance,
-        phase_residual,
-    )
+    # print(f"Local Phase Imbalance: {nested_norm(phase_residual)}")
+    return
 
 
 @app.cell
@@ -155,25 +141,8 @@ def __(mo):
 
 @app.cell
 def __(deepcopy, devices, net, np, zap):
-    simple_devices = deepcopy(devices[:3])
-    use_ac = True
+    simple_devices = deepcopy(devices[:5])
 
-    # Add AC or DC lines
-    if use_ac:
-        simple_devices += [deepcopy(devices[3])]
-    else:
-        simple_devices += [
-            deepcopy(
-                zap.DCLine(
-                    num_nodes=devices[3].num_nodes,
-                    source_terminal=devices[3].source_terminal,
-                    sink_terminal=devices[3].sink_terminal,
-                    capacity=devices[3].capacity,
-                    nominal_capacity=devices[3].nominal_capacity,
-                    linear_cost=devices[3].linear_cost,
-                )
-            )
-        ]
 
     _ground = zap.Ground(
         num_nodes=net.num_nodes,
@@ -184,7 +153,7 @@ def __(deepcopy, devices, net, np, zap):
 
     for _d in simple_devices:
         print(type(_d))
-    return simple_devices, use_ac
+    return simple_devices,
 
 
 @app.cell
@@ -203,7 +172,7 @@ def __(cp, nested_norm, net, simple_devices, time_horizon):
     return simple_result,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(mo):
     mo.md("## ADMM")
     return
@@ -256,28 +225,6 @@ def __(devices, simple_result, torch, zap):
     return
 
 
-@app.cell(hide_code=True)
-def __(simple_devices):
-    print("Total Devices: ", sum([d.num_devices for d in simple_devices]))
-    return
-
-
-@app.cell
-def __(ADMMSolver, admm_num_iters, eps_pd, rho_angle, rho_power, torch):
-    admm = ADMMSolver(
-        num_iterations=admm_num_iters,
-        rho_power=rho_power,
-        rho_angle=rho_angle,
-        rtol=eps_pd,
-        resid_norm=2,
-        safe_mode=False,
-        machine="cuda",
-        dtype=torch.float32
-    )
-    print(f"ADMM solving with {admm.machine}")
-    return admm,
-
-
 @app.cell
 def __(admm, simple_devices):
     torch_devices = [
@@ -286,21 +233,46 @@ def __(admm, simple_devices):
     return torch_devices,
 
 
+@app.cell(hide_code=True)
+def __(simple_devices):
+    print("Total Devices: ", sum([d.num_devices for d in simple_devices]))
+    return
+
+
 @app.cell
-def __(admm, net, simple_result, time_horizon, torch, torch_devices):
+def __():
+    num_days = 1
+    return num_days,
+
+
+@app.cell
+def __(ADMMSolver, admm_num_iters, rho_angle, rho_power, torch):
+    admm = ADMMSolver(
+        num_iterations=admm_num_iters,
+        rho_power=rho_power,
+        rho_angle=rho_angle,
+        # rtol=eps_pd,
+        resid_norm=2,
+        safe_mode=False,
+        machine="cuda",
+        dtype=torch.float32,
+        battery_window=24,
+        battery_inner_iterations=10,
+        battery_inner_over_relaxation=1.8,
+    )
+    print(f"ADMM solving with {admm.machine}")
+    return admm,
+
+
+@app.cell
+def __(admm, net, time_horizon, torch_devices):
     state, history = admm.solve(
-        net,
+        net, 
         torch_devices,
         time_horizon,
-        nu_star=torch.tensor(-simple_result.prices, device=admm.machine),
+        # nu_star=torch.tensor(-simple_result.prices, device=admm.machine),
     )
     return history, state
-
-
-@app.cell
-def __(state):
-    state.power[0][0].dtype
-    return
 
 
 @app.cell(hide_code=True)
@@ -311,8 +283,8 @@ def __(mo):
 
 @app.cell
 def __():
-    rho_power = 0.5  # 0.5
-    rho_angle = 5.0 * rho_power  # 5.0 * rho_power
+    rho_power = 1.0  # 0.5
+    rho_angle = 1.0 * rho_power  # 5.0 * rho_power
 
     admm_num_iters = 500
     return admm_num_iters, rho_angle, rho_power
@@ -336,17 +308,17 @@ def __(history, plot_convergence):
     return
 
 
-@app.cell(hide_code=True)
-def __(eps_abs, nested_map, np, simple_result, time_horizon):
+@app.cell
+def __(eps_abs, nested_map, np, state, time_horizon):
     _total_num_terminals = sum(
-        [sum(x) for x in nested_map(lambda x: x.shape[0], simple_result.power)]
+        [sum(x) for x in nested_map(lambda x: x.shape[0], state.power)]
     )
     eps_pd = eps_abs * np.sqrt(_total_num_terminals * time_horizon)
     return eps_pd,
 
 
 @app.cell(hide_code=True)
-def __(admm_num_iters, eps_pd, fstar, np, plt, simple_result):
+def __(admm_num_iters, eps_pd, plt):
     def plot_convergence(hist):
         fig, axes = plt.subplots(2, 2, figsize=(7, 4))
 
@@ -366,16 +338,16 @@ def __(admm_num_iters, eps_pd, fstar, np, plt, simple_result):
         ax.legend()
         ax.set_title("dual residuals")
 
-        ax = axes[1][0]
-        ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
-        ax.set_yscale("log")
-        ax.set_title("|f - f*| / f*")
+        # ax = axes[1][0]
+        # ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
+        # ax.set_yscale("log")
+        # ax.set_title("|f - f*| / f*")
 
-        ax = axes[1][1]
-        if len(hist.price_error) > 0:
-            ax.plot(np.array(hist.price_error) / simple_result.prices.size)
-        ax.set_yscale("log")
-        ax.set_title("nu - nu*")
+        # ax = axes[1][1]
+        # if len(hist.price_error) > 0:
+        #     ax.plot(np.array(hist.price_error) / simple_result.prices.size)
+        # ax.set_yscale("log")
+        # ax.set_title("nu - nu*")
 
         fig.tight_layout()
         return fig
@@ -460,7 +432,7 @@ def __(admm, plt, rho_power, simple_result, state, torch):
     return price_errs,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(nested_norm, simple_result, torch, torch_devices):
     _x = simple_result.torchify()
 
