@@ -208,15 +208,15 @@ class AbstractDevice:
         ):
             return self._torch_terminals
 
+        tt = self.terminals
+        if isinstance(tt, np.ndarray):
+            tt = torch.tensor(tt, device=machine)
+
         if len(self.terminals.shape) == 1:
-            torch_terminals = [
-                torch.tensor(self.terminals, device=machine).reshape(-1, 1).expand(-1, time_horizon)
-            ]
+            torch_terminals = [tt.reshape(-1, 1).expand(-1, time_horizon)]
         else:
             torch_terminals = [
-                torch.tensor(self.terminals[:, i], device=machine)
-                .reshape(-1, 1)
-                .expand(-1, time_horizon)
+                tt[:, i].reshape(-1, 1).expand(-1, time_horizon)
                 for i in range(self.num_terminals_per_device)
             ]
 

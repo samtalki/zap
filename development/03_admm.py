@@ -57,7 +57,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_1000")
+    pn.import_from_csv_folder("data/pypsa/western/elec_s_500")
     return pn,
 
 
@@ -208,20 +208,20 @@ def __(mo):
     return
 
 
-@app.cell
-def __(devices, simple_result, torch, zap):
-    _i = 0
-    _dev = devices[_i]
+@app.cell(hide_code=True)
+def __():
+    # _i = 0
+    # _dev = devices[_i]
 
-    _x = simple_result.torchify().power[_i]
-    _y_cpu = zap.admm.util.apply_incidence(_dev, _x)
-    _y_gpu = zap.admm.util.apply_incidence_gpu(_dev, _x)
-    print(torch.linalg.norm(torch.tensor(_y_cpu[0]) - _y_gpu[0]).item())
+    # _x = simple_result.torchify().power[_i]
+    # _y_cpu = zap.admm.util.apply_incidence(_dev, _x)
+    # _y_gpu = zap.admm.util.apply_incidence_gpu(_dev, _x)
+    # print(torch.linalg.norm(torch.tensor(_y_cpu[0]) - _y_gpu[0]).item())
 
-    _xt = simple_result.torchify().prices
-    _y_cpu = zap.admm.util.apply_incidence_transpose(_dev, _xt)
-    _y_gpu = zap.admm.util.apply_incidence_transpose_gpu(_dev, _xt)
-    print(torch.linalg.norm(torch.tensor(_y_cpu[0]) - _y_gpu[0]).item())
+    # _xt = simple_result.torchify().prices
+    # _y_cpu = zap.admm.util.apply_incidence_transpose(_dev, _xt)
+    # _y_gpu = zap.admm.util.apply_incidence_transpose_gpu(_dev, _xt)
+    # print(torch.linalg.norm(torch.tensor(_y_cpu[0]) - _y_gpu[0]).item())
     return
 
 
@@ -241,7 +241,7 @@ def __(simple_devices):
 
 @app.cell
 def __():
-    num_days = 1
+    num_days = 8
     return num_days,
 
 
