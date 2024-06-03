@@ -225,14 +225,6 @@ def __():
     return
 
 
-@app.cell
-def __(admm, simple_devices):
-    torch_devices = [
-        d.torchify(machine=admm.machine, dtype=admm.dtype) for d in simple_devices
-    ]
-    return torch_devices,
-
-
 @app.cell(hide_code=True)
 def __(simple_devices):
     print("Total Devices: ", sum([d.num_devices for d in simple_devices]))
@@ -265,14 +257,59 @@ def __(ADMMSolver, admm_num_iters, rho_angle, rho_power, torch):
 
 
 @app.cell
-def __(admm, net, time_horizon, torch_devices):
+def __():
+    backprop = True
+    return backprop,
+
+
+@app.cell
+def __(admm, backprop, simple_devices, torch):
+    torch.cuda.empty_cache()
+
+    torch_devices = [
+        d.torchify(machine=admm.machine, dtype=admm.dtype) for d in simple_devices
+    ]
+
+    if backprop:
+        print("Enabling gradient tape")
+        torch_devices[3].nominal_capacity[0] += 0.01
+        for d in torch_devices[:4]:
+            d.nominal_capacity.requires_grad = True
+    return d, torch_devices
+
+
+@app.cell
+def __():
+    from torch.profiler import profile, record_function, ProfilerActivity
+    return ProfilerActivity, profile, record_function
+
+
+@app.cell
+def __(admm, backprop, net, time_horizon, torch, torch_devices):
+    # with profile(
+    #     activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+    #     record_shapes=True,
+    #     profile_memory=True,
+    # ) as prof:
     state, history = admm.solve(
-        net, 
+        net,
         torch_devices,
         time_horizon,
         # nu_star=torch.tensor(-simple_result.prices, device=admm.machine),
     )
+
+    if backprop:
+        print(torch.sum(state.power[0][0][1, :]))
+        torch.sum(state.power[0][0][1, :]).backward()
+
+    torch_devices[3].nominal_capacity.grad
     return history, state
+
+
+@app.cell
+def __():
+    # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+    return
 
 
 @app.cell(hide_code=True)
@@ -454,6 +491,31 @@ def __(nested_norm, simple_result, torch, torch_devices):
 @app.cell(hide_code=True)
 def __(mo):
     mo.md("## Debug")
+    return
+
+
+@app.cell
+def __():
+    # _K = (
+    #     zap.devices.store.K_matrix(torch_devices[-2], 24, 1.0, 1.0, machine="cuda")
+    #     .to("cpu")
+    #     .numpy()
+    # )
+
+    # plt.figure()
+    # plt.imshow(_K, cmap="bwr", clim=(-2, 2))
+    # plt.colorbar()
+    # plt.show()
+    return
+
+
+@app.cell
+def __():
+    # plt.figure()
+    # plt.imshow(torch_devices[-2].admm_data[0].to("cpu").numpy(), cmap="bwr", clim=(-2, 2))
+    # plt.colorbar()
+
+    # plt.show()
     return
 
 

@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import torch
+import numpy as np
 from typing import Optional
 
 from zap.devices import Battery
@@ -44,6 +45,25 @@ class ADMMState:
     def angle_weights(self):
         return [None for _ in self.phase]
 
+    def copy(self):
+        return ADMMState(
+            num_terminals=self.num_terminals,
+            num_ac_terminals=self.num_ac_terminals,
+            power=[[pi.clone().detach() for pi in p] for p in self.power],
+            phase=[None if v is None else [vi.clone().detach() for vi in v] for v in self.phase],
+            dual_power=self.dual_power.clone().detach(),
+            dual_phase=[
+                None if v is None else [vi.clone().detach() for vi in v] for v in self.dual_phase
+            ],
+            avg_power=self.avg_power.clone().detach(),
+            avg_phase=self.avg_phase.clone().detach(),
+            resid_power=[[pi.clone().detach() for pi in p] for p in self.resid_power],
+            resid_phase=[
+                None if v is None else [vi.clone().detach() for vi in v] for v in self.resid_phase
+            ],
+            objective=self.objective,
+        )
+
 
 @dataclasses.dataclass
 class ADMMSolver:
@@ -53,7 +73,7 @@ class ADMMSolver:
     rho_power: float
     rho_angle: Optional[float] = None
     atol: float = 0.0
-    rtol: float = 1e-3
+    rtol: float = 0.0
     resid_norm: object = None
     safe_mode: bool = False
     track_objective: bool = True
@@ -79,14 +99,26 @@ class ADMMSolver:
         return rho_power, rho_angle
 
     def solve(
-        self, net, devices: list[AbstractDevice], time_horizon, *, parameters=None, nu_star=None
+        self,
+        net,
+        devices: list[AbstractDevice],
+        time_horizon,
+        *,
+        parameters=None,
+        nu_star=None,
+        initial_state=None,
     ):
         if parameters is None:
             parameters = [{} for _ in devices]
 
         # Initialize
-        st = self.initialize_solver(net, devices, time_horizon)
+        self.total_terminals = sum(d.num_devices for d in devices) * time_horizon
         history = self.initialize_history()
+
+        if initial_state is None:
+            st = self.initialize_solver(net, devices, time_horizon)
+        else:
+            st = initial_state
 
         for d in devices:
             d.has_changed = True
@@ -109,7 +141,7 @@ class ADMMSolver:
 
             self.update_history(history, st, last_avg_phase, last_resid_power, nu_star)
 
-            if self.has_converged(st):
+            if self.has_converged(st, history):
                 break  # Quit early
 
             if self.safe_mode:
@@ -235,8 +267,17 @@ class ADMMSolver:
         ]
         return sum(costs).item()
 
-    def has_converged(self, st: ADMMState):
-        return False
+    def has_converged(self, st: ADMMState, history: ADMMState):
+        total_tol = self.atol + self.rtol * np.sqrt(self.total_terminals)
+
+        primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
+        dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+
+        if primal_resid < total_tol and dual_resid < total_tol:
+            print(f"Converged early in {len(history.power)} iterations.")
+            return True
+        else:
+            return False
 
     def update_history(
         self, history: ADMMState, st: ADMMState, last_avg_phase, last_resid_power, nu_star
