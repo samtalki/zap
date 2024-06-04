@@ -195,8 +195,8 @@ def __(ADMMSolver, DTYPE, MACHINE):
     admm = ADMMSolver(
         num_iterations=2000,
         rtol=1e-2,
-        rho_power=2.0,
-        rho_angle=5.0,
+        rho_power=1.0,
+        rho_angle=1.0,
         resid_norm=2,
         machine=MACHINE,
         dtype=DTYPE,

@@ -4,13 +4,13 @@ from copy import deepcopy
 
 import zap.dual
 from zap.network import DispatchOutcome
-from zap.planning.problem import PlanningProblem, StochasticPlanningProblem
+from zap.planning.problem_abstract import AbstractPlanningProblem, StochasticPlanningProblem
 
 
 class RelaxedPlanningProblem:
     def __init__(
         self,
-        problem: PlanningProblem,
+        problem: AbstractPlanningProblem,
         inf_value=100.0,
         max_price=100.0,
         solver=None,
