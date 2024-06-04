@@ -23,13 +23,13 @@ class ADMMLayer(DispatchLayer):
         self.solver = solver
         self.warm_start = warm_start
 
-    def forward(self, **kwargs) -> ADMMState:
+    def forward(self, initial_state=None, **kwargs) -> ADMMState:
         parameters = self.setup_parameters(**kwargs)
 
-        if self.warm_start and hasattr(self, "state"):
+        if self.warm_start and initial_state is None and hasattr(self, "state"):
             initial_state = self.state.copy()
         else:
-            initial_state = None
+            initial_state = initial_state
 
         state, history = self.solver.solve(
             self.network,

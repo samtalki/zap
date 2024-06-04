@@ -24,7 +24,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
             operation_objective, investment_objective, layer, lower_bounds, upper_bounds
         )
 
-    def forward(self, requires_grad: bool = False, batch=None, **kwargs):
+    def forward(self, requires_grad: bool = False, batch=None, initial_state=None, **kwargs):
         # Enable gradient tracking if needed
         for p, v in kwargs.items():
             if requires_grad:
@@ -34,7 +34,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
 
         # Forward pass through dispatch layer
         # Store this for efficient backward pass
-        admm_state = self.layer.forward(**kwargs)
+        admm_state = self.layer.forward(initial_state=initial_state, **kwargs)
         state = admm_state.as_outcome()
 
         op_cost = self.operation_objective(state, parameters=params, la=torch)

@@ -256,11 +256,19 @@ def __(PlanningProblem, layer, net, torch_devices, zap):
 
 
 @app.cell
-def __(problem, theta0, torch_copy, y0):
-    y0  # Force dependency
-    c0 = problem(**torch_copy(theta0), requires_grad=True)
+def __(MACHINE, theta0, torch, torch_copy):
+    theta1 = torch_copy(theta0)
+    for k,v in theta1.items():
+        theta1[k] = v + 0.1 * torch.rand(v.shape, device=MACHINE)
+    return k, theta1, v
+
+
+@app.cell
+def __(problem, theta0, theta1, torch_copy, y0):
+    c0 = problem(**torch_copy(theta0), initial_state=y0.copy())
+    c1 = problem(**torch_copy(theta1), requires_grad=True)
     grad0 = problem.backward()
-    return c0, grad0
+    return c0, c1, grad0
 
 
 @app.cell
