@@ -129,7 +129,7 @@ class Transporter(AbstractDevice):
         # Get original nominal capacity and capital cost
         # Nominal capacity isn't passed here because we want to use the original value
         if self.capital_cost is None or nominal_capacity is None:
-            print("No capital cost or nominal capacity")
+            print(f"No capital cost or nominal capacity for device {type(self)}")
             return 0.0
 
         # Device nominal capacity = min nominal capacity

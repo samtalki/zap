@@ -177,6 +177,13 @@ def __(np, plt):
 
 @app.cell
 def __():
+    def torch_copy(param):
+        return {k: v.detach().clone() for k, v in param.items()}
+    return torch_copy,
+
+
+@app.cell
+def __():
     from zap.admm import ADMMLayer, ADMMSolver
     return ADMMLayer, ADMMSolver
 
@@ -185,7 +192,8 @@ def __():
 def __():
     parameter_names = {
         "generator_capacity": (0, "nominal_capacity"),
-        "line_capacity": (3, "nominal_capacity"),
+        "dc_line_capacity": (2, "nominal_capacity"),
+        "ac_line_capacity": (3, "nominal_capacity"),
     }
     return parameter_names,
 
@@ -194,7 +202,7 @@ def __():
 def __(ADMMSolver, DTYPE, MACHINE):
     admm = ADMMSolver(
         num_iterations=2000,
-        rtol=1e-2,
+        rtol=5e-3,
         rho_power=1.0,
         rho_angle=1.0,
         resid_norm=2,
@@ -220,14 +228,44 @@ def __(layer):
 
 
 @app.cell
-def __(admm, layer, np, plot_convergence, theta0):
-    y0 = layer(**theta0)
+def __(admm, layer, np, plot_convergence, theta0, torch_copy):
+    y0 = layer(**torch_copy(theta0))
     plot_convergence(layer.history, eps_pd=admm.rtol * np.sqrt(admm.total_terminals))
     return y0,
 
 
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md("## Planning Problem")
+    return
+
+
 @app.cell
 def __():
+    from zap.planning import PlanningProblem
+    return PlanningProblem,
+
+
+@app.cell
+def __(PlanningProblem, layer, net, torch_devices, zap):
+    op_cost = zap.planning.DispatchCostObjective(net, torch_devices)
+    inv_cost = zap.planning.InvestmentObjective(torch_devices, layer)
+
+    problem = PlanningProblem(op_cost, inv_cost, layer)
+    return inv_cost, op_cost, problem
+
+
+@app.cell
+def __(problem, theta0, torch_copy, y0):
+    y0  # Force dependency
+    c0 = problem(**torch_copy(theta0), requires_grad=True)
+    grad0 = problem.backward()
+    return c0, grad0
+
+
+@app.cell
+def __(grad0):
+    grad0["generator_capacity"][:10]
     return
 
 

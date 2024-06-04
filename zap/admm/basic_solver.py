@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from typing import Optional
 
+from zap.network import DispatchOutcome
 from zap.devices import Battery
 from zap.devices.abstract import AbstractDevice
 from zap.util import infer_machine
@@ -64,6 +65,20 @@ class ADMMState:
             objective=self.objective,
         )
 
+    def as_outcome(self) -> DispatchOutcome:
+        return DispatchOutcome(
+            phase_duals=self.dual_phase,
+            local_equality_duals=None,
+            local_inequality_duals=None,
+            local_variables=[None for _ in self.power],
+            power=self.power,
+            angle=self.phase,
+            prices=self.dual_power,
+            global_angle=None,
+            problem=None,
+            ground=None,
+        )
+
 
 @dataclasses.dataclass
 class ADMMSolver:
@@ -83,6 +98,7 @@ class ADMMSolver:
     battery_inner_weight: float = 1.0
     battery_inner_over_relaxation: float = 1.8
     battery_inner_iterations: int = 10
+    minimum_iterations: int = 10
 
     def __post_init__(self):
         if self.machine is None:
@@ -141,7 +157,7 @@ class ADMMSolver:
 
             self.update_history(history, st, last_avg_phase, last_resid_power, nu_star)
 
-            if self.has_converged(st, history):
+            if iteration + 1 >= self.minimum_iterations and self.has_converged(st, history):
                 break  # Quit early
 
             if self.safe_mode:
