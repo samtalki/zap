@@ -1,3 +1,4 @@
+import torch
 import cvxpy as cp
 from typing import Any
 from copy import deepcopy
@@ -84,9 +85,17 @@ class DispatchLayer:
 
         return dtheta
 
-    def initialize_parameters(self):
+    def initialize_parameters(self, requires_grad=False):
         initial_parameters = {}
         for name, (index, attr) in self.parameter_names.items():
-            initial_parameters[name] = deepcopy(getattr(self.devices[index], attr))
+            x = getattr(self.devices[index], attr)
+
+            if isinstance(x, torch.Tensor):
+                x = x.clone().detach()
+                if requires_grad:
+                    x.requires_grad = True
+                initial_parameters[name] = x
+            else:
+                initial_parameters[name] = deepcopy(x)
 
         return initial_parameters

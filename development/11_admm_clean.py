@@ -43,7 +43,7 @@ def __(mo):
 
 @app.cell
 def __():
-    num_days = 4
+    num_days = 8
     return num_days,
 
 
@@ -178,7 +178,7 @@ def __(ADMMSolver, backprop, torch):
         num_iterations=10_000,
         rtol=1e-3,
         rho_power=1.0,
-        rho_angle=1.0,
+        rho_angle=1.5,
         resid_norm=2,
         safe_mode=False,
         machine="cuda",
@@ -259,12 +259,12 @@ def __(mo):
 
 
 @app.cell
-def __(deepcopy, param0):
+def __(deepcopy, param0, torch):
     param1 = deepcopy(param0)
 
     for _p in param1:
         for k,v in _p.items():
-            _p[k] = v.clone().detach() + 0.010
+            _p[k] = v.clone().detach() + torch.rand(v.shape, device="cuda") * 0.010
     return k, param1, v
 
 

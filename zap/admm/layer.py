@@ -13,7 +13,7 @@ class ADMMLayer(DispatchLayer):
         devices: list[AbstractDevice],
         parameter_names: dict[str, tuple[int, str]],
         time_horizon: int = 1,
-        solver: ADMMSolver = ADMMSolver(),
+        solver: ADMMSolver = ADMMSolver(num_iterations=100, rho_power=1.0),
     ):
         self.network = network
         self.devices = devices
@@ -28,11 +28,13 @@ class ADMMLayer(DispatchLayer):
     def forward(self, **kwargs) -> ADMMState:
         parameters = self.setup_parameters(**kwargs)
 
-        return self.solver.solve(
+        state, history = self.solver.solve(
             self.network, self.devices, self.time_horizon, parameters=parameters
         )
+        self.history = history
+        return state
 
-    def backward(self, z, dz, regularize=1e-8, **kwargs):
+    def backward(self, z, dz, **kwargs):
         # parameters = self.setup_parameters(**kwargs)
 
         # # dtheta = -JK_theta.T @ inv(JK_z.T) @ dz
