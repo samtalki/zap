@@ -20,6 +20,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
         upper_bounds: dict = None,
     ):
         # Call super initializer
+        self.la = torch
         super().__init__(
             operation_objective, investment_objective, layer, lower_bounds, upper_bounds
         )

@@ -23,10 +23,11 @@ class PlanningProblemCVX(AbstractPlanningProblem):
         regularize=1e-6,
     ):
         # Call super initializer
+        self.la = np
+        self.regularize = regularize
         super().__init__(
             operation_objective, investment_objective, layer, lower_bounds, upper_bounds
         )
-        self.regularize = regularize
 
     def forward(self, requires_grad: bool = False, batch=None, **kwargs):
         torch_kwargs = {}

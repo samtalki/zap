@@ -202,7 +202,7 @@ def __():
 def __(ADMMSolver, DTYPE, MACHINE):
     admm = ADMMSolver(
         num_iterations=2000,
-        rtol=5e-3,
+        rtol=1e-2,
         rho_power=1.0,
         rho_angle=1.0,
         resid_norm=2,
@@ -259,21 +259,27 @@ def __(PlanningProblem, layer, net, torch_devices, zap):
 def __(MACHINE, theta0, torch, torch_copy):
     theta1 = torch_copy(theta0)
     for k,v in theta1.items():
-        theta1[k] = v + 0.1 * torch.rand(v.shape, device=MACHINE)
+        theta1[k] = v + 0.05 * torch.rand(v.shape, device=MACHINE)
     return k, theta1, v
 
 
 @app.cell
-def __(problem, theta0, theta1, torch_copy, y0):
-    c0 = problem(**torch_copy(theta0), initial_state=y0.copy())
-    c1 = problem(**torch_copy(theta1), requires_grad=True)
-    grad0 = problem.backward()
-    return c0, c1, grad0
+def __(problem, theta1, torch_copy, y0):
+    # c0 = problem(**torch_copy(theta0), initial_state=y0.copy())
+    c1 = problem(**torch_copy(theta1), requires_grad=True, initial_state=y0.copy())
+    grad1 = problem.backward()
+    return c1, grad1
 
 
 @app.cell
-def __(grad0):
-    grad0["generator_capacity"][:10]
+def __(grad1):
+    grad1["generator_capacity"][:10]
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md("## Solve with Gradient Descent")
     return
 
 

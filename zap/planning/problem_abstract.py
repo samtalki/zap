@@ -1,4 +1,5 @@
 import time
+import torch
 import numpy as np
 from copy import deepcopy
 
@@ -49,7 +50,7 @@ class AbstractPlanningProblem:
             # Fallback: set to infinity
             for p, (ind, pname) in self.parameter_names.items():
                 if self.upper_bounds[p] is None:
-                    self.upper_bounds[p] = np.inf
+                    self.upper_bounds[p] = np.inf * self.la.ones_like(self.lower_bounds[p])
 
     @property
     def parameter_names(self):
@@ -227,6 +228,8 @@ class StochasticPlanningProblem(AbstractPlanningProblem):
     """Weighted mixture of planning problems."""
 
     def __init__(self, subproblems: list[AbstractPlanningProblem], weights: list[float] = None):
+        la = subproblems[0].la
+
         if weights is None:
             weights = [1.0 for _ in subproblems]
 
@@ -245,20 +248,35 @@ class StochasticPlanningProblem(AbstractPlanningProblem):
         subproblems = [sub for sub, w in zip(subproblems, weights) if w > 0]
         weights = [w for w in weights if w > 0]
 
+        self.la = la
         self.subproblems = new_subproblems
         self.weights = new_weights
         self.layer = subproblems[0].layer
         self.num_workers = 1
 
         # Maximum of all sub problem lower bounds
-        self.lower_bounds = {
-            k: np.max([sub.lower_bounds[k] for sub in self.subproblems], axis=0)
-            for k in subproblems[0].lower_bounds.keys()
-        }
-        self.upper_bounds = {
-            k: np.min([sub.upper_bounds[k] for sub in self.subproblems], axis=0)
-            for k in subproblems[0].upper_bounds.keys()
-        }
+        if la == np:
+            self.lower_bounds = {
+                k: np.max([sub.lower_bounds[k] for sub in self.subproblems], axis=0)
+                for k in subproblems[0].lower_bounds.keys()
+            }
+            self.upper_bounds = {
+                k: np.min([sub.upper_bounds[k] for sub in self.subproblems], axis=0)
+                for k in subproblems[0].upper_bounds.keys()
+            }
+        else:  # torch
+            self.lower_bounds = {
+                k: torch.max(
+                    torch.stack([sub.lower_bounds[k] for sub in self.subproblems], dim=0), dim=0
+                )
+                for k in subproblems[0].lower_bounds.keys()
+            }
+            self.upper_bounds = {
+                k: torch.min(
+                    torch.stack([sub.upper_bounds[k] for sub in self.subproblems], dim=0), dim=0
+                )
+                for k in subproblems[0].upper_bounds.keys()
+            }
 
         assert len(self.subproblems) == len(self.weights)
 
