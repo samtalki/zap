@@ -138,6 +138,9 @@ class AbstractPlanningProblem:
             state = algorithm.step(state, grad)
             state = self.project(state)
 
+            if self.la == torch:
+                state = {k: v.detach().clone() for k, v in state.items()}
+
             # Update batch and loss
             if batch_strategy == "sequential":
                 batch = get_next_batch(batch, batch_size, self.num_subproblems)
@@ -202,7 +205,9 @@ class AbstractPlanningProblem:
 
     def project(self, state: dict):
         for param in state.keys():
-            state[param] = np.clip(state[param], self.lower_bounds[param], self.upper_bounds[param])
+            state[param] = self.la.clip(
+                state[param], self.lower_bounds[param], self.upper_bounds[param]
+            )
         return state
 
     def get_state(self):

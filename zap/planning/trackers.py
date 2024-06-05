@@ -1,6 +1,5 @@
 import torch
 import time
-import numpy as np
 
 from copy import deepcopy
 
@@ -14,7 +13,7 @@ GRAD = "grad"
 
 
 def track_loss(J, grad, state, last_state, problem):
-    return J.detach().numpy()
+    return J.cpu().detach().numpy()
 
 
 def track_grad_norm(J, grad: dict[str, torch.Tensor], state, last_state, problem):
@@ -25,6 +24,7 @@ def track_grad_norm(J, grad: dict[str, torch.Tensor], state, last_state, problem
 def track_proj_grad_norm(J, grad, state, last_state, problem):
     """Tracks the 1-norm of the projected gradient, which is the difference between
     the current state and the previous state."""
+    la = problem.la
 
     if last_state is None:
         return track_grad_norm(J, grad, state, last_state, problem)
@@ -32,7 +32,7 @@ def track_proj_grad_norm(J, grad, state, last_state, problem):
     # Compute differences between states
     diffs = {k: state[k] - last_state[k] for k in state.keys()}
 
-    return sum([np.linalg.norm(d, ord=1) for d in diffs.values()])
+    return sum([la.linalg.norm(d, ord=1) for d in diffs.values()])
 
 
 def track_param(J, grad, state, last_state, problem):
@@ -50,7 +50,7 @@ def track_time(J, grad, state, last_state, problem):
 def suboptimality(J, grad, state, last_state, problem):
     lb = 1.0 if problem.lower_bound is None else problem.lower_bound
 
-    return (J.detach().numpy() / lb) - 1.0
+    return (J.cpu().detach().numpy() / lb) - 1.0
 
 
 TRACKER_MAPS = {

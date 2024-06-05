@@ -202,7 +202,7 @@ def __():
 def __(ADMMSolver, DTYPE, MACHINE):
     admm = ADMMSolver(
         num_iterations=2000,
-        rtol=1e-2,
+        rtol=1e-3,
         rho_power=1.0,
         rho_angle=1.0,
         resid_norm=2,
@@ -277,9 +277,32 @@ def __(grad1):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(mo):
     mo.md("## Solve with Gradient Descent")
+    return
+
+
+@app.cell
+def __():
+    from zap.planning import GradientDescent
+    return GradientDescent,
+
+
+@app.cell
+def __(GradientDescent, c1, problem):
+    c1  # Force dependency
+    theta_opt, history = problem.solve(
+        num_iterations=10,
+        algorithm=GradientDescent(step_size=1e-3),
+    )
+    return history, theta_opt
+
+
+@app.cell
+def __(history, plt):
+    plt.figure(figsize=(6.5, 2))
+    plt.plot(history["loss"])
     return
 
 

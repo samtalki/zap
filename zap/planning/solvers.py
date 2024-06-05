@@ -19,6 +19,10 @@ class GradientDescent:
             else:
                 clipped_grad = grad[param]
 
-            state[param] -= self.step_size * clipped_grad.numpy()
+            if isinstance(state[param], torch.Tensor):
+                state[param] = state[param].detach() - self.step_size * clipped_grad
+
+            else:
+                state[param] -= self.step_size * clipped_grad.numpy()
 
         return state

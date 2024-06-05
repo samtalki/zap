@@ -290,7 +290,7 @@ class ADMMSolver:
         dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
 
         if primal_resid < total_tol and dual_resid < total_tol:
-            print(f"Converged early in {len(history.power)} iterations.")
+            print(f"ADMM converged early in {len(history.power)} iterations.")
             return True
         else:
             return False
