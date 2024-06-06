@@ -9,10 +9,10 @@ from zap.devices.abstract import AbstractDevice
 class AbstractOperationObjective:
     """Abstract implementation of operation objectives."""
 
-    def __call__(self, y: DispatchOutcome, parameters=None, la=np):
+    def __call__(self, y: DispatchOutcome, parameters=None, la=None):
         return self.forward(y, parameters=parameters, la=la)
 
-    def forward(self, y: DispatchOutcome, parameters=None, la=np):
+    def forward(self, y: DispatchOutcome, parameters=None, la=None):
         raise NotImplementedError
 
     @property
@@ -86,10 +86,15 @@ class DispatchCostObjective(AbstractOperationObjective):
 
         if getattr(devices[0], "torched", False):
             self.torch_devices = devices
+            self.torched = True
         else:
             self.torch_devices = [d.torchify(machine="cpu") for d in devices]
+            self.torched = False
 
-    def forward(self, y: DispatchOutcome, parameters=None, la=np):
+    def forward(self, y: DispatchOutcome, parameters=None, la=None):
+        if la is None:
+            la = torch if self.torched else np
+
         devices = self.torch_devices if la == torch else self.devices
         return self.net.operation_cost(
             devices, y.power, y.angle, y.local_variables, parameters=parameters, la=la
@@ -112,10 +117,15 @@ class EmissionsObjective(AbstractOperationObjective):
 
         if getattr(devices[0], "torched", False):
             self.torch_devices = devices
+            self.torched = True
         else:
             self.torch_devices = [d.torchify(machine="cpu") for d in devices]
+            self.torched = False
 
-    def forward(self, y: DispatchOutcome, parameters=None, la=np):
+    def forward(self, y: DispatchOutcome, parameters=None, la=None):
+        if la is None:
+            la = torch if self.torched else np
+
         devices = self.torch_devices if la == torch else self.devices
         emissions = [
             d.get_emissions(p, **param, la=la) for p, d, param in zip(y.power, devices, parameters)

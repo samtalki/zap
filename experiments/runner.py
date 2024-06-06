@@ -307,9 +307,7 @@ def setup_problem(
     stochastic=False,
     hours_per_scenario=1,
     use_admm=False,
-    use_presolve=False,
     args={},
-    presolve_args={},
 ):
     print("Building planning problem...")
     print("ADMM is enabled." if use_admm else "ADMM is disabled.")
@@ -682,6 +680,15 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
             return J
 
     trackers["full_loss"] = full_loss_tracker
+
+    if isinstance(layer, ADMMLayer):
+        trackers["admm_iteration"] = lambda J, _0, _1, _2, problem: problem.layer.solver.iteration
+        trackers["admm_cumulative_iteration"] = (
+            lambda J, _0, _1, _2, problem: problem.layer.solver.cumulative_iteration
+        )
+    else:
+        trackers["admm_iteration"] = lambda *args: 0
+        trackers["admm_cumulative_iteration"] = lambda *args: 0
 
     return trackers
 

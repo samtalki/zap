@@ -35,11 +35,10 @@ data:
 
 layer:
   use_admm: true
-  use_presolve: true
   args:
     machine: cuda
-    num_iterations: 10000
-    rtol: 1.0e-3
+    num_iterations: 1000
+    rtol: 1.0e-2
     rho_power: 1.0
     rho_angle: 1.5
     resid_norm: 2
@@ -48,9 +47,6 @@ layer:
     battery_inner_iterations: 10
     battery_inner_over_relaxation: 1.8
     minimum_iterations: 100
-  presolve_args:  # TODO
-    num_iterations: 5000
-    rtol: 0.0
 
 problem:
   stochastic: true
@@ -62,7 +58,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 5
+  num_iterations: 10
   initial_state: initial  # initial, relaxation, base_v02/000/model_00050
   use_wandb: true
   log_wandb_every: 1

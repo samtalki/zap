@@ -104,6 +104,7 @@ class ADMMSolver:
         if self.machine is None:
             # Infer machine
             self.machine = infer_machine()
+        self.cumulative_iteration = 0
 
     def get_rho(self):
         rho_power = self.rho_power
@@ -140,6 +141,9 @@ class ADMMSolver:
             d.has_changed = True
 
         for iteration in range(self.num_iterations):
+            self.iteration = iteration + 1
+            self.cumulative_iteration += 1
+
             # (1) Device proximal updates
             st = self.device_updates(st, devices, parameters)
 
