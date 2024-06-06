@@ -19,15 +19,21 @@ for i, config in enumerate(config_list):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     script_file.parent.mkdir(parents=True, exist_ok=True)
 
+    if system["gpu"] > 0:
+        constraint = "gpu"
+    else:
+        constraint = "cpu"
+
     # Write slurm script
     slurm_script = f"""#!/bin/bash
 #SBATCH --job-name={config["name"]}_{i:03d}
 #SBATCH --output={output_file}
 #SBATCH --qos=shared
-#SBATCH --constraint=cpu
+#SBATCH --constraint={constraint}
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task={system["threads"]}
+#SBATCH --gpus {system["gpu"]}
 #SBATCH --time={system["runtime"]}
 
 module load conda

@@ -7,6 +7,7 @@ system:
   threads: 32
   runtime: 30
   memory: auto
+  gpu: 0
 
 data:
   name: pypsa
@@ -16,7 +17,7 @@ data:
   num_nodes: 100
   use_extra_components: true
   start_hour: peak_hybrid_day  # peak_load_day, peak_hybrid_day, 2019-09-01
-  num_hours: 24
+  num_hours: 96
   battery_cost_scale: 1.0
   dont_expand: [hydro, coal, biomass]
   args:
@@ -32,9 +33,28 @@ data:
     drop_empty_generators: false
     expand_empty_generators: 0.5  # MW
 
+layer:
+  use_admm: true
+  use_presolve: true
+  args:
+    machine: cuda
+    num_iterations: 10000
+    rtol: 1.0e-3
+    rho_power: 1.0
+    rho_angle: 1.5
+    resid_norm: 2
+    safe_mode: false
+    battery_window: 24
+    battery_inner_iterations: 10
+    battery_inner_over_relaxation: 1.8
+    minimum_iterations: 100
+  presolve_args:  # TODO
+    num_iterations: 5000
+    rtol: 0.0
+
 problem:
   stochastic: true
-  hours_per_scenario: 8
+  hours_per_scenario: 96
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-4  # Jacobian regularization
@@ -44,15 +64,15 @@ optimizer:
   name: gradient_descent
   num_iterations: 5
   initial_state: initial  # initial, relaxation, base_v02/000/model_00050
-  use_wandb: false
+  use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 1
-  parallel: false
-  batch_size: 1
+  parallel: false  # Set to false with ADMM on
+  batch_size: 1  # Set to 1 with ADMM on
   track_full_loss_every: 1000
   batch_strategy: fixed
   args:
-    step_size: 1.0e-2
+    step_size: 1.0e-3
     clip: 1000.0
 
 relaxation:

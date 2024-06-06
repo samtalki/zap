@@ -116,7 +116,7 @@ class AbstractPlanningProblem:
         print(batch)
 
         # Run full forward pass to initialize everything
-        self.forward_and_back(**state)
+        self(**state)
 
         # Initialize loop
         self.iteration = 0
@@ -140,6 +140,7 @@ class AbstractPlanningProblem:
 
             if self.la == torch:
                 state = {k: v.detach().clone() for k, v in state.items()}
+                torch.cuda.empty_cache()
 
             # Update batch and loss
             if batch_strategy == "sequential":
@@ -273,13 +274,13 @@ class StochasticPlanningProblem(AbstractPlanningProblem):
             self.lower_bounds = {
                 k: torch.max(
                     torch.stack([sub.lower_bounds[k] for sub in self.subproblems], dim=0), dim=0
-                )
+                )[0]
                 for k in subproblems[0].lower_bounds.keys()
             }
             self.upper_bounds = {
                 k: torch.min(
                     torch.stack([sub.upper_bounds[k] for sub in self.subproblems], dim=0), dim=0
-                )
+                )[0]
                 for k in subproblems[0].upper_bounds.keys()
             }
 

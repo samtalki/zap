@@ -56,8 +56,14 @@ def __(config, runner):
 
 
 @app.cell
+def __(torch):
+    torch.cuda.empty_cache()
+    return
+
+
+@app.cell
 def __(config, data, runner):
-    problem = runner.setup_problem(**data, **config["problem"])
+    problem = runner.setup_problem(**data, **config["problem"], **config["layer"])
     return problem,
 
 
@@ -84,12 +90,6 @@ def __(problem, relax):
 
 
 @app.cell
-def __(problem):
-    problem["problem"].layer
-    return
-
-
-@app.cell
 def __(config, problem, relax, runner):
     result = runner.solve_problem(problem, relax, config, **config["optimizer"])
     return result,
@@ -109,6 +109,12 @@ def __():
 
 
 @app.cell
+def __(result):
+    result["history"]["loss"]
+    return
+
+
+@app.cell
 def __(np, plt, result):
     _fig, _axes = plt.subplots(2, 1, figsize=(8, 3))
 
@@ -124,8 +130,8 @@ def __(np, plt, result):
 
 
 @app.cell
-def __():
-    # runner.save_results(relax, result, config)
+def __(config, relax, result, runner):
+    runner.save_results(relax, result, config)
     return
 
 
@@ -149,7 +155,7 @@ def __(importlib):
 
 
 @app.cell
-def __(json, model_iter, np, problem):
+def __(json, model_iter, np, problem, torch):
     with open(f"./data/results/base_v05/000/model_{model_iter:05d}.json", "r") as f:
         model_state = json.load(f)
 
@@ -157,14 +163,14 @@ def __(json, model_iter, np, problem):
         k: v.shape for k, v in problem["problem"].initialize_parameters(None).items()
     }
     model_state = {
-        k: np.array(v).reshape(_ref_shapes[k]) for k, v in model_state.items()
+        k: torch.tensor(np.array(v).reshape(_ref_shapes[k]), device="cuda", dtype=torch.float32) for k, v in model_state.items()
     }
     return f, model_state
 
 
 @app.cell
-def __(model_state, problem):
-    problem["problem"](**model_state)
+def __():
+    # problem["problem"](**model_state)
     return
 
 

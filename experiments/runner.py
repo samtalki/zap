@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import pandas as pd
 import datetime as dt
@@ -15,6 +16,7 @@ from scipy.stats import rankdata
 
 import zap
 import zap.planning.trackers as tr
+from zap.admm import ADMMSolver, ADMMLayer
 
 
 ZAP_PATH = Path(zap.__file__).parent.parent
@@ -47,6 +49,18 @@ PYPSA_DEFAULT_ARGS = {
     "load_cost_perturbation": 10.0,
     "drop_empty_generators": False,
     "expand_empty_generators": 0.5,
+}
+
+CVX_LAYER_ARGS = {
+    "solver": cp.MOSEK,
+    "solver_kwargs": {
+        "verbose": False,
+        "accept_unknown": True,
+        "mosek_params": {
+            "MSK_IPAR_NUM_THREADS": MOSEK_THREADS,
+        },
+    },
+    "add_ground": False,
 }
 
 
@@ -255,22 +269,58 @@ def setup_pypysa_dataset(
     return net, devices
 
 
+def layer_function(net, parameter_names, use_admm: bool, admm_args: dict):
+    if use_admm:
+        print("Using ADMM layer.")
+
+        def f(devices, time_horizon):
+            return ADMMLayer(
+                net,
+                devices,
+                parameter_names,
+                time_horizon=time_horizon,
+                solver=ADMMSolver(**admm_args, dtype=torch.float32),
+            )
+
+    else:
+        print("Using CVX layer.")
+
+        def f(devices, time_horizon):
+            return zap.DispatchLayer(
+                net,
+                devices,
+                parameter_names,
+                time_horizon=time_horizon,
+                **CVX_LAYER_ARGS,
+            )
+
+    return f
+
+
 def setup_problem(
     net,
-    devices,
+    devices: list[zap.devices.AbstractDevice],
     parameters=["generator", "dc_line", "ac_line", "battery"],
     cost_weight=1.0,
     emissions_weight=0.0,
     regularize=0.0,
     stochastic=False,
     hours_per_scenario=1,
+    use_admm=False,
+    use_presolve=False,
+    args={},
+    presolve_args={},
 ):
     print("Building planning problem...")
+    print("ADMM is enabled." if use_admm else "ADMM is disabled.")
     time_horizon = np.max([d.time_horizon for d in devices])
 
     # Drop batteries
     if stochastic and hours_per_scenario == 1:
         devices = [d for d in devices if type(d) != zap.Battery]
+
+    if use_admm:
+        devices = [d.torchify(machine=args["machine"], dtype=torch.float32) for d in devices]
 
     # Setup parameters
     parameter_names = {}
@@ -284,19 +334,8 @@ def setup_problem(
             print(f"Warning: device {dev} not found in devices. Will not be expanded.")
 
     # Setup layer
-    layer_args = {
-        "parameter_names": parameter_names,
-        "solver": cp.MOSEK,
-        "solver_kwargs": {
-            "verbose": False,
-            "accept_unknown": True,
-            "mosek_params": {
-                "MSK_IPAR_NUM_THREADS": MOSEK_THREADS,
-            },
-        },
-        "add_ground": False,
-    }
-    layer = zap.DispatchLayer(net, devices, time_horizon=time_horizon, **layer_args)
+    layer_map = layer_function(net, parameter_names, use_admm, args)
+    layer = layer_map(devices, time_horizon)
 
     # Build objective
     def make_objective(devs):
@@ -308,7 +347,10 @@ def setup_problem(
     inv_objective = zap.planning.InvestmentObjective(devices, layer)
 
     # Setup planning problem
-    problem_args = {"lower_bounds": None, "upper_bounds": None, "regularize": regularize}
+    problem_args = {"lower_bounds": None, "upper_bounds": None}
+    if not use_admm:
+        problem_args["regularize"] = regularize
+
     problem = zap.planning.PlanningProblem(
         operation_objective=op_objective,
         investment_objective=inv_objective,
@@ -325,13 +367,7 @@ def setup_problem(
             range(i, i + hours_per_scenario) for i in range(0, time_horizon, hours_per_scenario)
         ]
         sub_devices = [[d.sample_time(s, time_horizon) for d in devices] for s in scenarios]
-
-        sub_layers = [
-            zap.DispatchLayer(
-                devices=d, network=layer.network, time_horizon=hours_per_scenario, **layer_args
-            )
-            for d in sub_devices
-        ]
+        sub_layers = [layer_map(d, hours_per_scenario) for d in sub_devices for d in sub_devices]
 
         sub_op_objectives = [make_objective(d) for d in sub_devices]
         sub_inv_objectives = [
@@ -530,7 +566,8 @@ def run_experiment(config):
 
     # Load data and formulate problem
     data = load_dataset(**config["data"])
-    problem = setup_problem(**data, **config["problem"])
+    print(config["layer"])
+    problem = setup_problem(**data, **config["problem"], **config["layer"])
 
     # Solve relaxation and original problem
     relaxation = solve_relaxed_problem(problem, **config["relaxation"])
