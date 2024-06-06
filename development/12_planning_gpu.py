@@ -201,16 +201,17 @@ def __():
 @app.cell
 def __(ADMMSolver, DTYPE, MACHINE):
     admm = ADMMSolver(
-        num_iterations=2000,
+        num_iterations=10_000,
         rtol=1e-3,
-        rho_power=1.0,
-        rho_angle=1.0,
+        rho_power=0.5,
+        rho_angle=1.5,
         resid_norm=2,
         machine=MACHINE,
         dtype=DTYPE,
         battery_window=24,
         battery_inner_iterations=10,
         battery_inner_over_relaxation=1.8,
+        minimum_iterations=100,
     )
     return admm,
 
@@ -264,16 +265,18 @@ def __(MACHINE, theta0, torch, torch_copy):
 
 
 @app.cell
-def __(problem, theta1, torch_copy, y0):
-    # c0 = problem(**torch_copy(theta0), initial_state=y0.copy())
-    c1 = problem(**torch_copy(theta1), requires_grad=True, initial_state=y0.copy())
-    grad1 = problem.backward()
-    return c1, grad1
+def __():
+    # # c0 = problem(**torch_copy(theta0), initial_state=y0.copy())
+    # c1 = problem(**torch_copy(theta1), requires_grad=True, initial_state=y0.copy())
+    # grad1 = problem.backward()
+
+    # plot_convergence(layer.history, eps_pd=admm.rtol * np.sqrt(admm.total_terminals))
+    return
 
 
 @app.cell
-def __(grad1):
-    grad1["generator_capacity"][:10]
+def __():
+    # grad1["generator_capacity"][:10]
     return
 
 
@@ -290,19 +293,25 @@ def __():
 
 
 @app.cell
-def __(GradientDescent, c1, problem):
-    c1  # Force dependency
-    theta_opt, history = problem.solve(
-        num_iterations=10,
-        algorithm=GradientDescent(step_size=1e-3),
-    )
-    return history, theta_opt
+def __():
+    # c1  # Force dependency
+    # theta_opt, history = problem.solve(
+    #     num_iterations=100,
+    #     algorithm=GradientDescent(step_size=1e-3),
+    # )
+    return
 
 
 @app.cell
-def __(history, plt):
-    plt.figure(figsize=(6.5, 2))
-    plt.plot(history["loss"])
+def __():
+    # plt.figure(figsize=(6.5, 2))
+    # plt.plot(history["loss"])
+    return
+
+
+@app.cell
+def __():
+    # plot_convergence(layer.history, eps_pd=admm.rtol * np.sqrt(admm.total_terminals))
     return
 
 
