@@ -654,6 +654,8 @@ class PowerNetwork:
         assert param_ind is not None
         assert param_name is not None
 
+        devices = [d.torchify(machine=None) for d in devices]
+
         # Pacakge for efficient computation
         if not isinstance(grad, DispatchOutcome):
             grad = x.package(grad)

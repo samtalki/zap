@@ -37,18 +37,6 @@ def __():
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("## Settings")
-    return
-
-
-@app.cell
-def __():
-    num_days = 8
-    return num_days,
-
-
-@app.cell(hide_code=True)
-def __(mo):
     mo.md(rf"## Data")
     return
 
@@ -63,6 +51,12 @@ def __():
         "power_unit": 1000.0,
     }
     return DEFAULT_PYPSA_KWARGS,
+
+
+@app.cell
+def __():
+    num_days = 8
+    return num_days,
 
 
 @app.cell
@@ -156,7 +150,6 @@ def __():
 @app.cell
 def __(backprop, torch_devices):
     if backprop:
-        print("Enabling gradient tape")
         for d in torch_devices:
             if hasattr(d, "nominal_capacity"):
                 d.nominal_capacity.requires_grad = True
@@ -188,6 +181,12 @@ def __(ADMMSolver, backprop, torch):
         battery_inner_over_relaxation=1.8,
     )
     return admm,
+
+
+@app.cell(hide_code=True)
+def __(devices, num_days):
+    print(f"Solving for {num_days*24} hours and {sum(d.num_devices for d in devices)} devices.")
+    return
 
 
 @app.cell

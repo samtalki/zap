@@ -16,7 +16,7 @@ data:
   num_nodes: 100
   use_extra_components: true
   start_hour: peak_hybrid_day  # peak_load_day, peak_hybrid_day, 2019-09-01
-  num_hours: 96
+  num_hours: 24
   battery_cost_scale: 1.0
   dont_expand: [hydro, coal, biomass]
   args:
@@ -34,7 +34,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 24
+  hours_per_scenario: 8
   cost_weight: 1.0
   emissions_weight: 100.0  # $ / ton CO2
   regularize: 1.0e-4  # Jacobian regularization
@@ -42,7 +42,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 3
+  num_iterations: 5
   initial_state: initial  # initial, relaxation, base_v02/000/model_00050
   use_wandb: false
   log_wandb_every: 1

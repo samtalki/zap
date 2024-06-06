@@ -244,6 +244,8 @@ class AbstractDevice:
                 v_dtype = TORCH_INTEGER_DTYPE if v.dtype in TORCH_INTEGER_TYPES else dtype
                 new_device.__dict__[k] = v.to(device=machine, dtype=v_dtype)
 
+        new_device.torched = True
+
         return new_device
 
     def to(self, device=None, dtype=None):

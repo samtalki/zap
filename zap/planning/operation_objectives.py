@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import functools
 
@@ -79,13 +80,19 @@ class MultiObjective(AbstractOperationObjective):
 class DispatchCostObjective(AbstractOperationObjective):
     """Cost of the dispatch outcome."""
 
-    def __init__(self, net: PowerNetwork, devices):
+    def __init__(self, net: PowerNetwork, devices: list[AbstractDevice]):
         self.net = net
         self.devices = devices
 
+        if getattr(devices[0], "torched", False):
+            self.torch_devices = devices
+        else:
+            self.torch_devices = [d.torchify(machine="cpu") for d in devices]
+
     def forward(self, y: DispatchOutcome, parameters=None, la=np):
+        devices = self.torch_devices if la == torch else self.devices
         return self.net.operation_cost(
-            self.devices, y.power, y.angle, y.local_variables, parameters=parameters, la=la
+            devices, y.power, y.angle, y.local_variables, parameters=parameters, la=la
         )
 
     @property
@@ -103,10 +110,15 @@ class EmissionsObjective(AbstractOperationObjective):
     def __init__(self, devices: list[AbstractDevice]):
         self.devices = devices
 
+        if getattr(devices[0], "torched", False):
+            self.torch_devices = devices
+        else:
+            self.torch_devices = [d.torchify(machine="cpu") for d in devices]
+
     def forward(self, y: DispatchOutcome, parameters=None, la=np):
+        devices = self.torch_devices if la == torch else self.devices
         emissions = [
-            d.get_emissions(p, **param, la=la)
-            for p, d, param in zip(y.power, self.devices, parameters)
+            d.get_emissions(p, **param, la=la) for p, d, param in zip(y.power, devices, parameters)
         ]
 
         return sum(emissions)

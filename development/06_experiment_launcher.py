@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.3"
+__generated_with = "0.6.13"
 app = marimo.App()
 
 
@@ -50,14 +50,6 @@ def __(runner):
 
 
 @app.cell
-def __():
-    # _d = data["devices"][0]
-
-    # _d.capital_cost[_d.fuel_type == "hydro"]
-    return
-
-
-@app.cell
 def __(config, runner):
     data = runner.load_dataset(**config["data"])
     return data,
@@ -88,6 +80,12 @@ def __(problem, relax):
         _J = problem["problem"]
         print(_J(**relax["relaxed_parameters"]))
         print(relax["lower_bound"])
+    return
+
+
+@app.cell
+def __(problem):
+    problem["problem"].layer
     return
 
 

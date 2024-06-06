@@ -10,10 +10,11 @@ TORCH_INTEGER_TYPES = [torch.int8, torch.int16, torch.int32, torch.int64]
 
 
 def infer_machine(machine=None):
-    if machine is None:
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    else:
-        return machine
+    return machine
+    # if machine is None:
+    #     return "cuda" if torch.cuda.is_available() else "cpu"
+    # else:
+    #     return machine
 
 
 def expand_params(params, devices):
