@@ -131,7 +131,7 @@ class AbstractPlanningProblem:
             self.iteration = iteration + 1
 
             # Checkpoint
-            if (iteration + 1) % checkpoint_every == 0:
+            if (self.iteration) % checkpoint_every == 0:
                 checkpoint_func(state, history)
 
             # Gradient step and project
@@ -187,7 +187,7 @@ class AbstractPlanningProblem:
             history["rolling_loss"] += [history[LOSS][-1]]
 
         if wandb is not None:
-            iteration = len(history[trackers[0]])
+            iteration = len(history[trackers[0]]) - 1
 
             if (iteration % log_wandb_every == 0) or (iteration == 1):
                 print(f"Logging to wandb on iteration {iteration}.")

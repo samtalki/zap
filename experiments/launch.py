@@ -2,6 +2,7 @@ import sys
 import os
 import runner
 
+PERLMUTTER_CORES_PER_GPU = 32
 
 config_path = sys.argv[1]
 config_list = runner.expand_config(runner.load_config(config_path))
@@ -21,8 +22,10 @@ for i, config in enumerate(config_list):
 
     if system["gpu"] > 0:
         constraint = "gpu"
+        threads = PERLMUTTER_CORES_PER_GPU * system["gpu"]
     else:
         constraint = "cpu"
+        threads = system["threads"]
 
     # Write slurm script
     slurm_script = f"""#!/bin/bash
@@ -32,8 +35,8 @@ for i, config in enumerate(config_list):
 #SBATCH --constraint={constraint}
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task={system["threads"]}
-#SBATCH --gpus {system["gpu"]}
+#SBATCH --cpus-per-task={threads}
+#SBATCH --gpus={system["gpu"]}
 #SBATCH --time={system["runtime"]}
 
 module load conda

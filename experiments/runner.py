@@ -668,7 +668,7 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
             iteration = _stoch_prob.iteration
 
             if iteration % track_full_loss_every == 0:
-                print("Updating full problem loss...  ", end="")
+                print(f"Updating full problem loss on iteration {iteration}...  ", end="")
                 problem.full_loss = _stoch_prob(**params)
                 print("Done!")
                 return problem.full_loss
