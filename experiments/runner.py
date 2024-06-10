@@ -682,13 +682,11 @@ def get_wandb_trackers(problem_data, relaxation, config: dict):
     trackers["full_loss"] = full_loss_tracker
 
     if isinstance(layer, ADMMLayer):
-        trackers["admm_iteration"] = lambda J, _0, _1, _2, problem: problem.layer.solver.iteration
-        trackers["admm_cumulative_iteration"] = (
-            lambda J, _0, _1, _2, problem: problem.layer.solver.cumulative_iteration
+        trackers["admm_iteration"] = lambda J, _0, _1, _2, problem: sum(
+            [p.layer.solver.cumulative_iteration for p in problem.subproblems]
         )
     else:
         trackers["admm_iteration"] = lambda *args: 0
-        trackers["admm_cumulative_iteration"] = lambda *args: 0
 
     return trackers
 

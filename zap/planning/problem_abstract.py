@@ -120,7 +120,11 @@ class AbstractPlanningProblem:
 
         # Initialize loop
         self.iteration = 0
+
         J, grad = self.forward_and_back(**state, batch=batch)
+        if self.la == torch:
+            torch.cuda.empty_cache()
+
         history = self.update_history(
             history, trackers, J, grad, state, None, wandb, log_wandb_every
         )

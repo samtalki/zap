@@ -29,6 +29,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
         # Enable gradient tracking if needed
         for p, v in kwargs.items():
             if requires_grad:
+                kwargs[p] = v.detach().clone()  # Copy first
                 kwargs[p].requires_grad = True
 
         params = self.layer.setup_parameters(**kwargs)

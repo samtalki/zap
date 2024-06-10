@@ -42,7 +42,7 @@ def __(importlib):
 @app.cell
 def __(runner):
     config_list = runner.expand_config(
-        runner.load_config("experiments/config/test_default.yaml")
+        runner.load_config("experiments/config/year_gpu_test_v01.yaml")
     )
 
     config = config_list[0]
@@ -86,6 +86,12 @@ def __(problem, relax):
         _J = problem["problem"]
         print(_J(**relax["relaxed_parameters"]))
         print(relax["lower_bound"])
+    return
+
+
+@app.cell
+def __(torch):
+    torch.cuda.empty_cache()
     return
 
 
