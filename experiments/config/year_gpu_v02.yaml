@@ -6,7 +6,7 @@ tags: []
 
 system:
   threads: 16
-  runtime: 240  # minutes (about 16 hours)
+  runtime: 60  # minutes
   memory: auto
   gpu: 1
 
@@ -38,7 +38,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 192  # days = 8
+  hours_per_scenario: [expand, 192, 384]  # days = 8
   cost_weight: 1.0
   emissions_weight: 200.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -46,9 +46,9 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 50
+  num_iterations: 500
   initial_state: initial
-  use_wandb: false
+  use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 1
   parallel: false
@@ -57,7 +57,7 @@ optimizer:
   track_full_loss_every: 25
   batch_strategy: sequential
   args:
-    step_size: 1.0e-3
+    step_size: [expand, 1.0e-5, 1.0e-4, 1.0e-3]
     clip: 5000.0
 
 layer:
@@ -65,7 +65,7 @@ layer:
   args:
     machine: cuda
     num_iterations: 1000
-    rtol: 1.0e-3
+    rtol: [expand, 1.0e-4, 1.0e-3, 1.0e-2]
     rho_power: 1.0
     rho_angle: 1.5
     resid_norm: 2

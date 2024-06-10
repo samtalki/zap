@@ -101,10 +101,84 @@ def __(config, problem, relax, runner):
     return result,
 
 
+@app.cell(hide_code=True)
+def __(np, plt):
+    def plot_convergence(hist, eps_pd=None):
+        fig, axes = plt.subplots(1, 3, figsize=(7, 2))
+
+        print(f"Primal Resid: {hist.power[-1] + hist.phase[-1]}")
+        print(f"Dual Resid: {hist.dual_power[-1] + hist.dual_phase[-1]}")
+        print(f"Objective: {hist.objective[-1]}")
+
+        admm_num_iters = len(hist.power)
+
+        ax = axes[0]
+        if eps_pd is not None:
+            ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+        ax.plot(hist.power, label="power")
+        ax.plot(hist.phase, label="angle")
+        ax.set_yscale("log")
+        ax.legend(fontsize=8)
+        ax.set_title("primal residuals")
+
+        ax = axes[1]
+        if eps_pd is not None:
+            ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+        ax.plot(hist.dual_power, label="power")
+        ax.plot(hist.dual_phase, label="angle")
+        ax.set_yscale("log")
+        # ax.legend(fontsize=8)
+        ax.set_title("dual residuals")
+
+        ax = axes[2]
+        ax.plot(np.array(hist.objective))
+        # ax.set_yscale("log")
+        ax.set_title("f")
+
+        # ax = axes[1][1]
+        # if len(hist.price_error) > 0:
+        #     ax.plot(np.array(hist.price_error) / simple_result.prices.size)
+        # ax.set_yscale("log")
+        # ax.set_title("nu - nu*")
+
+        fig.tight_layout()
+        return fig
+    return plot_convergence,
+
+
 @app.cell
-def __():
-    # _J = problem["problem"]
-    # print(_J(**_J.initialize_parameters(None)))
+def __(np, problem):
+    sp = problem["stochastic_problem"].subproblems
+    prob0 = problem["stochastic_problem"].subproblems[0]
+    prob1 = problem["stochastic_problem"].subproblems[1]
+
+    layer0 = prob0.layer
+    eps_pd= layer0.solver.rtol * np.sqrt(layer0.solver.total_terminals)
+    s0 = sp[-1].layer.state.copy()
+    return eps_pd, layer0, prob0, prob1, s0, sp
+
+
+@app.cell
+def __(eps_pd, plot_convergence, prob0, s0, sp):
+    L = _L = sp[0].layer
+
+    _L.solver.rho_angle = 1.0
+    _L.solver.rtol = 1.0e-4
+    _L.solver.minimum_iterations = 1
+
+    _L(**prob0.initialize_parameters(None), initial_state=s0.copy())
+
+    _L.solver.rho_angle = 1.5
+    _L.solver.rtol = 1.0e-3
+    _L.solver.minimum_iterations = 100
+
+    plot_convergence(_L.history, eps_pd=eps_pd)
+    return L,
+
+
+@app.cell
+def __(L, sp, torch):
+    sp[0].layer.devices[1].operation_cost(L.state.power[1], None, None, la=torch)
     return
 
 

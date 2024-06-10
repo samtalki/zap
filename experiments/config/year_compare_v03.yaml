@@ -5,10 +5,9 @@
 tags: []
 
 system:
-  threads: 16
-  runtime: 240  # minutes (about 16 hours)
+  threads: 128
+  runtime: 1000  # minutes (about 16 hours)
   memory: auto
-  gpu: 1
 
 data:
   name: pypsa
@@ -38,7 +37,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 192  # days = 8
+  hours_per_scenario: 24
   cost_weight: 1.0
   emissions_weight: 200.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -46,34 +45,19 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 50
+  num_iterations: 500
   initial_state: initial
-  use_wandb: false
+  use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 1
-  parallel: false
-  batch_size: 1  # total batches = 360 / 8 = 45
+  parallel: true
+  batch_size: 8  # total batches = 360 / 8 = 45
   num_parallel_workers: 8
   track_full_loss_every: 25
-  batch_strategy: sequential
+  batch_strategy: [expand, fixed, sequential]
   args:
-    step_size: 1.0e-3
+    step_size: 1.0e-2
     clip: 5000.0
-
-layer:
-  use_admm: true
-  args:
-    machine: cuda
-    num_iterations: 1000
-    rtol: 1.0e-3
-    rho_power: 1.0
-    rho_angle: 1.5
-    resid_norm: 2
-    safe_mode: false
-    battery_window: 24
-    battery_inner_iterations: 10
-    battery_inner_over_relaxation: 1.8
-    minimum_iterations: 100
 
 relaxation:
   should_solve: false
