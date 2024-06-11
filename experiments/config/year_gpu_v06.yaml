@@ -25,7 +25,7 @@ data:
   dont_expand: [hydro, coal, biomass]
   args:
     power_unit: 1.0e3  # 1e3 = GW
-    cost_unit: 1.0  # $ / MWh
+    cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.0
     scale_generator_capacity_factor: 0.7
@@ -57,7 +57,7 @@ optimizer:
   track_full_loss_every: 25
   batch_strategy: sequential
   args:
-    step_size: 1.0e-3
+    step_size: [expand, 1.0e-2, 1.0e-3, 1.0e-4]
     clip: 5000.0
 
 layer:
@@ -66,8 +66,8 @@ layer:
     machine: cuda
     num_iterations: 1000
     rtol: 1.0e-3
-    rho_power: 1.0
-    rho_angle: 1.5
+    rho_power: 0.1
+    rho_angle: 0.1
     resid_norm: 2
     safe_mode: false
     battery_window: 24

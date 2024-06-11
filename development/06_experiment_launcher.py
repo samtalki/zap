@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.6.13"
+__generated_with = "0.6.17"
 app = marimo.App()
 
 
@@ -147,7 +147,9 @@ def __(np, plt):
 
 
 @app.cell
-def __(np, problem):
+def __(np, problem, result):
+    result  # Force dependency
+
     sp = problem["stochastic_problem"].subproblems
     prob0 = problem["stochastic_problem"].subproblems[0]
     prob1 = problem["stochastic_problem"].subproblems[1]
@@ -159,26 +161,48 @@ def __(np, problem):
 
 
 @app.cell
-def __(eps_pd, plot_convergence, prob0, s0, sp):
-    L = _L = sp[0].layer
+def __(np, plot_convergence, prob0, sp):
+    L = _L = sp[4].layer
 
+    rtol = 1.0e-3
+
+    _L.solver.num_iterations = 10_000
+    _L.solver.rho_power = 0.1
+    _L.solver.rho_angle = _L.solver.rho_power
+    _L.solver.rtol = rtol
+    _L.solver.minimum_iterations = 100
+    _L.warm_start = False
+
+    _L(**prob0.initialize_parameters(None), initial_state=None)
+
+    _L.solver.num_iterations = 1000
+    _L.solver.rho_power = 1.0
     _L.solver.rho_angle = 1.0
-    _L.solver.rtol = 1.0e-4
-    _L.solver.minimum_iterations = 1
-
-    _L(**prob0.initialize_parameters(None), initial_state=s0.copy())
-
-    _L.solver.rho_angle = 1.5
     _L.solver.rtol = 1.0e-3
     _L.solver.minimum_iterations = 100
+    _L.warm_start = True
 
-    plot_convergence(_L.history, eps_pd=eps_pd)
-    return L,
+    plot_convergence(_L.history, eps_pd=rtol * np.sqrt(_L.solver.total_terminals))
+    return L, rtol
 
 
 @app.cell
 def __(L, sp, torch):
     sp[0].layer.devices[1].operation_cost(L.state.power[1], None, None, la=torch)
+    return
+
+
+@app.cell
+def __(problem):
+    print(problem["problem"].layer.devices[0].capital_cost[:5])
+    print(
+        sum(
+            [
+                sp.layer.devices[0].capital_cost[:5]
+                for sp in problem["stochastic_problem"].subproblems
+            ]
+        )
+    )
     return
 
 

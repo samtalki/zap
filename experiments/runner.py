@@ -205,10 +205,11 @@ def setup_pypysa_dataset(
     num_nodes=100,
     start_hour="peak_load_day",
     num_hours=4,
-    args=PYPSA_DEFAULT_ARGS,
+    args=None,
     case="load_medium",
     **kwargs,
 ):
+    print(args)
     # Load pypsa file
     csv_dir = f"{case}/elec_s_{num_nodes}"
     if use_extra_components:
@@ -500,8 +501,18 @@ def solve_problem(
         with open(initial_path, "r") as f:
             initial_state = json.load(f)
 
-        ref_shapes = {k: v.shape for k, v in problem.initialize_parameters(None).items()}
-        initial_state = {k: np.array(v).reshape(ref_shapes[k]) for k, v in initial_state.items()}
+        ref_init = {k: v for k, v in problem.initialize_parameters(None).items()}
+        initial_state = {
+            k: np.array(v).reshape(ref_init[k].shape) for k, v in initial_state.items()
+        }
+
+    # Convert to torch if needed
+    if initial_state is not None and isinstance(problem_data["problem"].layer, ADMMLayer):
+        print("Converting initial state to torch.")
+        initial_state = {
+            k: torch.tensor(v, dtype=ref_init[k].dtype, device=ref_init[k].device)
+            for k, v in initial_state.items()
+        }
 
     # Solve
     parameters, history = problem.solve(

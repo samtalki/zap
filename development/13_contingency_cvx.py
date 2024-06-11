@@ -130,7 +130,7 @@ def __(mo):
 @app.cell
 def __():
     contingency_device = 3
-    num_contingencies = 20
+    num_contingencies = 100
     return contingency_device, num_contingencies
 
 

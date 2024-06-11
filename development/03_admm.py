@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.6.13"
+__generated_with = "0.6.17"
 app = marimo.App()
 
 
@@ -46,10 +46,14 @@ def __(mo):
 def __():
     DEFAULT_PYPSA_KWARGS = {
         "marginal_load_value": 500.0,
-        "load_cost_perturbation": 50.0,
+        "load_cost_perturbation": 10.0,
         "generator_cost_perturbation": 1.0,
-        "cost_unit": 100.0,  # 1000.0,
+        "cost_unit": 100.0,
         "power_unit": 1000.0,
+        "drop_empty_generators": False,
+        "expand_empty_generators": 0.5,
+        "scale_generator_capacity_factor": 0.7,
+        "scale_line_capacity_factor": 0.7,
     }
     return DEFAULT_PYPSA_KWARGS,
 
@@ -57,7 +61,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_500")
+    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500_ec")
     return pn,
 
 
@@ -166,6 +170,7 @@ def __(cp, nested_norm, net, simple_devices, time_horizon):
         add_ground=False,
     )
 
+    print("fstar", simple_result.problem.value)
     print(simple_result.problem.solver_stats)
     print(nested_norm(simple_result.torchify().angle))
     print(nested_norm(simple_result.torchify().power))
@@ -238,31 +243,12 @@ def __():
 
 
 @app.cell
-def __(ADMMSolver, admm_num_iters, rho_angle, rho_power, torch):
-    admm = ADMMSolver(
-        num_iterations=admm_num_iters,
-        rho_power=rho_power,
-        rho_angle=rho_angle,
-        # rtol=eps_pd,
-        resid_norm=2,
-        safe_mode=False,
-        machine="cuda",
-        dtype=torch.float32,
-        battery_window=24,
-        battery_inner_iterations=10,
-        battery_inner_over_relaxation=1.8,
-    )
-    print(f"ADMM solving with {admm.machine}")
-    return admm,
-
-
-@app.cell
 def __():
-    backprop = True
+    backprop = False
     return backprop,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(admm, backprop, simple_devices, torch):
     torch.cuda.empty_cache()
 
@@ -285,6 +271,37 @@ def __():
 
 
 @app.cell
+def __():
+    # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+    return
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md("### Results")
+    return
+
+
+@app.cell
+def __(ADMMSolver, torch):
+    admm = ADMMSolver(
+        num_iterations=5000,
+        rho_power=1.0,
+        rho_angle=1.0,
+        rtol=1e-3,
+        resid_norm=2,
+        safe_mode=False,
+        machine="cuda",
+        dtype=torch.float32,
+        battery_window=24,
+        battery_inner_iterations=10,
+        battery_inner_over_relaxation=1.8,
+    )
+    print(f"ADMM solving with {admm.machine}")
+    return admm,
+
+
+@app.cell(hide_code=True)
 def __(admm, backprop, net, time_horizon, torch, torch_devices):
     # with profile(
     #     activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -306,37 +323,11 @@ def __(admm, backprop, net, time_horizon, torch, torch_devices):
     return history, state
 
 
-@app.cell
-def __():
-    # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
-    return
-
-
 @app.cell(hide_code=True)
-def __(mo):
-    mo.md("### Results")
+def __(fstar, history):
+    print("f_star:", fstar)
+    print("f_admm:", history.objective[-1])
     return
-
-
-@app.cell
-def __():
-    rho_power = 1.0  # 0.5
-    rho_angle = 1.0 * rho_power  # 5.0 * rho_power
-
-    admm_num_iters = 500
-    return admm_num_iters, rho_angle, rho_power
-
-
-@app.cell
-def __():
-    weighting_strategy = "uniform"
-    return weighting_strategy,
-
-
-@app.cell
-def __():
-    eps_abs = 1e-3
-    return eps_abs,
 
 
 @app.cell
@@ -345,19 +336,21 @@ def __(history, plot_convergence):
     return
 
 
-@app.cell
-def __(eps_abs, nested_map, np, state, time_horizon):
+@app.cell(hide_code=True)
+def __(admm, nested_map, np, state, time_horizon):
     _total_num_terminals = sum(
         [sum(x) for x in nested_map(lambda x: x.shape[0], state.power)]
     )
-    eps_pd = eps_abs * np.sqrt(_total_num_terminals * time_horizon)
+    eps_pd = admm.rtol * np.sqrt(_total_num_terminals * time_horizon)
     return eps_pd,
 
 
 @app.cell(hide_code=True)
-def __(admm_num_iters, eps_pd, plt):
+def __(admm, eps_pd, fstar, np, plt):
     def plot_convergence(hist):
         fig, axes = plt.subplots(2, 2, figsize=(7, 4))
+
+        admm_num_iters = admm.num_iterations
 
         ax = axes[0][0]
         ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
@@ -375,10 +368,10 @@ def __(admm_num_iters, eps_pd, plt):
         ax.legend()
         ax.set_title("dual residuals")
 
-        # ax = axes[1][0]
-        # ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
-        # ax.set_yscale("log")
-        # ax.set_title("|f - f*| / f*")
+        ax = axes[1][0]
+        ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
+        ax.set_yscale("log")
+        ax.set_title("|f - f*| / f*")
 
         # ax = axes[1][1]
         # if len(hist.price_error) > 0:
@@ -427,16 +420,7 @@ def __():
 
 
 @app.cell(hide_code=True)
-def __(
-    admm,
-    fstar,
-    history,
-    nested_norm,
-    rho_power,
-    simple_result,
-    state,
-    torch,
-):
+def __(admm, fstar, history, nested_norm, simple_result, state, torch):
     _x = simple_result.torchify(machine=admm.machine)
 
     print("f/f* =", history.objective[-1] / fstar)
@@ -450,19 +434,19 @@ def __(
     )
     print(
         "Price Error:",
-        torch.linalg.norm(state.dual_power * rho_power + _x.prices, 1)
+        torch.linalg.norm(state.dual_power * admm.rho_power + _x.prices, 1)
         / torch.linalg.norm(_x.prices, 1),
     )
     return
 
 
-@app.cell
-def __(admm, plt, rho_power, simple_result, state, torch):
+@app.cell(hide_code=True)
+def __(admm, plt, simple_result, state, torch):
     _x = simple_result.torchify(machine=admm.machine)
 
-    print(torch.linalg.norm(_x.prices + state.dual_power * rho_power, 1))
+    print(torch.linalg.norm(_x.prices + state.dual_power * admm.rho_power, 1))
     print(simple_result.prices.size)
-    price_errs = ((_x.prices + state.dual_power * rho_power)).cpu().numpy()
+    price_errs = ((_x.prices + state.dual_power * admm.rho_power)).cpu().numpy()
 
     plt.figure(figsize=(7, 2))
     plt.scatter(range(price_errs.size), price_errs.ravel(), s=1)
@@ -471,7 +455,7 @@ def __(admm, plt, rho_power, simple_result, state, torch):
 
 @app.cell
 def __(nested_norm, simple_result, torch, torch_devices):
-    _x = simple_result.torchify()
+    _x = simple_result.torchify(machine="cuda")
 
     total_power = nested_norm(_x.power)
     total_phase = nested_norm(_x.angle) + 1e-8

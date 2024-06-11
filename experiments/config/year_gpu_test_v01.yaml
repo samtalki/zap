@@ -6,7 +6,7 @@ tags: []
 
 system:
   threads: 16
-  runtime: 240  # minutes (about 16 hours)
+  runtime: 60  # minutes (about 16 hours)
   memory: auto
   gpu: 1
 
@@ -18,7 +18,7 @@ data:
   num_nodes: 500
   use_extra_components: true
   start_hour: peak_hybrid_day
-  num_hours: 8640  # days = 360
+  num_hours: 960  # days = 360
   battery_cost_scale: 1.0
   generator_cost_scale:
     hydro: 1.0
@@ -46,7 +46,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 50
+  num_iterations: 10
   initial_state: initial
   use_wandb: false
   log_wandb_every: 1
@@ -66,8 +66,8 @@ layer:
     machine: cuda
     num_iterations: 1000
     rtol: 1.0e-3
-    rho_power: 1.0
-    rho_angle: 1.5
+    rho_power: 0.1
+    rho_angle: 0.1
     resid_norm: 2
     safe_mode: false
     battery_window: 24
