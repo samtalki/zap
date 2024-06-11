@@ -11,7 +11,7 @@ print(f"Launching {len(config_list)} jobs...")
 for i, config in enumerate(config_list):
     assert i == config["index"]
 
-    system = config["system"]
+    system: dict = config["system"]
 
     # Configure file paths
     output_file = runner.datadir("slurm", f"{config['name']}_{i:03d}.out")
@@ -20,12 +20,15 @@ for i, config in enumerate(config_list):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     script_file.parent.mkdir(parents=True, exist_ok=True)
 
-    if system["gpu"] > 0:
+    if "gpu" in system.keys() and system["gpu"] > 0:
         constraint = "gpu"
         threads = PERLMUTTER_CORES_PER_GPU * system["gpu"]
+        gpu_line = f"#SBATCH --gpus={system['gpu']}"
+
     else:
         constraint = "cpu"
         threads = system["threads"]
+        gpu_line = ""
 
     # Write slurm script
     slurm_script = f"""#!/bin/bash
@@ -36,7 +39,7 @@ for i, config in enumerate(config_list):
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task={threads}
-#SBATCH --gpus={system["gpu"]}
+{gpu_line}
 #SBATCH --time={system["runtime"]}
 
 module load conda

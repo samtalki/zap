@@ -562,6 +562,9 @@ def run_experiment(config):
     print(platform.python_version())
     print("\n\n\n")
 
+    if "layer" not in config.keys():
+        config["layer"] = {}
+
     # Load data and formulate problem
     data = load_dataset(**config["data"])
     print(config["layer"])

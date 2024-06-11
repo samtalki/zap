@@ -47,7 +47,7 @@ problem:
 optimizer:
   name: gradient_descent
   num_iterations: 500
-  initial_state: [expand, initial, year_compare_v03/001/model_00300]
+  initial_state: [expand, initial, year_compare_v02/001/model_00300]
   use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 1
