@@ -5,6 +5,7 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
+from typing import Optional
 from dataclasses import dataclass
 from itertools import repeat
 from functools import cached_property
@@ -238,6 +239,90 @@ class PowerNetwork:
         ]
         return sum(costs)
 
+    def model_variables(self, devices, time_horizon):
+        global_angle = cp.Variable((self.num_nodes, time_horizon))
+        power = [d.initialize_power(time_horizon) for d in devices]
+        angle = [d.initialize_angle(time_horizon) for d in devices]
+        local_variables = [d.model_local_variables(time_horizon) for d in devices]
+
+        return global_angle, power, angle, local_variables
+
+    def model_contingency_problem(
+        self,
+        devices,
+        time_horizon,
+        *,
+        parameters=None,
+        contingency_device=None,
+        contingency_mask=None,
+    ):
+        num_contingencies = contingency_mask.shape[0]
+        cd = contingency_device
+
+        # Create base case variables
+        base_variables = self.model_variables(devices, time_horizon)
+        global_angle, power, angle, local_variables = base_variables
+
+        # Create contingency variables
+        global_angle_cont = [
+            cp.Variable((self.num_nodes, time_horizon)) for _ in range(num_contingencies)
+        ]
+        power_cont = [devices[cd].initialize_power(time_horizon) for _ in range(num_contingencies)]
+        angle_cont = [devices[cd].initialize_angle(time_horizon) for _ in range(num_contingencies)]
+        local_cont = [
+            devices[cd].model_local_variables(time_horizon) for _ in range(num_contingencies)
+        ]
+
+        # Model base case
+        costs, constraints, data = self.model_dispatch_problem(
+            devices, time_horizon, parameters=parameters, variables=base_variables
+        )
+
+        # Model contingencies
+        for c in range(num_contingencies):
+            mask = contingency_mask[c, :].T
+
+            # Power balance
+            pc = [power_cont[c] if i == cd else p for i, p in enumerate(power)]
+            pow_bal_cont = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, pc)])
+            pow_bal_cont = pow_bal_cont == 0
+
+            # Phase consistency
+            ac = [angle_cont[c] if i == cd else a for i, a in enumerate(angle)]
+            phase_cons_cont = [
+                match_phases(d, v, global_angle_cont[c]) for d, v in zip(devices, ac)
+            ]
+
+            # Contingency device constraints
+            local_eqs_cont = [
+                hi == 0
+                for hi in devices[cd].equality_constraints(
+                    power_cont[c], angle_cont[c], local_cont[c], **parameters[cd], la=cp, mask=mask
+                )
+            ]
+            local_ineqs_cont = [
+                gi <= 0
+                for gi in devices[cd].inequality_constraints(
+                    power_cont[c], angle_cont[c], local_cont[c], **parameters[cd], la=cp, mask=mask
+                )
+            ]
+
+            constraints += [pow_bal_cont] + local_eqs_cont + local_ineqs_cont
+            for pc in phase_cons_cont:
+                constraints += pc
+
+        # Combine data
+        data["global_angle"] = [global_angle] + global_angle_cont
+        data["power"][cd] = [power[cd]] + power_cont
+        data["angle"][cd] = [angle[cd]] + angle_cont
+        data["local_variables"][cd] = [local_variables[cd]] + local_cont
+
+        # TODO - Add contingency duals
+        # "phase_consistency": phase_consistency,
+        # "power_balance": power_balance,
+
+        return costs, constraints, data
+
     def model_dispatch_problem(
         self,
         devices,
@@ -248,6 +333,7 @@ class PowerNetwork:
         envelope=None,
         lower_param=None,
         upper_param=None,
+        variables=None,
     ):
         if envelope is not None:
             assert len(envelope) == 2
@@ -262,10 +348,12 @@ class PowerNetwork:
             device_envelopes = [None for _ in devices]
 
         # Initialize variables
-        global_angle = cp.Variable((self.num_nodes, time_horizon))
-        power = [d.initialize_power(time_horizon) for d in devices]
-        angle = [d.initialize_angle(time_horizon) for d in devices]
-        local_variables = [d.model_local_variables(time_horizon) for d in devices]
+        if variables is None:
+            global_angle, power, angle, local_variables = self.model_variables(
+                devices, time_horizon
+            )
+        else:
+            global_angle, power, angle, local_variables = variables
 
         # Model constraints
         if dual:
@@ -301,8 +389,10 @@ class PowerNetwork:
             )
         ]
 
-        constraints = itertools.chain(
-            [power_balance], *phase_consistency, *local_equalities, *local_inequalities
+        constraints = list(
+            itertools.chain(
+                [power_balance], *phase_consistency, *local_equalities, *local_inequalities
+            )
         )
 
         data = {
@@ -328,6 +418,9 @@ class PowerNetwork:
         add_ground=True,
         dual=False,
         solver_kwargs={},
+        num_contingencies=0,
+        contingency_device: Optional[int] = None,
+        contingency_mask=None,
     ) -> DispatchOutcome:
         # Compute time horizon automatically
         if time_horizon is None:
@@ -346,10 +439,25 @@ class PowerNetwork:
         assert all([d.num_nodes == self.num_nodes for d in devices])
         assert time_horizon > 0
         assert all([d.time_horizon in [0, time_horizon] for d in devices])
+        if num_contingencies > 0:
+            assert contingency_device is not None
+            assert contingency_mask.shape == (
+                num_contingencies,
+                devices[contingency_device].num_devices,
+            )
 
-        costs, constraints, data = self.model_dispatch_problem(
-            devices, time_horizon, parameters=parameters, dual=dual
-        )
+        if num_contingencies > 0:
+            costs, constraints, data = self.model_contingency_problem(
+                devices,
+                time_horizon,
+                parameters=parameters,
+                contingency_device=contingency_device,
+                contingency_mask=contingency_mask,
+            )
+        else:
+            costs, constraints, data = self.model_dispatch_problem(
+                devices, time_horizon, parameters=parameters, dual=dual
+            )
 
         # Unpack data
         power, angle, local_variables = data["power"], data["angle"], data["local_variables"]
@@ -366,7 +474,7 @@ class PowerNetwork:
         # Evaluate variables
         power = nested_evaluate(power)
         angle = nested_evaluate(angle)
-        global_angle = global_angle.value
+        global_angle = nested_evaluate(global_angle)
         local_variables = nested_evaluate(local_variables)
 
         return DispatchOutcome(
@@ -732,7 +840,15 @@ class PowerNetwork:
 
 
 def nested_evaluate(variable):
-    return [[xi.value for xi in x] if (x is not None) else None for x in variable]
+    # Base cases
+    if variable is None:
+        return None
+    if isinstance(variable, cp.Variable):  # This eval has to come before the Sequence eval
+        return variable.value
+
+    # Recursive case
+    return [nested_evaluate(xi) for xi in variable]
+    # return [[xi.value for xi in x] if (x is not None) else None for x in variable]
 
 
 def apply_incidence(device: AbstractDevice, x, la=np):

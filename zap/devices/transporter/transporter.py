@@ -81,10 +81,14 @@ class Transporter(AbstractDevice):
     # CORE MODELING FUNCTIONS
     # ====
 
-    def equality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
+    def equality_constraints(
+        self, power, angle, _, nominal_capacity=None, la=np, envelope=None, mask=None
+    ):
         return [power[1] + power[0]]
 
-    def inequality_constraints(self, power, angle, _, nominal_capacity=None, la=np, envelope=None):
+    def inequality_constraints(
+        self, power, angle, _, nominal_capacity=None, la=np, envelope=None, mask=None
+    ):
         nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
         return [

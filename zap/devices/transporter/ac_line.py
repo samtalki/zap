@@ -54,7 +54,9 @@ class ACLine(PowerLine):
     # CORE MODELING FUNCTIONS
     # ====
 
-    def equality_constraints(self, power, angle, u, nominal_capacity=None, la=np, envelope=None):
+    def equality_constraints(
+        self, power, angle, u, nominal_capacity=None, la=np, envelope=None, mask=None
+    ):
         nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity, la=la)
 
         # Regular transporter constraints
@@ -65,13 +67,18 @@ class ACLine(PowerLine):
         # Linearized power flow constraints
         angle_diff = angle[0] - angle[1]
 
+        if mask is None:
+            b = self.susceptance
+        else:
+            b = self.susceptance - la.multiply(self.susceptance, mask)
+
         if use_envelope(envelope):  # When line is plannable
             print("Envelope relaxation applied to AC line.")
             pnom_dtheta = self.get_envelope_variable(*envelope, angle_diff, nominal_capacity)
         else:
             pnom_dtheta = la.multiply(angle_diff, nominal_capacity)
 
-        eq_constraints += [power[1] - la.multiply(self.susceptance, pnom_dtheta)]
+        eq_constraints += [power[1] - la.multiply(b, pnom_dtheta)]
 
         return eq_constraints
 
