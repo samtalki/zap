@@ -104,7 +104,10 @@ class ADMMSolver:
         if self.machine is None:
             # Infer machine
             self.machine = infer_machine()
+
         self.cumulative_iteration = 0
+        if self.rho_angle is None:
+            self.rho_angle = self.rho_power
 
     def get_rho(self):
         rho_power = self.rho_power
@@ -168,6 +171,7 @@ class ADMMSolver:
                 self.dimension_checks(st, net, devices, time_horizon)
                 self.numerical_checks(st, net, devices, time_horizon)
 
+        print(f"ADMM did not converge. Ran for {self.num_iterations} iterations.")
         return st, history
 
     # ====

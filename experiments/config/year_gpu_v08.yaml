@@ -25,7 +25,7 @@ data:
   dont_expand: [hydro, coal, biomass]
   args:
     power_unit: 1.0e3  # 1e3 = GW
-    cost_unit: [expand, 1.0, 100.0]  # $ / MWh
+    cost_unit: 1.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.0
     scale_generator_capacity_factor: 0.7
@@ -46,7 +46,7 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 100
+  num_iterations: 1000
   initial_state: [expand, initial, year_compare_v03/001/model_00300]
   use_wandb: true
   log_wandb_every: 1
@@ -64,10 +64,9 @@ layer:
   use_admm: true
   args:
     machine: cuda
-    num_iterations: 1000
-    rtol: 1.0e-3
-    rho_power: 0.1
-    rho_angle: 0.1
+    num_iterations: 2500
+    rtol: [expand, 1.0e-3, 1.0e-4]
+    rho_power: [expand, 0.1, 0.05, 0.01]
     resid_norm: 2
     safe_mode: false
     battery_window: 24
