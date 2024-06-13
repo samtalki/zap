@@ -148,12 +148,13 @@ class ACLine(PowerLine):
             pmax = torch.multiply(self.max_power, nominal_capacity) + self.slack
             pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
             susceptance = torch.multiply(self.susceptance, nominal_capacity)
-            self.admm_data = (pmax, pmin, susceptance)
+            mu = torch.divide(1.0, 2.0 * susceptance)
+            self.admm_data = (pmax, pmin, susceptance, mu)
 
-        pmax, pmin, susceptance = self.admm_data
+        pmax, pmin, susceptance, mu = self.admm_data
 
         return _admm_prox_update(
-            power, angle, rho_power, rho_angle, susceptance, quadratic_cost, pmin, pmax
+            power, angle, rho_power, rho_angle, susceptance, mu, quadratic_cost, pmin, pmax
         )
 
     def cvx_admm_prox_update(self, rho_power, rho_angle, power, angle, nominal_capacity=None):
@@ -190,7 +191,17 @@ class ACLine(PowerLine):
 
 
 @torch.jit.script
-def _admm_prox_update(power, angle, rho_power: float, rho_angle: float, b, quad_cost, pmin, pmax):
+def _admm_prox_update(
+    power: list[torch.Tensor],
+    angle: list[torch.Tensor],
+    rho_power: float,
+    rho_angle: float,
+    b: torch.Tensor,
+    mu: torch.Tensor,
+    quad_cost: float,
+    pmin: torch.Tensor,
+    pmax: torch.Tensor,
+):
     # See transporter for details on derivation
     # Here, we also have angle variables
     # However, we can write p0 and theta0 in terms of p1 and theta1
@@ -201,8 +212,6 @@ def _admm_prox_update(power, angle, rho_power: float, rho_angle: float, b, quad_
     #   theta1 = (1/2) (angle1 + angle0) - mu * p1
     # where:
     #   mu = 1 / (2 * susceptance)
-
-    mu = torch.divide(1, 2 * b)
 
     # Now we can solve a minimization problem over just p1
     # with solution:

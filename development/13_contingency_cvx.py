@@ -170,7 +170,7 @@ def __(ADMMSolver, torch):
     admm = ADMMSolver(
         num_iterations=5000,
         rho_power=0.5,
-        rtol=1e-3,
+        rtol=1e-2,
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
@@ -211,9 +211,11 @@ def __(mo):
 
 
 @app.cell
-def __():
+def __(devices):
     contingency_device = 3
-    num_contingencies = 5
+    num_contingencies = 3
+
+    print(type(devices[contingency_device]))
     return contingency_device, num_contingencies
 
 
@@ -230,36 +232,64 @@ def __(contingency_device, devices, num_contingencies, sp):
     return c, contingency_mask
 
 
-@app.cell(hide_code=True)
-def __(
-    contingency_device,
-    contingency_mask,
-    cp,
-    devices,
-    net,
-    num_contingencies,
-):
-    yc = net.dispatch(
-        devices,
-        solver=cp.MOSEK,
-        num_contingencies=num_contingencies,
-        contingency_device=contingency_device,
-        contingency_mask=contingency_mask,
-    )
-    return yc,
-
-
 @app.cell
-def __(yc):
-    _c = 4
-    yc.power[3][_c + 1][0][_c, :]
+def __():
+    # yc = net.dispatch(
+    #     devices,
+    #     solver=cp.MOSEK,
+    #     num_contingencies=num_contingencies,
+    #     contingency_device=contingency_device,
+    #     contingency_mask=contingency_mask,
+    # )
     return
 
 
 @app.cell
-def __(yc):
-    print("Objective Value (CVX):\t", yc.problem.value)
-    # print("Objective Value (ADMM):\t", history0.objective[-1])
+def __():
+    # _c = 0
+    # yc.power[3][_c + 1][0][_c, :]
+    return
+
+
+@app.cell(hide_code=True)
+def __(ADMMSolver, torch):
+    admm_c = ADMMSolver(
+        num_iterations=50,
+        rho_power=0.5,
+        rtol=1e-3,
+        resid_norm=2,
+        machine="cuda",
+        dtype=torch.float32,
+        battery_window=24,
+    )
+    return admm_c,
+
+
+@app.cell
+def __(
+    admm_c,
+    contingency_device,
+    contingency_mask,
+    net,
+    num_contingencies,
+    time_horizon,
+    torch_devices,
+):
+    sc, historyc = admm_c.solve(
+        net,
+        torch_devices,
+        time_horizon,
+        num_contingencies=num_contingencies,
+        contingency_device=contingency_device,
+        contingency_mask=contingency_mask,
+    )
+    return historyc, sc
+
+
+@app.cell
+def __():
+    # print("Objective Value (CVX):\t", yc.problem.value)
+    # print("Objective Value (ADMM):\t", historyc.objective[-1])
     return
 
 
@@ -270,6 +300,12 @@ def __():
     _nr = 50
 
     print((_nr, *_shape2[1:]))
+    return
+
+
+@app.cell
+def __(torch):
+    torch.zeros(2, 2).unsqueeze(-1).shape
     return
 
 

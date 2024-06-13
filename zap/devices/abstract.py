@@ -104,22 +104,36 @@ class AbstractDevice:
     # ADMM Functionality
     # ====
 
-    def admm_initialize_power_variables(self, time_horizon: int, machine=None, dtype=DEFAULT_DTYPE):
+    def admm_initialize_power_variables(
+        self, time_horizon: int, machine=None, dtype=DEFAULT_DTYPE, num_contingencies=0
+    ):
         if machine is None:
             machine = infer_machine()
 
+        if num_contingencies == 0:
+            shape = (self.num_devices, time_horizon)
+        else:
+            shape = (self.num_devices, time_horizon, num_contingencies + 1)
+
         return [
-            torch.zeros((self.num_devices, time_horizon), device=machine, dtype=dtype)
+            torch.zeros(shape, device=machine, dtype=dtype)
             for _ in range(self.num_terminals_per_device)
         ]
 
-    def admm_initialize_angle_variables(self, time_horizon: int, machine=None, dtype=DEFAULT_DTYPE):
+    def admm_initialize_angle_variables(
+        self, time_horizon: int, machine=None, dtype=DEFAULT_DTYPE, num_contingencies=0
+    ):
         if machine is None:
             machine = infer_machine()
 
+        if num_contingencies == 0:
+            shape = (self.num_devices, time_horizon)
+        else:
+            shape = (self.num_devices, time_horizon, num_contingencies + 1)
+
         if self.is_ac:
             return [
-                torch.zeros((self.num_devices, time_horizon), device=machine, dtype=dtype)
+                torch.zeros(shape, device=machine, dtype=dtype)
                 for _ in range(self.num_terminals_per_device)
             ]
         else:

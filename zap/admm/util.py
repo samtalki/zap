@@ -5,8 +5,13 @@ from zap.util import DEFAULT_DTYPE, infer_machine
 
 
 def scatter_sum(num_rows, index, source):
-    num_cols = source.shape[1]
-    result = torch.zeros((num_rows, num_cols), device=source.device, dtype=source.dtype)
+    # For 3d tensors (contingencies)
+    if len(source.shape) == 3 and len(index.shape) == 2:
+        index = index.unsqueeze(2)
+
+    num_cols = source.shape[1:]
+    result = torch.zeros((num_rows, *num_cols), device=source.device, dtype=source.dtype)
+
     return result.scatter_add(0, index, source)
 
 
@@ -116,6 +121,7 @@ def get_nodal_average(
     tol=1e-8,
     machine=None,
     dtype=DEFAULT_DTYPE,
+    num_contingencies=0,
 ):
     if machine is None:
         machine = infer_machine()
@@ -131,18 +137,31 @@ def get_nodal_average(
     else:
         num_terminals = torch.maximum(num_terminals, tol)
 
-    average_x = torch.zeros((net.num_nodes, time_horizon), device=machine, dtype=dtype)
+    if num_contingencies > 0:
+        average_x = torch.zeros(
+            (net.num_nodes, time_horizon, num_contingencies + 1), device=machine, dtype=dtype
+        )
+    else:
+        average_x = torch.zeros((net.num_nodes, time_horizon), device=machine, dtype=dtype)
 
     for dev, x_dev in zip(devices, powers):
         if x_dev is None:
             continue
 
-        A_x = apply_incidence(dev, x_dev)
-        for A_x_dt in A_x:
-            average_x += A_x_dt
-
+        # Linear algebra version
         # for A_dt, x_dt in zip(dev.incidence_matrix, x_dev):
         #     average_x += A_dt @ x_dt
+
+        # Torch version
+        A_x = apply_incidence(dev, x_dev)
+        for A_x_dt in A_x:
+            if num_contingencies > 0 and len(A_x_dt.shape) == 2:
+                A_x_dt = A_x_dt.unsqueeze(2)
+
+            average_x += A_x_dt
+
+    if num_contingencies > 0:
+        num_terminals = num_terminals.unsqueeze(2)
 
     return torch.divide(average_x, num_terminals)
 
@@ -163,13 +182,39 @@ def get_terminal_residual(angles, average_angle, devices):
     return residuals
 
 
-def dc_average(x, net, devices, time_horizon, num_terminals, machine=None, dtype=DEFAULT_DTYPE):
+def dc_average(
+    x,
+    net,
+    devices,
+    time_horizon,
+    num_terminals,
+    machine=None,
+    dtype=DEFAULT_DTYPE,
+    num_contingencies=0,
+):
     return get_nodal_average(
-        x, net, devices, time_horizon, num_terminals, only_ac=False, machine=machine, dtype=dtype
+        x,
+        net,
+        devices,
+        time_horizon,
+        num_terminals,
+        only_ac=False,
+        machine=machine,
+        dtype=dtype,
+        num_contingencies=num_contingencies,
     )
 
 
-def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine=None, dtype=DEFAULT_DTYPE):
+def ac_average(
+    x,
+    net,
+    devices,
+    time_horizon,
+    num_ac_terminals,
+    machine=None,
+    dtype=DEFAULT_DTYPE,
+    num_contingencies=0,
+):
     return get_nodal_average(
         x,
         net,
@@ -180,4 +225,5 @@ def ac_average(x, net, devices, time_horizon, num_ac_terminals, machine=None, dt
         check_connections=False,
         machine=machine,
         dtype=dtype,
+        num_contingencies=num_contingencies,
     )

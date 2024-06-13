@@ -405,15 +405,21 @@ class ADMMSolver:
 
         # Duals
         power_dual = dc_average(
-            power_var, net, devices, time_horizon, num_terminals, machine, dtype
+            power_var, net, devices, time_horizon, num_terminals, machine, dtype, nc
         )
         phase_dual = [
             d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
         ]
+        if cd is not None:
+            phase_dual[cd] = devices[cd].admm_initialize_angle_variables(
+                time_horizon, machine, dtype, num_contingencies=nc
+            )
 
-        power_bar = dc_average(power_var, net, devices, time_horizon, num_terminals, machine, dtype)
+        power_bar = dc_average(
+            power_var, net, devices, time_horizon, num_terminals, machine, dtype, nc
+        )
         theta_bar = ac_average(
-            phase_var, net, devices, time_horizon, num_ac_terminals, machine, dtype
+            phase_var, net, devices, time_horizon, num_ac_terminals, machine, dtype, nc
         )
 
         theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
