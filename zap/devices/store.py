@@ -66,6 +66,8 @@ class Battery(AbstractDevice):
         self.min_power_capacity = make_dynamic(min_power_capacity)
         self.max_power_capacity = make_dynamic(max_power_capacity)
 
+        self.has_changed = True
+
     @property
     def terminals(self):
         return self.terminal
@@ -278,7 +280,7 @@ class Battery(AbstractDevice):
             self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
 
         # Variable data that changes between solves
-        if getattr(self, "has_changed", False):
+        if self.has_changed:
             self.has_changed = False
 
             smax = torch.multiply(power_capacity, self.duration)

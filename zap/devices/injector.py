@@ -130,32 +130,20 @@ class Injector(AbstractDevice):
     ):
         nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
-        machine, dtype = power[0].device, power[0].dtype
+        # machine, dtype = power[0].device, power[0].dtype
         assert angle is None
 
-        if power_weights is None:
-            power_weights = [torch.tensor(1.0, device=machine, dtype=dtype)]
+        if self.has_changed:
+            quadratic_cost = (
+                0.0 * self.linear_cost if self.quadratic_cost is None else self.quadratic_cost
+            )
+            pmax = torch.multiply(self.max_power, nominal_capacity)
+            pmin = torch.multiply(self.min_power, nominal_capacity)
+            self.admm_data = (quadratic_cost, pmax, pmin)
 
-        Dp2 = [torch.pow(p, 2) for p in power_weights]
+        quadratic_cost, pmax, pmin = self.admm_data
 
-        # Problem is
-        #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}
-        # Objective derivative is
-        #     2 a p + b +  rho Dp^2 (p - power) = 0
-        # Which is solved by
-        #     p = (rho Dp^2 power - b) / (2 a + rho Dp^2)
-        quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
-
-        num = rho_power * Dp2[0] * power[0] - self.linear_cost
-        denom = 2 * quadratic_cost + rho_power * Dp2[0]
-        p = torch.divide(num, denom)
-
-        # Finally, we project onto the box constraints
-        pmax = torch.multiply(self.max_power, nominal_capacity)
-        pmin = torch.multiply(self.min_power, nominal_capacity)
-        p = torch.clip(p, pmin, pmax)
-
-        return [p], None
+        return _admm_prox_update(power, rho_power, self.linear_cost, quadratic_cost, pmin, pmax)
 
     def get_admm_power_weights(self, power, strategy: str, nominal_capacity=None):
         nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
@@ -276,3 +264,21 @@ class Load(Injector):
             dev.load = dev.load[:, time_periods]
 
         return dev
+
+
+@torch.jit.script
+def _admm_prox_update(power: list[torch.Tensor], rho: float, lin_cost, quad_cost, pmin, pmax):
+    # Problem is
+    #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}
+    # Objective derivative is
+    #     2 a p + b +  rho Dp^2 (p - power) = 0
+    # Which is solved by
+    #     p = (rho Dp^2 power - b) / (2 a + rho Dp^2)
+    num = rho * power[0] - lin_cost
+    denom = 2 * quad_cost + rho
+    p = torch.divide(num, denom)
+
+    # Finally, we project onto the box constraints
+    p = torch.clip(p, pmin, pmax)
+
+    return [p], None

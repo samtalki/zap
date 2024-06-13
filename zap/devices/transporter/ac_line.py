@@ -29,6 +29,7 @@ class ACLine(PowerLine):
         reconductoring_threshold=None,
     ):
         self.susceptance = make_dynamic(susceptance)
+        self.has_changed = True
 
         super().__init__(
             num_nodes=num_nodes,
@@ -141,42 +142,19 @@ class ACLine(PowerLine):
             )
 
         quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
-        pmax = torch.multiply(self.max_power, nominal_capacity) + self.slack
-        pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
-        susceptance = torch.multiply(self.susceptance, nominal_capacity)
 
-        # assert torch.sum(torch.abs(self.linear_cost)) == 0.0  # TODO
+        # Cache once per solve
+        if self.has_changed:
+            pmax = torch.multiply(self.max_power, nominal_capacity) + self.slack
+            pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
+            susceptance = torch.multiply(self.susceptance, nominal_capacity)
+            self.admm_data = (pmax, pmin, susceptance)
 
-        # See transporter for details on derivation
-        # Here, we also have angle variables
-        # However, we can write p0 and theta0 in terms of p1 and theta1
-        #   p0 = -p1
-        #   theta0 = theta1 + p1 / susceptance
-        #
-        # The solution for theta1 is:
-        #   theta1 = (1/2) (angle1 + angle0) - mu * p1
-        # where:
-        #   mu = 1 / (2 * susceptance)
+        pmax, pmin, susceptance = self.admm_data
 
-        mu = torch.divide(1, 2 * susceptance)
-
-        # Now we can solve a minimization problem over just p1
-        # with solution:
-        #   (2 a + 2 rho + 2 rho mu^2) p + b sign(p)
-        #   =
-        #   rho (power1 - power0 + mu angle[1] - mu angle[0])
-        num = rho_power * (power[1] - power[0]) + rho_angle * mu * (angle[0] - angle[1])
-        denom = 2 * (quadratic_cost + rho_power + rho_angle * torch.pow(mu, 2))
-
-        p1 = torch.divide(num, denom)
-        p1 = torch.clip(p1, pmin, pmax)
-
-        # Solve for other variables
-        p0 = -p1
-        theta1 = 0.5 * angle[0] + 0.5 * angle[1] - mu * p1
-        theta0 = theta1 + p1 / susceptance
-
-        return [p0, p1], [theta0, theta1]
+        return _admm_prox_update(
+            power, angle, rho_power, rho_angle, susceptance, quadratic_cost, pmin, pmax
+        )
 
     def cvx_admm_prox_update(self, rho_power, rho_angle, power, angle, nominal_capacity=None):
         print("Solving AC line prox update via CVX...")
@@ -209,3 +187,37 @@ class ACLine(PowerLine):
         prob.solve(solver=cp.MOSEK)
 
         return [p0.value, p1.value], [theta0.value, theta1.value]
+
+
+@torch.jit.script
+def _admm_prox_update(power, angle, rho_power: float, rho_angle: float, b, quad_cost, pmin, pmax):
+    # See transporter for details on derivation
+    # Here, we also have angle variables
+    # However, we can write p0 and theta0 in terms of p1 and theta1
+    #   p0 = -p1
+    #   theta0 = theta1 + p1 / susceptance
+    #
+    # The solution for theta1 is:
+    #   theta1 = (1/2) (angle1 + angle0) - mu * p1
+    # where:
+    #   mu = 1 / (2 * susceptance)
+
+    mu = torch.divide(1, 2 * b)
+
+    # Now we can solve a minimization problem over just p1
+    # with solution:
+    #   (2 a + 2 rho + 2 rho mu^2) p + b sign(p)
+    #   =
+    #   rho (power1 - power0 + mu angle[1] - mu angle[0])
+    num = rho_power * (power[1] - power[0]) + rho_angle * mu * (angle[0] - angle[1])
+    denom = 2 * (quad_cost + rho_power + rho_angle * torch.pow(mu, 2))
+
+    p1 = torch.divide(num, denom)
+    p1 = torch.clip(p1, pmin, pmax)
+
+    # Solve for other variables
+    p0 = -p1
+    theta1 = 0.5 * angle[0] + 0.5 * angle[1] - mu * p1
+    theta0 = theta1 + p1 / b
+
+    return [p0, p1], [theta0, theta1]

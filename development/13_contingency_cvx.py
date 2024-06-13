@@ -108,17 +108,100 @@ def __(load_pypsa_network, np, num_days, pn, zap):
     return devices, net, time_horizon
 
 
+@app.cell
+def __(devices):
+    torch_devices = [d.torchify(machine="cuda") for d in devices]
+    return torch_devices,
+
+
+@app.cell(hide_code=True)
+def __(np, plt):
+    def plot_convergence(hist, admm, fstar):
+        fig, axes = plt.subplots(2, 2, figsize=(7, 4))
+
+        admm_num_iters = len(hist.objective)
+        eps_pd = admm.rtol * np.sqrt(admm.total_terminals)
+
+        ax = axes[0][0]
+        ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+        ax.plot(hist.power, label="power")
+        ax.plot(hist.phase, label="angle")
+        ax.set_yscale("log")
+        ax.set_title("primal residuals")
+
+        ax = axes[0][1]
+        ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+        ax.plot(hist.dual_power, label="power")
+        ax.plot(hist.dual_phase, label="angle")
+        ax.set_yscale("log")
+        ax.legend()
+        ax.set_title("dual residuals")
+
+        ax = axes[1][0]
+        ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
+        ax.set_yscale("log")
+        ax.set_title("|f - f*| / f*")
+
+        # ax = axes[1][1]
+        # if len(hist.price_error) > 0:
+        #     ax.plot(np.array(hist.price_error) / simple_result.prices.size)
+        # ax.set_yscale("log")
+        # ax.set_title("nu - nu*")
+
+        fig.tight_layout()
+        return fig
+    return plot_convergence,
+
+
 @app.cell(hide_code=True)
 def __(mo):
     mo.md("## Solve Base Case")
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
+def __():
+    from zap.admm import ADMMSolver
+    return ADMMSolver,
+
+
+@app.cell
+def __(ADMMSolver, torch):
+    admm = ADMMSolver(
+        num_iterations=5000,
+        rho_power=0.5,
+        rtol=1e-3,
+        resid_norm=2,
+        machine="cuda",
+        dtype=torch.float32,
+        battery_window=24,
+    )
+    return admm,
+
+
+@app.cell
 def __(cp, devices, net):
     y0 = net.dispatch(devices, solver=cp.MOSEK)
-    print("Base Problem Objective Value:", y0.problem.value)
     return y0,
+
+
+@app.cell
+def __(admm, net, time_horizon, torch_devices):
+    s0, history0 = admm.solve(net, torch_devices, time_horizon)
+    return history0, s0
+
+
+@app.cell(hide_code=True)
+def __(history0, y0):
+    print("Objective Value (CVX):\t", y0.problem.value)
+    print("Objective Value (ADMM):\t", history0.objective[-1])
+    return
+
+
+@app.cell(hide_code=True)
+def __(admm, history0, plot_convergence, y0):
+    plot_convergence(history0, admm, y0.problem.value)
+    return
 
 
 @app.cell(hide_code=True)
@@ -130,7 +213,7 @@ def __(mo):
 @app.cell
 def __():
     contingency_device = 3
-    num_contingencies = 100
+    num_contingencies = 5
     return contingency_device, num_contingencies
 
 
@@ -163,14 +246,30 @@ def __(
         contingency_device=contingency_device,
         contingency_mask=contingency_mask,
     )
-    print("Contingency Problem Objective Value:", yc.problem.value)
     return yc,
 
 
 @app.cell
-def __(np, yc):
+def __(yc):
     _c = 4
-    np.linalg.norm(yc.power[3][_c + 1][0][_c, :])
+    yc.power[3][_c + 1][0][_c, :]
+    return
+
+
+@app.cell
+def __(yc):
+    print("Objective Value (CVX):\t", yc.problem.value)
+    # print("Objective Value (ADMM):\t", history0.objective[-1])
+    return
+
+
+@app.cell
+def __():
+    _shape1 = (100, 24)
+    _shape2 = (100, 24, 5)
+    _nr = 50
+
+    print((_nr, *_shape2[1:]))
     return
 
 

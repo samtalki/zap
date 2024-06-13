@@ -127,6 +127,9 @@ class ADMMSolver:
         parameters=None,
         nu_star=None,
         initial_state=None,
+        num_contingencies=0,
+        contingency_device: Optional[int] = None,
+        contingency_mask=None,
     ):
         if parameters is None:
             parameters = [{} for _ in devices]
@@ -136,7 +139,9 @@ class ADMMSolver:
         history = self.initialize_history()
 
         if initial_state is None:
-            st = self.initialize_solver(net, devices, time_horizon)
+            st = self.initialize_solver(
+                net, devices, time_horizon, num_contingencies, contingency_device
+            )
         else:
             st = initial_state
 
@@ -171,7 +176,8 @@ class ADMMSolver:
                 self.dimension_checks(st, net, devices, time_horizon)
                 self.numerical_checks(st, net, devices, time_horizon)
 
-        print(f"ADMM did not converge. Ran for {self.num_iterations} iterations.")
+        if not self.converged:
+            print(f"Ran for {self.iteration} iterations.")
         return st, history
 
     # ====
@@ -299,8 +305,10 @@ class ADMMSolver:
 
         if primal_resid < total_tol and dual_resid < total_tol:
             print(f"ADMM converged early in {len(history.power)} iterations.")
+            self.converged = True
             return True
         else:
+            self.converged = False
             return False
 
     def update_history(
@@ -356,7 +364,14 @@ class ADMMSolver:
         history.price_error = []
         return history
 
-    def initialize_solver(self, net, devices, time_horizon) -> ADMMState:
+    def initialize_solver(
+        self,
+        net,
+        devices: list[AbstractDevice],
+        time_horizon: int,
+        num_contingencies: int,
+        contingency_device: Optional[int],
+    ) -> ADMMState:
         machine, dtype = self.machine, self.dtype
 
         # Setup weights
@@ -369,6 +384,10 @@ class ADMMSolver:
             net, devices, only_ac=True, machine=machine, dtype=dtype
         )
 
+        nc = num_contingencies
+        cd = contingency_device
+
+        # Primals
         power_var = [
             d.admm_initialize_power_variables(time_horizon, machine, dtype) for d in devices
         ]
@@ -376,6 +395,15 @@ class ADMMSolver:
             d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
         ]
 
+        if cd is not None:
+            power_var[cd] = devices[cd].admm_initialize_power_variables(
+                time_horizon, machine, dtype, num_contingencies=nc
+            )
+            phase_var[cd] = devices[cd].admm_initialize_angle_variables(
+                time_horizon, machine, dtype, num_contingencies=nc
+            )
+
+        # Duals
         power_dual = dc_average(
             power_var, net, devices, time_horizon, num_terminals, machine, dtype
         )
