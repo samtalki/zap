@@ -133,7 +133,15 @@ class ACLine(PowerLine):
         power_weights=None,
         angle_weights=None,
         cvx_mode=False,
+        contingency_mask=None,
     ):
+        mask = contingency_mask
+        if mask is None:
+            nc = 0
+        else:
+            nc = mask.shape[0]
+            mask = mask.T.unsqueeze(1)
+
         nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
         if cvx_mode:
@@ -141,7 +149,7 @@ class ACLine(PowerLine):
                 rho_power, rho_angle, power, angle, nominal_capacity=None
             )
 
-        quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
+        quad_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
 
         # Cache once per solve
         if self.has_changed:
@@ -149,13 +157,49 @@ class ACLine(PowerLine):
             pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
             susceptance = torch.multiply(self.susceptance, nominal_capacity)
             mu = torch.divide(1.0, 2.0 * susceptance)
-            self.admm_data = (pmax, pmin, susceptance, mu)
+            bool_mask = None
 
-        pmax, pmin, susceptance, mu = self.admm_data
+            if nc > 0:
+                # Just expand pmin / pmax
+                pmax = pmax.unsqueeze(2)
+                pmin = pmin.unsqueeze(2)
 
-        return _admm_prox_update(
-            power, angle, rho_power, rho_angle, susceptance, mu, quadratic_cost, pmin, pmax
-        )
+                # Multiply susceptance by 1 - mask
+                susceptance = susceptance.unsqueeze(2)
+                susceptance = susceptance * (1.0 - mask)
+
+                # Define mu normally
+                # When b = 0 (line outage), then mu = infty
+                # This will cause numerical issues, so we set mu = 0 for those values and pass the
+                # mask to the update function to handle the division by mu
+                mu = mu.unsqueeze(2)
+                mu = mu * (1.0 - mask)
+
+                # Create a boolean mask for the update function
+                bool_mask = mask == 1.0
+
+            self.admm_data = (pmax, pmin, susceptance, mu, bool_mask)
+
+        pmax, pmin, susceptance, mu, bool_mask = self.admm_data
+
+        if nc > 0:
+            return _admm_prox_update_masked(
+                power,
+                angle,
+                rho_power,
+                rho_angle,
+                susceptance,
+                mu,
+                quad_cost,
+                pmin,
+                pmax,
+                mask,
+                bool_mask,
+            )
+        else:
+            return _admm_prox_update(
+                power, angle, rho_power, rho_angle, susceptance, mu, quad_cost, pmin, pmax
+            )
 
     def cvx_admm_prox_update(self, rho_power, rho_angle, power, angle, nominal_capacity=None):
         print("Solving AC line prox update via CVX...")
@@ -228,5 +272,36 @@ def _admm_prox_update(
     p0 = -p1
     theta1 = 0.5 * angle[0] + 0.5 * angle[1] - mu * p1
     theta0 = theta1 + p1 / b
+
+    return [p0, p1], [theta0, theta1]
+
+
+@torch.jit.script
+def _admm_prox_update_masked(
+    power: list[torch.Tensor],
+    angle: list[torch.Tensor],
+    rho_power: float,
+    rho_angle: float,
+    b: torch.Tensor,
+    mu: torch.Tensor,
+    quad_cost: float,
+    pmin: torch.Tensor,
+    pmax: torch.Tensor,
+    mask: torch.Tensor,
+    bool_mask: torch.Tensor,
+):
+    num = rho_power * (power[1] - power[0]) + rho_angle * mu * (angle[0] - angle[1])
+    denom = 2 * (quad_cost + rho_power + rho_angle * torch.pow(mu, 2))
+
+    p1 = torch.divide(num, denom)
+    p1 = torch.clip(p1, pmin, pmax)
+
+    # Apply mask
+    p1 = p1 * (1.0 - mask)
+
+    # Solve for other variables
+    p0 = -p1
+    theta1 = torch.where(bool_mask, angle[1], 0.5 * angle[0] + 0.5 * angle[1] - mu * p1)
+    theta0 = torch.where(bool_mask, angle[0], theta1 + p1 / b)
 
     return [p0, p1], [theta0, theta1]

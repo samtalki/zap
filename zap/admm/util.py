@@ -1,4 +1,5 @@
 import torch
+from typing import Optional
 
 from zap.devices.abstract import AbstractDevice
 from zap.util import DEFAULT_DTYPE, infer_machine
@@ -7,7 +8,7 @@ from zap.util import DEFAULT_DTYPE, infer_machine
 def scatter_sum(num_rows, index, source):
     # For 3d tensors (contingencies)
     if len(source.shape) == 3 and len(index.shape) == 2:
-        index = index.unsqueeze(2)
+        index = index.unsqueeze(2).expand(-1, -1, source.shape[2])
 
     num_cols = source.shape[1:]
     result = torch.zeros((num_rows, *num_cols), device=source.device, dtype=source.dtype)
@@ -16,7 +17,12 @@ def scatter_sum(num_rows, index, source):
 
 
 def gather_sum(index, source):
-    return torch.gather(source, 0, index)
+    # For 3d tensors (contingencies)
+    if len(source.shape) == 3 and len(index.shape) == 2:
+        index = index.unsqueeze(2).expand(-1, -1, source.shape[2])
+
+    result = torch.gather(source, 0, index)
+    return result
 
 
 def apply_incidence(device: AbstractDevice, x_list: list[torch.Tensor]):
@@ -166,18 +172,26 @@ def get_nodal_average(
     return torch.divide(average_x, num_terminals)
 
 
-def get_terminal_residual(angles, average_angle, devices):
+def get_terminal_residual(angles: list[Optional[list[torch.Tensor]]], average_angle, devices):
     AT_theta = [
         None if a_dev is None else apply_incidence_transpose(dev, average_angle)
         for a_dev, dev in zip(angles, devices)
     ]
 
-    residuals = [
-        None
-        if a_dev is None
-        else [a_dt - AT_theta_dt for a_dt, AT_theta_dt in zip(a_dev, AT_theta_dev)]
-        for a_dev, AT_theta_dev in zip(angles, AT_theta)
-    ]
+    residuals = []
+    for a_dev, AT_theta_dev in zip(angles, AT_theta):
+        if a_dev is None:
+            residuals += [None]
+
+        else:
+            residuals += [
+                [
+                    a_dt.unsqueeze(2) - AT_theta_dt
+                    if ((len(a_dt.shape) == 2) and (len(AT_theta_dt.shape) == 3))
+                    else a_dt - AT_theta_dt
+                    for a_dt, AT_theta_dt in zip(a_dev, AT_theta_dev)
+                ]
+            ]
 
     return residuals
 

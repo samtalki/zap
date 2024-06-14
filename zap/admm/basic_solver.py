@@ -131,6 +131,14 @@ class ADMMSolver:
         contingency_device: Optional[int] = None,
         contingency_mask=None,
     ):
+        if num_contingencies > 0:
+            assert contingency_device is not None
+            assert contingency_mask is not None
+            assert contingency_mask.shape == (
+                num_contingencies + 1,
+                devices[contingency_device].num_devices,
+            )
+
         if parameters is None:
             parameters = [{} for _ in devices]
 
@@ -153,12 +161,16 @@ class ADMMSolver:
             self.cumulative_iteration += 1
 
             # (1) Device proximal updates
-            st = self.device_updates(st, devices, parameters)
+            st = self.device_updates(
+                st, devices, parameters, num_contingencies, contingency_device, contingency_mask
+            )
 
             # (2) Update averages and residuals
             last_avg_phase = st.avg_phase
             last_resid_power = st.resid_power
-            st = self.update_averages_and_residuals(st, net, devices, time_horizon)
+            st = self.update_averages_and_residuals(
+                st, net, devices, time_horizon, num_contingencies
+            )
 
             # (3) Update scaled prices
             st = self.price_updates(st, net, devices, time_horizon)
@@ -184,11 +196,20 @@ class ADMMSolver:
     # Update Rules
     # ====
 
-    def device_updates(self, st: ADMMState, devices, parameters):
-        rho_power, rho_angle = self.get_rho()
+    def device_updates(
+        self,
+        st: ADMMState,
+        devices,
+        parameters,
+        num_contingencies,
+        contingency_device,
+        contingency_mask,
+    ):
         for i, dev in enumerate(devices):
-            set_p = self.set_power(dev, i, st)
-            set_v = self.set_phase(dev, i, st)
+            rho_power, rho_angle = self.get_rho()
+
+            set_p = self.set_power(dev, i, st, num_contingencies)
+            set_v = self.set_phase(dev, i, st, num_contingencies, contingency_device)
 
             w_p = st.power_weights[i]
             w_v = st.angle_weights[i]
@@ -202,6 +223,16 @@ class ADMMSolver:
                 }
             else:
                 kwargs = {}
+
+            if num_contingencies > 0 and i == contingency_device:
+                # TODO Figure out this scaling
+                kwargs["contingency_mask"] = contingency_mask
+                # rho_power = rho_power / (num_contingencies + 1)
+                # rho_angle = rho_angle / (num_contingencies + 1)
+
+            if num_contingencies > 0 and i != contingency_device:
+                rho_power = rho_power * (num_contingencies + 1)
+                rho_angle = rho_angle * (num_contingencies + 1)
 
             p, v = dev.admm_prox_update(
                 rho_power,
@@ -218,40 +249,68 @@ class ADMMSolver:
 
         return st
 
-    def set_power(self, dev: AbstractDevice, dev_index: int, st: ADMMState):
+    def set_power(self, dev: AbstractDevice, dev_index: int, st: ADMMState, nc: int):
         AT_pbar_plus_nu = apply_incidence_transpose(dev, st.avg_power + st.dual_power)
-        return [
-            p - AT_pbar_plus_nu_i
-            for p, AT_pbar_plus_nu_i in zip(st.power[dev_index], AT_pbar_plus_nu)
-        ]
+
+        if nc > 0 and st.power[dev_index][0].dim() == 2:
+            # This is a non-contingency device in a contingency-constrained problem
+            # We need to aggregrate the contingeny terms
+            AT_pbar_plus_nu = [torch.mean(A, dim=-1) for A in AT_pbar_plus_nu]
+
+            return [
+                p - AT_pbar_plus_nu_i
+                for p, AT_pbar_plus_nu_i in zip(st.power[dev_index], AT_pbar_plus_nu)
+            ]
+
+        else:
+            # Normal case (or contingency device in a contingency-constrained problem)
+            return [
+                p - AT_pbar_plus_nu_i
+                for p, AT_pbar_plus_nu_i in zip(st.power[dev_index], AT_pbar_plus_nu)
+            ]
         # return [
         #     p - Ai.T @ (st.avg_power + st.dual_power)
         #     for p, Ai in zip(st.power[dev_index], dev.incidence_matrix)
         # ]
 
-    def set_phase(self, dev: AbstractDevice, dev_index: int, st: ADMMState):
+    def set_phase(self, dev: AbstractDevice, dev_index: int, st: ADMMState, nc: int, cont_dev: int):
         if st.dual_phase[dev_index] is None:
             return None
         else:
             AT_theta_bar = apply_incidence_transpose(dev, st.avg_phase)
-            return [
-                AT_theta_bar_i - v
-                for v, AT_theta_bar_i in zip(st.dual_phase[dev_index], AT_theta_bar)
-            ]
+
+            if nc > 0 and dev_index != cont_dev:
+                # This is a non-contingency device in a contingency-constrained problem
+                # We need to aggregrate the contingeny terms
+                AT_theta_bar = [torch.mean(A, dim=-1) for A in AT_theta_bar]
+                duals = [torch.mean(v, dim=-1) for v in st.dual_phase[dev_index]]
+
+                return [AT_theta_bar_i - v for v, AT_theta_bar_i in zip(duals, AT_theta_bar)]
+            else:
+                # Normal case (or contingency device in a contingency-constrained problem)
+                return [
+                    AT_theta_bar_i - v
+                    for v, AT_theta_bar_i in zip(st.dual_phase[dev_index], AT_theta_bar)
+                ]
             # return [
             #     Ai.T @ st.avg_phase - v
             #     for v, Ai in zip(st.dual_phase[dev_index], dev.incidence_matrix)
             # ]
 
-    def update_averages_and_residuals(self, st: ADMMState, net, devices, time_horizon):
+    def update_averages_and_residuals(
+        self, st: ADMMState, net, devices, time_horizon, num_contingencies
+    ):
+        nc = num_contingencies
+        machine, dtype = self.machine, self.dtype
+
         # Note: it's important to do this in two steps so that the correct averages
         # are used to calculate residuals.
         st = st.update(
             avg_power=dc_average(
-                st.power, net, devices, time_horizon, st.num_terminals, self.machine, self.dtype
+                st.power, net, devices, time_horizon, st.num_terminals, machine, dtype, nc
             ),
             avg_phase=ac_average(
-                st.phase, net, devices, time_horizon, st.num_ac_terminals, self.machine, self.dtype
+                st.phase, net, devices, time_horizon, st.num_ac_terminals, machine, dtype, nc
             ),
         )
         st = st.update(
@@ -291,10 +350,21 @@ class ADMMSolver:
 
     def compute_objective(self, st: ADMMState, devices: list[AbstractDevice]):
         # TODO Incorporate local variables
-        costs = [
-            d.operation_cost(st.power[i], st.phase[i], None, la=torch)
-            for i, d in enumerate(devices)
-        ]
+        costs = []
+        for i, d in enumerate(devices):
+            if st.power[i][0].dim() == 3:
+                # This is a contingency-constrained device
+                # Use base case cost
+                pi = [p[:, :, 0] for p in st.power[i]]
+                vi = [v[:, :, 0] for v in st.phase[i]] if st.phase[i] is not None else None
+                costs += [d.operation_cost(pi, vi, None, la=torch)]
+            else:
+                costs += [d.operation_cost(st.power[i], st.phase[i], None, la=torch)]
+
+        # costs = [
+        #     d.operation_cost(st.power[i], st.phase[i], None, la=torch)
+        #     for i, d in enumerate(devices)
+        # ]
         return sum(costs).item()
 
     def has_converged(self, st: ADMMState, history: ADMMState):
@@ -403,18 +473,6 @@ class ADMMSolver:
                 time_horizon, machine, dtype, num_contingencies=nc
             )
 
-        # Duals
-        power_dual = dc_average(
-            power_var, net, devices, time_horizon, num_terminals, machine, dtype, nc
-        )
-        phase_dual = [
-            d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
-        ]
-        if cd is not None:
-            phase_dual[cd] = devices[cd].admm_initialize_angle_variables(
-                time_horizon, machine, dtype, num_contingencies=nc
-            )
-
         power_bar = dc_average(
             power_var, net, devices, time_horizon, num_terminals, machine, dtype, nc
         )
@@ -422,8 +480,21 @@ class ADMMSolver:
             phase_var, net, devices, time_horizon, num_ac_terminals, machine, dtype, nc
         )
 
-        theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
+        # Duals
+        power_dual = dc_average(
+            power_var, net, devices, time_horizon, num_terminals, machine, dtype, nc
+        )
+        phase_dual = get_terminal_residual(phase_var, theta_bar, devices)
+        # phase_dual = [
+        #     d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
+        # ]
+        # if cd is not None:
+        #     phase_dual[cd] = devices[cd].admm_initialize_angle_variables(
+        #         time_horizon, machine, dtype, num_contingencies=nc
+        #     )
+
         power_tilde = get_terminal_residual(power_var, power_bar, devices)
+        theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
 
         return ADMMState(
             num_terminals=num_terminals,

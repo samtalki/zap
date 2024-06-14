@@ -108,6 +108,14 @@ def __(load_pypsa_network, np, num_days, pn, zap):
     return devices, net, time_horizon
 
 
+@app.cell(hide_code=True)
+def __(devices):
+    for d in devices:
+        print(type(d), d.num_devices)
+    print(sum(d.num_devices for d in devices))
+    return d,
+
+
 @app.cell
 def __(devices):
     torch_devices = [d.torchify(machine="cuda") for d in devices]
@@ -168,9 +176,9 @@ def __():
 @app.cell
 def __(ADMMSolver, torch):
     admm = ADMMSolver(
-        num_iterations=5000,
+        num_iterations=2000,
         rho_power=0.5,
-        rtol=1e-2,
+        rtol=1e-3,
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
@@ -213,13 +221,13 @@ def __(mo):
 @app.cell
 def __(devices):
     contingency_device = 3
-    num_contingencies = 3
+    num_contingencies = 230
 
     print(type(devices[contingency_device]))
     return contingency_device, num_contingencies
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(contingency_device, devices, num_contingencies, sp):
     contingency_mask = sp.lil_matrix(
         (num_contingencies, devices[contingency_device].num_devices)
@@ -233,15 +241,22 @@ def __(contingency_device, devices, num_contingencies, sp):
 
 
 @app.cell
-def __():
-    # yc = net.dispatch(
-    #     devices,
-    #     solver=cp.MOSEK,
-    #     num_contingencies=num_contingencies,
-    #     contingency_device=contingency_device,
-    #     contingency_mask=contingency_mask,
-    # )
-    return
+def __(
+    contingency_device,
+    contingency_mask,
+    cp,
+    devices,
+    net,
+    num_contingencies,
+):
+    yc = net.dispatch(
+        devices,
+        solver=cp.MOSEK,
+        num_contingencies=num_contingencies,
+        contingency_device=contingency_device,
+        contingency_mask=contingency_mask,
+    )
+    return yc,
 
 
 @app.cell
@@ -251,29 +266,44 @@ def __():
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(ADMMSolver, torch):
     admm_c = ADMMSolver(
-        num_iterations=50,
-        rho_power=0.5,
-        rtol=1e-3,
+        num_iterations=5000,
+        rho_power=0.05,
+        rtol=1.0e-3,
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
         battery_window=24,
+        minimum_iterations=10,
     )
     return admm_c,
 
 
-@app.cell
+@app.cell(hide_code=True)
+def __(contingency_mask, torch):
+    torch_mask = torch.tensor(
+        contingency_mask.todense(), device="cuda", dtype=torch.float32
+    )
+    torch_mask = torch.vstack(
+        [
+            torch.zeros(torch_mask.shape[1], device="cuda", dtype=torch.float32),
+            torch_mask,
+        ]
+    )
+    return torch_mask,
+
+
+@app.cell(hide_code=True)
 def __(
     admm_c,
     contingency_device,
-    contingency_mask,
     net,
     num_contingencies,
     time_horizon,
     torch_devices,
+    torch_mask,
 ):
     sc, historyc = admm_c.solve(
         net,
@@ -281,31 +311,21 @@ def __(
         time_horizon,
         num_contingencies=num_contingencies,
         contingency_device=contingency_device,
-        contingency_mask=contingency_mask,
+        contingency_mask=torch_mask,
     )
     return historyc, sc
 
 
 @app.cell
-def __():
+def __(historyc):
     # print("Objective Value (CVX):\t", yc.problem.value)
-    # print("Objective Value (ADMM):\t", historyc.objective[-1])
+    print("Objective Value (ADMM):\t", historyc.objective[-1])
     return
 
 
 @app.cell
-def __():
-    _shape1 = (100, 24)
-    _shape2 = (100, 24, 5)
-    _nr = 50
-
-    print((_nr, *_shape2[1:]))
-    return
-
-
-@app.cell
-def __(torch):
-    torch.zeros(2, 2).unsqueeze(-1).shape
+def __(admm_c, historyc, plot_convergence, y0):
+    plot_convergence(historyc, admm_c, y0.problem.value)
     return
 
 
