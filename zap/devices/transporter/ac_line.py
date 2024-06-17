@@ -296,7 +296,7 @@ def _admm_prox_update_masked(
     p1 = torch.divide(num, denom)
     p1 = torch.clip(p1, pmin, pmax)
 
-    # Apply mask
+    # Apply mask, zeroing out values where mask is 1
     p1 = p1 * (1.0 - mask)
 
     # Solve for other variables

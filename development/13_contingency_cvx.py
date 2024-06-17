@@ -57,14 +57,15 @@ def __(mo, num_nodes, pypsa):
     return pn,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __():
     DEFAULT_PYPSA_KWARGS = {
         "marginal_load_value": 500.0,
         "load_cost_perturbation": 50.0,
         "generator_cost_perturbation": 1.0,
-        "cost_unit": 100.0,  # 1000.0,
+        "cost_unit": 1.0,  # 1000.0,
         "power_unit": 1000.0,
+        "b_factor": 1.0,
     }
     return DEFAULT_PYPSA_KWARGS,
 
@@ -96,7 +97,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
     return load_pypsa_network,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(load_pypsa_network, np, num_days, pn, zap):
     net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * num_days)
     _ground = zap.Ground(
@@ -131,16 +132,22 @@ def __(np, plt):
         eps_pd = admm.rtol * np.sqrt(admm.total_terminals)
 
         ax = axes[0][0]
+        total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2))
         ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
         ax.plot(hist.power, label="power")
         ax.plot(hist.phase, label="angle")
+        ax.plot(total_primal, color="black", ls="dashed")
         ax.set_yscale("log")
         ax.set_title("primal residuals")
 
         ax = axes[0][1]
+        total_dual = np.sqrt(
+            np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)
+        )
         ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
+        ax.plot(total_dual, color="black", ls="dashed")
         ax.set_yscale("log")
         ax.legend()
         ax.set_title("dual residuals")
@@ -176,8 +183,8 @@ def __():
 @app.cell
 def __(ADMMSolver, torch):
     admm = ADMMSolver(
-        num_iterations=2000,
-        rho_power=0.5,
+        num_iterations=5000,
+        rho_power=1.0,
         rtol=1e-3,
         resid_norm=2,
         machine="cuda",
@@ -200,9 +207,33 @@ def __(admm, net, time_horizon, torch_devices):
 
 
 @app.cell(hide_code=True)
+def __(history0, np, y0):
+    print(
+        np.abs(y0.problem.value - history0.objective[-1]) / y0.problem.value * 100,
+        "%",
+    )
+    return
+
+
+@app.cell(hide_code=True)
 def __(history0, y0):
     print("Objective Value (CVX):\t", y0.problem.value)
     print("Objective Value (ADMM):\t", history0.objective[-1])
+    return
+
+
+@app.cell(hide_code=True)
+def __(s0, time_horizon, torch):
+    _tot_power = torch.sum(torch.abs(s0.power[1][0])) / time_horizon
+    _x = torch.mean(torch.sum(torch.abs(s0.avg_power), dim=0)) * 1000.0
+
+    print("Average Power Imbalance per Timestep:\t", _x.item(), "MW")
+    print("Average Load per Timestep:\t\t\t\t", _tot_power.item() * 1000.0, "MW")
+    print(
+        "Relative Imbalance:\t\t\t\t\t\t",
+        _x.item() / _tot_power.item() / 1000.0 * 100.0,
+        "%",
+    )
     return
 
 
@@ -221,7 +252,7 @@ def __(mo):
 @app.cell
 def __(devices):
     contingency_device = 3
-    num_contingencies = 230
+    num_contingencies = 10
 
     print(type(devices[contingency_device]))
     return contingency_device, num_contingencies
@@ -317,15 +348,15 @@ def __(
 
 
 @app.cell
-def __(historyc):
-    # print("Objective Value (CVX):\t", yc.problem.value)
+def __(historyc, yc):
+    print("Objective Value (CVX):\t", yc.problem.value)
     print("Objective Value (ADMM):\t", historyc.objective[-1])
     return
 
 
 @app.cell
-def __(admm_c, historyc, plot_convergence, y0):
-    plot_convergence(historyc, admm_c, y0.problem.value)
+def __(admm_c, historyc, plot_convergence, yc):
+    plot_convergence(historyc, admm_c, yc.problem.value)
     return
 
 

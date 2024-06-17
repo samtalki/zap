@@ -143,7 +143,10 @@ class ADMMSolver:
             parameters = [{} for _ in devices]
 
         # Initialize
-        self.total_terminals = sum(d.num_devices for d in devices) * time_horizon
+        self.total_terminals = time_horizon * (
+            sum(d.num_devices * d.num_terminals_per_device for d in devices)
+            + sum(d.num_devices * d.num_terminals_per_device for d in devices if d.is_ac)
+        )
         history = self.initialize_history()
 
         if initial_state is None:
@@ -181,7 +184,9 @@ class ADMMSolver:
 
             self.update_history(history, st, last_avg_phase, last_resid_power, nu_star)
 
-            if iteration + 1 >= self.minimum_iterations and self.has_converged(st, history):
+            if iteration + 1 >= self.minimum_iterations and self.has_converged(
+                st, history, num_contingencies
+            ):
                 break  # Quit early
 
             if self.safe_mode:
@@ -367,8 +372,8 @@ class ADMMSolver:
         # ]
         return sum(costs).item()
 
-    def has_converged(self, st: ADMMState, history: ADMMState):
-        total_tol = self.atol + self.rtol * np.sqrt(self.total_terminals)
+    def has_converged(self, st: ADMMState, history: ADMMState, num_cont: int):
+        total_tol = self.atol + self.rtol * np.sqrt(self.total_terminals * (num_cont + 1))
 
         primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
         dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
@@ -400,7 +405,16 @@ class ADMMSolver:
 
     def update_primal_residuals(self, history: ADMMState, st: ADMMState):
         p = self.resid_norm
-        history.power += [torch.linalg.norm(st.avg_power.ravel(), p).item()]
+
+        # Need to scale this because bar p should actually a vector of size (num_terminals, ...),
+        # not (num_nodes, ...). However, we store the compressed form because the values for
+        # different terminals at the same node are the same.
+        if st.avg_power.dim() == 3:
+            power_scaled = st.num_terminals.unsqueeze(-1) * st.avg_power
+        else:
+            power_scaled = st.num_terminals * st.avg_power
+
+        history.power += [torch.linalg.norm(power_scaled.ravel(), p).item()]
         history.phase += [nested_norm(st.resid_phase, p).item()]
         return history
 
@@ -409,10 +423,10 @@ class ADMMSolver:
     ):
         p = self.resid_norm
 
-        dual_resid_power = nested_subtract(st.resid_power, last_resid_power, self.rho_power)
-        history.dual_power += [nested_norm(dual_resid_power, p).item()]
+        dual_resid_power = nested_subtract(st.resid_power, last_resid_power)
+        history.dual_power += [self.rho_power * nested_norm(dual_resid_power, p).item()]
         history.dual_phase += [
-            torch.linalg.norm((st.avg_phase - last_avg_phase).ravel() * self.rho_angle, p).item()
+            self.rho_angle * torch.linalg.norm((st.avg_phase - last_avg_phase).ravel(), p).item()
         ]
 
         return history

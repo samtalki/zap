@@ -167,7 +167,13 @@ def parse_dc_lines(net: pypsa.Network, dates, *, scale_line_capacity_factor):
 
 
 def parse_ac_lines(
-    net: pypsa.Network, dates, *, ac_transmission_cost, susceptance_unit, scale_line_capacity_factor
+    net: pypsa.Network,
+    dates,
+    *,
+    ac_transmission_cost,
+    susceptance_unit,
+    scale_line_capacity_factor,
+    b_factor,
 ):
     buses, buses_to_index = parse_buses(net)
     lines = deepcopy(net.lines)
@@ -186,6 +192,8 @@ def parse_ac_lines(
         susceptance /= np.median(susceptance)
     else:
         susceptance /= susceptance_unit
+
+    susceptance *= b_factor
 
     return ACLine(
         num_nodes=len(buses),
@@ -239,6 +247,7 @@ def load_pypsa_network(
     carbon_tax=0.0,
     cost_per_battery_mw=COST_PER_BATTERY_MW,
     cost_per_battery_mwh=COST_PER_BATTERY_MWH,
+    b_factor=1.0,
 ):
     net = deepcopy(net)
     network = PowerNetwork(len(net.buses))
@@ -271,6 +280,7 @@ def load_pypsa_network(
             ac_transmission_cost=ac_transmission_cost,
             susceptance_unit=susceptance_unit,
             scale_line_capacity_factor=scale_line_capacity_factor,
+            b_factor=b_factor,
         ),
         parse_batteries(
             net,
