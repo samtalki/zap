@@ -42,7 +42,7 @@ def __(np, plt):
         fig, axes = plt.subplots(2, 2, figsize=(7, 3.5))
 
         admm_num_iters = len(hist.objective)
-        eps_pd = admm.rtol * np.sqrt(admm.total_terminals)
+        eps_pd = admm.total_tol  # * np.sqrt(admm.total_terminals)
 
         ax = axes[0][0]
         total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2))
@@ -204,13 +204,16 @@ def __(mo):
 def __(problem_id, stoch_prob):
     J_gpu = stoch_prob.subproblems[problem_id]
     J_gpu.layer.warm_start = False
-    J_gpu.layer.solver.rtol = 1.0e-4
+    J_gpu.layer.solver.atol = 1.0e-3
 
+    J_gpu.layer.solver.resid_norm = 2
     J_gpu.layer.solver.num_iterations = 1000
-    J_gpu.layer.solver.rho_power = 0.005
-    J_gpu.layer.solver.rho_angle = 0.2 * J_gpu.layer.solver.rho_power
-    # J_gpu.layer.solver.battery_inner_weight = 1.0 * J_gpu.layer.solver.rho_power
+    J_gpu.layer.solver.rho_power = 0.001
+    J_gpu.layer.solver.rho_angle = 0.5 * J_gpu.layer.solver.rho_power
+    J_gpu.layer.solver.battery_inner_weight = 1.0
     J_gpu.layer.solver.battery_inner_iterations = 10
+    J_gpu.layer.solver.scale_dual_residuals = False
+    J_gpu.layer.solver.alpha = 1.0
     return J_gpu,
 
 
@@ -225,7 +228,9 @@ def __(J_gpu, np, s0, y0):
     s0  # Force dependency
     print("f_star:", y0.problem.value)
     print("f_admm:", J_gpu.layer.history.objective[-1])
-    print(f"subopt: {100 * np.abs(J_gpu.layer.history.objective[-1] - y0.problem.value) / y0.problem.value:.03f} %")
+    print(
+        f"subopt: {100 * np.abs(J_gpu.layer.history.objective[-1] - y0.problem.value) / y0.problem.value:.03f} %"
+    )
     return
 
 

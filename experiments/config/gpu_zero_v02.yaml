@@ -6,7 +6,7 @@ tags: []
 
 system:
   threads: 16
-  runtime: 60  # minutes (about 16 hours)
+  runtime: 60  # minutes
   memory: auto
   gpu: 1
 
@@ -18,14 +18,14 @@ data:
   num_nodes: 500
   use_extra_components: true
   start_hour: peak_hybrid_day
-  num_hours: 960  # days = 360
+  num_hours: 8640  # days = 360
   battery_cost_scale: 1.0
   generator_cost_scale:
     hydro: 1.0
   dont_expand: [hydro, coal, biomass]
   args:
     power_unit: 1.0e3  # 1e3 = GW
-    cost_unit: 100.0  # $ / MWh
+    cost_unit: 1.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.0
     scale_generator_capacity_factor: 0.7
@@ -38,7 +38,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 24  # days = 8
+  hours_per_scenario: 192  # days = 8
   cost_weight: 1.0
   emissions_weight: 200.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -46,9 +46,9 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 10
-  initial_state: initial
-  use_wandb: false
+  num_iterations: 500
+  initial_state: [expand, initial, year_compare_v03/001/model_00300]
+  use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 1
   parallel: false
@@ -57,7 +57,7 @@ optimizer:
   track_full_loss_every: 25
   batch_strategy: sequential
   args:
-    step_size: 1.0e-3
+    step_size: 0.00
     clip: 5000.0
 
 layer:
@@ -65,12 +65,13 @@ layer:
   args:
     machine: cuda
     num_iterations: 1000
-    atol: 1.0e-3
-    rho_power: 0.1
-    rho_angle: 0.1
+    atol: [expand, 1.0e-3, 1.0e-4]
+    rho_power: [expand, 0.1, 0.05, 0.01]
     resid_norm: 2
     safe_mode: false
     battery_window: 24
+    battery_inner_iterations: 10
+    battery_inner_over_relaxation: 1.8
     minimum_iterations: 100
 
 relaxation:

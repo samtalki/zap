@@ -9,9 +9,10 @@ from zap.devices import Battery
 from zap.devices.abstract import AbstractDevice
 from zap.util import infer_machine
 from zap.admm.util import (
-    nested_add,
     nested_subtract,
     nested_norm,
+    nested_bpax,
+    nested_a1bpa2x,
     get_num_terminals,
     dc_average,
     ac_average,
@@ -33,6 +34,8 @@ class ADMMState:
     resid_power: object = None
     resid_phase: object = None
     objective: object = None
+    clone_power: object = None
+    clone_phase: object = None
 
     def update(self, **kwargs):
         """Return a new state with fields updated."""
@@ -63,6 +66,8 @@ class ADMMState:
                 None if v is None else [vi.clone().detach() for vi in v] for v in self.resid_phase
             ],
             objective=self.objective,
+            clone_power=[[pi.clone().detach() for pi in p] for p in self.clone_power],
+            clone_phase=self.clone_phase.clone().detach(),
         )
 
     def as_outcome(self) -> DispatchOutcome:
@@ -87,8 +92,8 @@ class ADMMSolver:
     num_iterations: int
     rho_power: float
     rho_angle: Optional[float] = None
+    alpha: float = 1.0
     atol: float = 0.0
-    rtol: float = 0.0
     resid_norm: object = None
     safe_mode: bool = False
     track_objective: bool = True
@@ -99,6 +104,7 @@ class ADMMSolver:
     battery_inner_over_relaxation: float = 1.8
     battery_inner_iterations: int = 10
     minimum_iterations: int = 10
+    scale_dual_residuals: bool = True
 
     def __post_init__(self):
         if self.machine is None:
@@ -255,24 +261,19 @@ class ADMMSolver:
         return st
 
     def set_power(self, dev: AbstractDevice, dev_index: int, st: ADMMState, nc: int):
-        AT_pbar_plus_nu = apply_incidence_transpose(dev, st.avg_power + st.dual_power)
+        AT_nu = apply_incidence_transpose(dev, st.dual_power)
 
         if nc > 0 and st.power[dev_index][0].dim() == 2:
             # This is a non-contingency device in a contingency-constrained problem
             # We need to aggregrate the contingeny terms
-            AT_pbar_plus_nu = [torch.mean(A, dim=-1) for A in AT_pbar_plus_nu]
+            AT_nu = [torch.mean(A, dim=-1) for A in AT_nu]
 
-            return [
-                p - AT_pbar_plus_nu_i
-                for p, AT_pbar_plus_nu_i in zip(st.power[dev_index], AT_pbar_plus_nu)
-            ]
+            return [zi - AT_nu_i for zi, AT_nu_i in zip(st.clone_power[dev_index], AT_nu)]
 
         else:
             # Normal case (or contingency device in a contingency-constrained problem)
-            return [
-                p - AT_pbar_plus_nu_i
-                for p, AT_pbar_plus_nu_i in zip(st.power[dev_index], AT_pbar_plus_nu)
-            ]
+            return [zi - AT_nu_i for zi, AT_nu_i in zip(st.clone_power[dev_index], AT_nu)]
+
         # return [
         #     p - Ai.T @ (st.avg_power + st.dual_power)
         #     for p, Ai in zip(st.power[dev_index], dev.incidence_matrix)
@@ -282,21 +283,18 @@ class ADMMSolver:
         if st.dual_phase[dev_index] is None:
             return None
         else:
-            AT_theta_bar = apply_incidence_transpose(dev, st.avg_phase)
+            AT_xi = apply_incidence_transpose(dev, st.clone_phase)
 
             if nc > 0 and dev_index != cont_dev:
                 # This is a non-contingency device in a contingency-constrained problem
                 # We need to aggregrate the contingeny terms
-                AT_theta_bar = [torch.mean(A, dim=-1) for A in AT_theta_bar]
+                AT_xi = [torch.mean(A, dim=-1) for A in AT_xi]
                 duals = [torch.mean(v, dim=-1) for v in st.dual_phase[dev_index]]
 
-                return [AT_theta_bar_i - v for v, AT_theta_bar_i in zip(duals, AT_theta_bar)]
+                return [AT_xi_i - v for v, AT_xi_i in zip(duals, AT_xi)]
             else:
                 # Normal case (or contingency device in a contingency-constrained problem)
-                return [
-                    AT_theta_bar_i - v
-                    for v, AT_theta_bar_i in zip(st.dual_phase[dev_index], AT_theta_bar)
-                ]
+                return [AT_xi_i - v for v, AT_xi_i in zip(st.dual_phase[dev_index], AT_xi)]
             # return [
             #     Ai.T @ st.avg_phase - v
             #     for v, Ai in zip(st.dual_phase[dev_index], dev.incidence_matrix)
@@ -322,12 +320,19 @@ class ADMMSolver:
             resid_power=get_terminal_residual(st.power, st.avg_power, devices),
             resid_phase=get_terminal_residual(st.phase, st.avg_phase, devices),
         )
+
+        # Update z and xi
+        st = st.update(
+            clone_power=nested_a1bpa2x(st.resid_power, st.clone_power, self.alpha, 1 - self.alpha),
+            clone_phase=self.alpha * st.avg_phase + (1 - self.alpha) * st.clone_phase,
+        )
+
         return st
 
     def price_updates(self, st: ADMMState, net, devices, time_horizon):
         return st.update(
-            dual_power=st.dual_power + st.avg_power,
-            dual_phase=nested_add(st.dual_phase, st.resid_phase),
+            dual_power=st.dual_power + self.alpha * st.avg_power,
+            dual_phase=nested_bpax(st.dual_phase, st.resid_phase, self.alpha),
         )
 
     # ====
@@ -373,7 +378,10 @@ class ADMMSolver:
         return sum(costs).item()
 
     def has_converged(self, st: ADMMState, history: ADMMState, num_cont: int):
-        total_tol = self.atol + self.rtol * np.sqrt(self.total_terminals * (num_cont + 1))
+        p = 2 if self.resid_norm is None else self.resid_norm
+
+        total_tol = self.atol * np.power(self.total_terminals * (num_cont + 1), 1 / p)
+        self.total_tol = total_tol
 
         primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
         dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
@@ -423,8 +431,13 @@ class ADMMSolver:
     ):
         p = self.resid_norm
 
+        if self.scale_dual_residuals:
+            rp, ra = self.rho_power, self.rho_angle
+        else:
+            rp, ra = 1.0, 1.0
+
         dual_resid_power = nested_subtract(st.resid_power, last_resid_power)
-        history.dual_power += [self.rho_power * nested_norm(dual_resid_power, p).item()]
+        history.dual_power += [rp * nested_norm(dual_resid_power, p).item()]
 
         # This should be scaled by the number of terminals
         if st.avg_phase.dim() == 3:
@@ -432,7 +445,7 @@ class ADMMSolver:
         else:
             phase_scaled = st.num_ac_terminals * (st.avg_phase - last_avg_phase)
 
-        history.dual_phase += [self.rho_angle * torch.linalg.norm(phase_scaled.ravel(), p).item()]
+        history.dual_phase += [ra * torch.linalg.norm(phase_scaled.ravel(), p).item()]
 
         return history
 
@@ -515,6 +528,12 @@ class ADMMSolver:
         power_tilde = get_terminal_residual(power_var, power_bar, devices)
         theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
 
+        # Clones
+        clone_power = [
+            d.admm_initialize_power_variables(time_horizon, machine, dtype) for d in devices
+        ]
+        clone_phase = theta_bar.clone().detach()
+
         return ADMMState(
             num_terminals=num_terminals,
             num_ac_terminals=num_ac_terminals,
@@ -526,4 +545,6 @@ class ADMMSolver:
             avg_phase=theta_bar,
             resid_power=power_tilde,
             resid_phase=theta_tilde,
+            clone_power=clone_power,
+            clone_phase=clone_phase,
         )
