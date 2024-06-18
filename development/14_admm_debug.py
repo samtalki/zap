@@ -209,7 +209,7 @@ def __(problem_id, stoch_prob):
     J_gpu.layer.solver.num_iterations = 1000
     J_gpu.layer.solver.rho_power = 0.005
     J_gpu.layer.solver.rho_angle = 0.2 * J_gpu.layer.solver.rho_power
-    J_gpu.layer.solver.battery_inner_weight = 1.0 * J_gpu.layer.solver.rho_power
+    # J_gpu.layer.solver.battery_inner_weight = 1.0 * J_gpu.layer.solver.rho_power
     J_gpu.layer.solver.battery_inner_iterations = 10
     return J_gpu,
 

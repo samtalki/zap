@@ -265,6 +265,8 @@ class Battery(AbstractDevice):
         inner_over_relaxation=1.0,
         inner_iterations=25,
     ):
+        inner_weight = rho_power * inner_weight
+
         power_capacity = self.parameterize(power_capacity=power_capacity)
         N, full_time_horizon = power[0].shape
         T = full_time_horizon if window is None else window  # Window size
