@@ -276,8 +276,10 @@ class Battery(AbstractDevice):
         assert full_time_horizon % T == 0
 
         # Fixed data - constant between solves
-        if not hasattr(self, "admm_data"):
-            self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
+        # Update: not constant if rho or inner_weight changes
+        # So we update this once per solve
+        # if not hasattr(self, "admm_data"):
+        #     self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
 
         # Variable data that changes between solves
         if self.has_changed:
@@ -289,6 +291,7 @@ class Battery(AbstractDevice):
             ymin, ymax = get_ymin_ymax(T, power_capacity, smax, gamma1, gammaT, machine, dtype)
 
             self.temp_data = (smax, gamma1, gammaT, ymin, ymax)
+            self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
 
         K_inv, zero_nu = self.admm_data
         smax, gamma1, gammaT, ymin, ymax = self.temp_data

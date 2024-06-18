@@ -123,7 +123,7 @@ def get_nodal_average(
     time_horizon,
     num_terminals=None,
     only_ac=False,
-    check_connections=True,
+    check_connections=False,
     tol=1e-8,
     machine=None,
     dtype=DEFAULT_DTYPE,

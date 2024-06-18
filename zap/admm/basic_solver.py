@@ -425,9 +425,14 @@ class ADMMSolver:
 
         dual_resid_power = nested_subtract(st.resid_power, last_resid_power)
         history.dual_power += [self.rho_power * nested_norm(dual_resid_power, p).item()]
-        history.dual_phase += [
-            self.rho_angle * torch.linalg.norm((st.avg_phase - last_avg_phase).ravel(), p).item()
-        ]
+
+        # This should be scaled by the number of terminals
+        if st.avg_phase.dim() == 3:
+            phase_scaled = st.num_ac_terminals.unsqueeze(-1) * (st.avg_phase - last_avg_phase)
+        else:
+            phase_scaled = st.num_ac_terminals * (st.avg_phase - last_avg_phase)
+
+        history.dual_phase += [self.rho_angle * torch.linalg.norm(phase_scaled.ravel(), p).item()]
 
         return history
 
