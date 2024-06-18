@@ -25,7 +25,7 @@ data:
   dont_expand: [hydro, coal, biomass]
   args:
     power_unit: 1.0e3  # 1e3 = GW
-    cost_unit: 100.0  # $ / MWh
+    cost_unit: 1.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.0
     scale_generator_capacity_factor: 0.7
@@ -38,7 +38,7 @@ data:
 
 problem:
   stochastic: true
-  hours_per_scenario: 24  # days = 8
+  hours_per_scenario: 192  # days = 8
   cost_weight: 1.0
   emissions_weight: 200.0  # $ / ton CO2
   regularize: 1.0e-6  # Jacobian regularization
@@ -62,16 +62,25 @@ optimizer:
 
 layer:
   use_admm: true
+  adapt_rho: true
+  adapt_rho_rate: 0.1
   args:
+    # Leave alone
     machine: cuda
-    num_iterations: 1000
-    atol: 1.0e-3
-    rho_power: 0.1
-    rho_angle: 0.1
     resid_norm: 2
     safe_mode: false
+    scale_dual_residuals: false
     battery_window: 24
+    relative_rho_angle: True
+
+    # Tweak as needed
+    num_iterations: 1000
     minimum_iterations: 100
+    atol: 1.0e-3
+    rho_power: 0.25
+    rho_angle: 0.5
+    alpha: 1.1
+
 
 relaxation:
   should_solve: false

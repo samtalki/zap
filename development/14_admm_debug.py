@@ -141,14 +141,10 @@ def __(mo):
 
 
 @app.cell
-def __():
-    problem_id = 0
-    return problem_id,
-
-
-@app.cell
-def __(cpu_problem_data, json, np):
-    with open(f"./data/results/year_compare_v03/000/model_00300.json", "r") as f:
+def __(cpu_problem_data, json, model_id, np):
+    with open(
+        f"./data/results/year_compare_v03/000/model_{model_id:05d}.json", "r"
+    ) as f:
         model_state = json.load(f)
 
     _ref_shapes = {
@@ -201,20 +197,32 @@ def __(mo):
 
 
 @app.cell
-def __(problem_id, stoch_prob):
+def __(devices, np, problem_id, stoch_prob, y0):
     J_gpu = stoch_prob.subproblems[problem_id]
-    J_gpu.layer.warm_start = False
-    J_gpu.layer.solver.atol = 1.0e-3
 
-    J_gpu.layer.solver.resid_norm = 2
+    tnt = J_gpu.layer.devices[0].time_horizon * (
+        sum(d.num_devices * d.num_terminals_per_device for d in devices)
+        + sum(
+            d.num_devices * d.num_terminals_per_device for d in devices if d.is_ac
+        )
+    )
+
+    J_gpu.layer.warm_start = False
+
+    J_gpu.layer.solver.atol = 1.0e-3
     J_gpu.layer.solver.num_iterations = 1000
-    J_gpu.layer.solver.rho_power = 0.001
-    J_gpu.layer.solver.rho_angle = 0.5 * J_gpu.layer.solver.rho_power
-    J_gpu.layer.solver.battery_inner_weight = 1.0
-    J_gpu.layer.solver.battery_inner_iterations = 10
+    J_gpu.layer.solver.rho_angle = 0.5
+    J_gpu.layer.solver.alpha = 1.1
     J_gpu.layer.solver.scale_dual_residuals = False
-    J_gpu.layer.solver.alpha = 1.0
-    return J_gpu,
+
+    J_gpu.layer.solver.rho_power = 0.1 * y0.problem.value / np.sqrt(tnt)
+    return J_gpu, tnt
+
+
+@app.cell
+def __(J_gpu):
+    J_gpu.layer.solver.rho_power
+    return
 
 
 @app.cell
@@ -232,6 +240,18 @@ def __(J_gpu, np, s0, y0):
         f"subopt: {100 * np.abs(J_gpu.layer.history.objective[-1] - y0.problem.value) / y0.problem.value:.03f} %"
     )
     return
+
+
+@app.cell
+def __():
+    model_id = 1
+    return model_id,
+
+
+@app.cell
+def __():
+    problem_id = 0
+    return problem_id,
 
 
 @app.cell(hide_code=True)

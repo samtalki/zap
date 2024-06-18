@@ -270,7 +270,7 @@ def setup_pypysa_dataset(
     return net, devices
 
 
-def layer_function(net, parameter_names, use_admm: bool, admm_args: dict):
+def layer_function(net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, admm_args: dict):
     if use_admm:
         print("Using ADMM layer.")
 
@@ -281,6 +281,8 @@ def layer_function(net, parameter_names, use_admm: bool, admm_args: dict):
                 parameter_names,
                 time_horizon=time_horizon,
                 solver=ADMMSolver(**admm_args, dtype=torch.float32),
+                adapt_rho=adapt_rho,
+                adapt_rho_rate=adapt_rho_rate,
             )
 
     else:
@@ -308,6 +310,8 @@ def setup_problem(
     stochastic=False,
     hours_per_scenario=1,
     use_admm=False,
+    adapt_rho=False,
+    adapt_rho_rate=0.1,
     args={},
 ):
     print("Building planning problem...")
@@ -333,7 +337,7 @@ def setup_problem(
             print(f"Warning: device {dev} not found in devices. Will not be expanded.")
 
     # Setup layer
-    layer_map = layer_function(net, parameter_names, use_admm, args)
+    layer_map = layer_function(net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, args)
     layer = layer_map(devices, time_horizon)
 
     # Build objective

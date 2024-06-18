@@ -62,17 +62,24 @@ optimizer:
 
 layer:
   use_admm: true
+  adapt_rho: true
+  adapt_rho_rate: [expand, 1.0, 0.1, 0.01]
   args:
+    # Leave alone
     machine: cuda
-    num_iterations: 1000
-    atol: [expand, 1.0e-3, 1.0e-4]
-    rho_power: [expand, 0.1, 0.05, 0.01]
     resid_norm: 2
     safe_mode: false
+    scale_dual_residuals: false
     battery_window: 24
-    battery_inner_iterations: 10
-    battery_inner_over_relaxation: 1.8
+    relative_rho_angle: True
+
+    # Tweak as needed
+    num_iterations: 1000
     minimum_iterations: 100
+    atol: 1.0e-3
+    rho_power: 0.25
+    rho_angle: 0.5
+    alpha: 1.1
 
 relaxation:
   should_solve: false

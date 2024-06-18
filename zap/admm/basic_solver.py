@@ -105,6 +105,7 @@ class ADMMSolver:
     battery_inner_iterations: int = 10
     minimum_iterations: int = 10
     scale_dual_residuals: bool = True
+    relative_rho_angle: bool = False
 
     def __post_init__(self):
         if self.machine is None:
@@ -112,14 +113,15 @@ class ADMMSolver:
             self.machine = infer_machine()
 
         self.cumulative_iteration = 0
-        if self.rho_angle is None:
-            self.rho_angle = self.rho_power
 
     def get_rho(self):
         rho_power = self.rho_power
         rho_angle = self.rho_angle
 
-        if rho_angle is None:
+        if self.relative_rho_angle and self.rho_angle is not None:
+            rho_angle = rho_angle * rho_power
+
+        elif rho_angle is None:
             rho_angle = rho_power
 
         return rho_power, rho_angle
@@ -200,7 +202,7 @@ class ADMMSolver:
                 self.numerical_checks(st, net, devices, time_horizon)
 
         if not self.converged:
-            print(f"Ran for {self.iteration} iterations.")
+            print(f"Did not converged. Ran for {self.iteration} iterations.")
         return st, history
 
     # ====
@@ -432,7 +434,7 @@ class ADMMSolver:
         p = self.resid_norm
 
         if self.scale_dual_residuals:
-            rp, ra = self.rho_power, self.rho_angle
+            rp, ra = self.get_rho()
         else:
             rp, ra = 1.0, 1.0
 
