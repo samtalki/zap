@@ -18,7 +18,7 @@ data:
   num_nodes: 500
   use_extra_components: true
   start_hour: peak_hybrid_day
-  num_hours: 8640  # days = 360
+  num_hours: 8640
   battery_cost_scale: 1.0
   generator_cost_scale:
     hydro: 1.0
@@ -46,8 +46,8 @@ problem:
 
 optimizer:
   name: gradient_descent
-  num_iterations: 500
-  initial_state: [expand, initial, year_compare_v03/001/model_00300]
+  num_iterations: 100
+  initial_state: initial  # year_compare_v03/001/model_00300
   use_wandb: true
   log_wandb_every: 1
   checkpoint_every: 1
@@ -63,7 +63,7 @@ optimizer:
 layer:
   use_admm: true
   adapt_rho: true
-  adapt_rho_rate: [expand, 1.0, 0.1, 0.01]
+  adapt_rho_rate: 0.1
   args:
     # Leave alone
     machine: cuda

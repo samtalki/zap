@@ -113,14 +113,15 @@ class AbstractPlanningProblem:
         state = self.initialize_parameters(deepcopy(initial_state))
         history = self.initialize_history(trackers)
         batch = list(range(batch_size))
-        print(batch)
 
         # Run full forward pass to initialize everything
+        # TODO - We evaluate the full loss twice :/
         self(**state)
 
         # Initialize loop
         self.iteration = 0
 
+        print(batch)
         J, grad = self.forward_and_back(**state, batch=batch)
         if self.la == torch:
             torch.cuda.empty_cache()
@@ -131,7 +132,11 @@ class AbstractPlanningProblem:
 
         # Gradient descent loop
         for iteration in range(num_iterations):
-            last_state = deepcopy(state)
+            if self.la == torch:
+                last_state = {k: v.detach().clone() for k, v in state.items()}
+            else:
+                last_state = deepcopy(state)
+
             self.iteration = iteration + 1
 
             # Checkpoint
@@ -194,7 +199,7 @@ class AbstractPlanningProblem:
             iteration = len(history[trackers[0]]) - 1
 
             if (iteration % log_wandb_every == 0) or (iteration == 1):
-                print(f"Logging to wandb on iteration {iteration}.")
+                print(f"Logging to wandb on iteration {iteration}.\n")
 
                 wand_data = {k: history[k][-1] for k in history.keys()}
                 wand_data["iteration"] = iteration

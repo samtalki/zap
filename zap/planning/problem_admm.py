@@ -27,8 +27,9 @@ class PlanningProblemADMM(AbstractPlanningProblem):
 
     def forward(self, requires_grad: bool = False, batch=None, initial_state=None, **kwargs):
         # Enable gradient tracking if needed
-        for p, v in kwargs.items():
-            if requires_grad:
+        if requires_grad:
+            print("Tracking gradient during forward pass.")
+            for p, v in kwargs.items():
                 kwargs[p] = v.detach().clone()  # Copy first
                 kwargs[p].requires_grad = True
 
@@ -36,14 +37,15 @@ class PlanningProblemADMM(AbstractPlanningProblem):
 
         # Forward pass through dispatch layer
         # Store this for efficient backward pass
+        # with torch.amp.autocast(device_type=self.layer.solver.machine):
         admm_state = self.layer.forward(initial_state=initial_state, **kwargs)
         state = admm_state.as_outcome()
 
         op_cost = self.operation_objective(state, parameters=params, la=torch)
         inv_cost = self.investment_objective(**kwargs, la=torch)
 
-        self.op_cost = op_cost
-        self.inv_cost = inv_cost
+        self.op_cost = op_cost.detach()
+        self.inv_cost = inv_cost.detach()
         self.cost = op_cost + inv_cost
         self.kwargs = kwargs
         self.params = params
@@ -55,6 +57,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
     def backward(self):
         # Backward pass through everything!
         self.cost.backward(retain_graph=False)  # Torch backward
+        print("Backwards pass evaluated.")
 
         # Combine gradients
         dtheta = {k: grad_or_zero(v) for k, v in self.kwargs.items()}

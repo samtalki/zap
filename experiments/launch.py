@@ -21,7 +21,7 @@ for i, config in enumerate(config_list):
     script_file.parent.mkdir(parents=True, exist_ok=True)
 
     if "gpu" in system.keys() and system["gpu"] > 0:
-        constraint = "gpu"
+        constraint = "gpu&hbm80g"
         threads = PERLMUTTER_CORES_PER_GPU * system["gpu"]
         gpu_line = f"#SBATCH --gpus={system['gpu']}"
 
