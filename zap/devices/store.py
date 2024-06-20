@@ -291,16 +291,20 @@ class Battery(AbstractDevice):
             gamma1 = torch.multiply(self.initial_soc, smax)
             gammaT = torch.multiply(self.final_soc, smax)
             ymin, ymax = get_ymin_ymax(T, power_capacity, smax, gamma1, gammaT, machine, dtype)
+            A = A_matrix(T, machine)
+            b = b_vector(self, T, machine)
 
-            self.temp_data = (smax, gamma1, gammaT, ymin, ymax)
-            self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
+            self.temp_data = (smax, gamma1, gammaT, ymin, ymax, A, b)
+            # self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
+            self.schur = schur_matrix(self, T, rho_power, inner_weight, machine)
 
-        K_inv, zero_nu = self.admm_data
-        smax, gamma1, gammaT, ymin, ymax = self.temp_data
+        schur = self.schur
+        # K_inv, zero_nu = self.admm_data
+        smax, gamma1, gammaT, ymin, ymax, A, b = self.temp_data
 
         # Changes every proximal evaluation
         zT = power[0].reshape(-1, num_scenarios, T, 1)
-        rhs = K_rhs_fixed(self, T, rho_power, zT, machine)
+        rhs = K_rhs_fixed(rho_power, A, b, zT)
 
         # Initialize
         x = torch.zeros((N, num_scenarios, 3 * T + 1, 1), device=machine, dtype=dtype)
@@ -314,7 +318,7 @@ class Battery(AbstractDevice):
         # Solve ADMM
         for iter in range(inner_iterations):
             x, y, u = battery_prox_inner(
-                x, y, u, rhs, zero_nu, K_inv, ymin, ymax, inner_weight, inner_over_relaxation
+                x, y, u, rhs, schur, ymin, ymax, inner_weight, inner_over_relaxation
             )
 
         # Extract results
@@ -381,19 +385,35 @@ def K_matrix(device: Battery, T, rho, w, machine=None):
     return torch.vstack([row1, row2])
 
 
-def K_rhs_fixed(device: Battery, T, rho, z, machine=None):
-    # rho * A.T @ z - b
+def schur_matrix(device, T, rho, w, machine=None):
     A = A_matrix(T, machine)
-    b = b_vector(device, T, machine)
+    C = C_matrix(device, T, machine)
+    Id = torch.eye(3 * T + 1, device=machine)
+
+    # Hessian
+    H = rho * (A.T @ A) + w * Id
+    H_inv = torch.linalg.inv(H)
+
+    # Reduced terms
+    Q = C @ H_inv
+    M = Q @ C.T
+
+    # Return Schur complement
+    return H_inv - Q.T @ torch.linalg.inv(M) @ Q
+
+
+def K_rhs_fixed(rho, A, b, z):
+    # rho * A.T @ z - b
     return rho * torch.matmul(A.T, z) - b
 
 
 @torch.jit.script
-def battery_prox_inner(x, y, u, rhs, zero_nu, K_inv, ymin, ymax, w: float, alpha: float = 1.0):
+def battery_prox_inner(x, y, u, rhs, schur, ymin, ymax, w: float, alpha: float = 1.0):
     # x update
     rhs_var = rhs + w * (y - u)
-    full_rhs = torch.cat([rhs_var, zero_nu], dim=2)
-    x = (K_inv @ full_rhs)[:, :, : x.shape[2], :]
+    # full_rhs = torch.cat([rhs_var, zero_nu], dim=2)
+    # x = (K_inv @ full_rhs)[:, :, : x.shape[2], :]
+    x = schur @ rhs_var
 
     # over relaxation step
     xp = alpha * x + (1 - alpha) * y
@@ -420,7 +440,7 @@ def battery_prox_data(device: Battery, T: int, rho, z, weight=1.0):
 
     # zT and rhs are just created to get the dimensions for zero_nu
     zT = z.reshape(-1, num_scenarios, T, 1)
-    rhs = K_rhs_fixed(device, T, rho, zT, machine)
+    rhs = K_rhs_fixed(rho, A_matrix(T, machine), b_vector(device, T, machine), zT)
     zero_nu = torch.zeros((rhs.shape[0], rhs.shape[1], T, rhs.shape[3]), device=machine)
 
     return K_inv, zero_nu

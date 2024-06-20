@@ -261,5 +261,13 @@ def __(J_gpu, plot_convergence, s0, y0):
     return
 
 
+@app.cell
+def __(J_gpu, zap):
+    _battery = J_gpu.layer.devices[-2]
+
+    zap.devices.store.C_matrix(_battery, 24, machine="cuda").shape
+    return
+
+
 if __name__ == "__main__":
     app.run()
