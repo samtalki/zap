@@ -13,6 +13,7 @@ from zap.admm.util import (
     nested_norm,
     nested_bpax,
     nested_a1bpa2x,
+    nested_ax,
     get_num_terminals,
     dc_average,
     ac_average,
@@ -106,6 +107,11 @@ class ADMMSolver:
     minimum_iterations: int = 10
     scale_dual_residuals: bool = True
     relative_rho_angle: bool = False
+    adaptive_rho: bool = False
+    tau: float = 2.0
+    adaptation_tolerance: float = 10.0
+    adaptation_frequency: int = 10
+    verbose: bool = True
 
     def __post_init__(self):
         if self.machine is None:
@@ -197,12 +203,15 @@ class ADMMSolver:
             ):
                 break  # Quit early
 
+            if self.adaptive_rho and self.iteration % self.adaptation_frequency == 0:
+                st = self.adjust_rho(st, history)
+
             if self.safe_mode:
                 self.dimension_checks(st, net, devices, time_horizon)
                 self.numerical_checks(st, net, devices, time_horizon)
 
         if not self.converged:
-            print(f"Did not converged. Ran for {self.iteration} iterations.")
+            print(f"Did not converge. Ran for {self.iteration} iterations.")
         return st, history
 
     # ====
@@ -395,6 +404,39 @@ class ADMMSolver:
         else:
             self.converged = False
             return False
+
+    def adjust_rho(self, st: ADMMState, history: ADMMState):
+        primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
+        dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+
+        old_rho = self.rho_power
+
+        if primal_resid > self.adaptation_tolerance * dual_resid:
+            self.rho_power *= self.tau
+            if self.verbose:
+                print(f"Increasing rho to {self.rho_power} on iteration {self.iteration}.")
+
+        elif dual_resid > self.adaptation_tolerance * primal_resid:
+            self.rho_power /= self.tau
+            if self.verbose:
+                print(f"Decreasing rho to {self.rho_power} on iteration {self.iteration}.")
+
+        else:
+            pass
+            # print(f"Keeping rho at {self.rho_power}.")
+
+        # Update rho angle
+        if not self.relative_rho_angle:
+            self.rho_angle *= self.rho_power / old_rho
+
+        # Update prices
+        if self.rho_power != old_rho:
+            st = st.update(
+                dual_power=st.dual_power * (old_rho / self.rho_power),
+                dual_phase=nested_ax(st.dual_phase, old_rho / self.rho_power),
+            )
+
+        return st
 
     def update_history(
         self, history: ADMMState, st: ADMMState, last_avg_phase, last_resid_power, nu_star

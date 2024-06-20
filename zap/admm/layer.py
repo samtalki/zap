@@ -19,6 +19,7 @@ class ADMMLayer(DispatchLayer):
         warm_start: bool = True,
         adapt_rho: bool = False,
         adapt_rho_rate: float = 0.1,
+        verbose: bool = False,
     ):
         self.network = network
         self.devices = devices
@@ -28,6 +29,7 @@ class ADMMLayer(DispatchLayer):
         self.warm_start = warm_start
         self.adapt_rho = adapt_rho
         self.adapt_rho_rate = adapt_rho_rate
+        self.verbose = verbose
 
     def forward(self, initial_state=None, **kwargs) -> ADMMState:
         parameters = self.setup_parameters(**kwargs)
@@ -52,6 +54,12 @@ class ADMMLayer(DispatchLayer):
             Jstar, n = history.objective[-1], self.solver.total_terminals
             self.solver.rho_power = self.adapt_rho_rate * Jstar / np.sqrt(n)
             print(f"Reset rho to {self.solver.rho_power}")
+
+        if self.verbose:
+            primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
+            dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+            print(f"Primal residual: {primal_resid}")
+            print(f"Dual residual: {dual_resid}")
 
         return state
 

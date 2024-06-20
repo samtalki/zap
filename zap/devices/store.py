@@ -67,6 +67,7 @@ class Battery(AbstractDevice):
         self.max_power_capacity = make_dynamic(max_power_capacity)
 
         self.has_changed = True
+        self.rho = -1.0
 
     @property
     def terminals(self):
@@ -293,13 +294,14 @@ class Battery(AbstractDevice):
             ymin, ymax = get_ymin_ymax(T, power_capacity, smax, gamma1, gammaT, machine, dtype)
             A = A_matrix(T, machine)
             b = b_vector(self, T, machine)
-
             self.temp_data = (smax, gamma1, gammaT, ymin, ymax, A, b)
-            # self.admm_data = battery_prox_data(self, T, rho_power, power[0], inner_weight)
+
+        if self.has_changed or self.rho != rho_power:
+            # print("Updating battery Schur matrix.")
+            self.rho = rho_power
             self.schur = schur_matrix(self, T, rho_power, inner_weight, machine)
 
         schur = self.schur
-        # K_inv, zero_nu = self.admm_data
         smax, gamma1, gammaT, ymin, ymax, A, b = self.temp_data
 
         # Changes every proximal evaluation

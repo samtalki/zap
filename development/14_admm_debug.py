@@ -38,25 +38,28 @@ def __():
 
 @app.cell(hide_code=True)
 def __(np, plt):
-    def plot_convergence(hist, admm, fstar=1.0):
+    def plot_convergence(hist, admm, fstar=1.0, ylims=(1e-3, 1e0)):
         fig, axes = plt.subplots(2, 2, figsize=(7, 3.5))
 
         admm_num_iters = len(hist.objective)
         eps_pd = admm.total_tol  # * np.sqrt(admm.total_terminals)
 
-        ax = axes[0][0]
         total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2))
+        total_dual = np.sqrt(
+            np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)
+        )
+
+        ax = axes[0][0]
         ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
         ax.plot(hist.power, label="power")
         ax.plot(hist.phase, label="angle")
         ax.plot(total_primal, color="black", ls="dashed")
         ax.set_yscale("log")
         ax.set_title("primal residuals")
+        ax.set_ylim(*ylims)
 
         ax = axes[0][1]
-        total_dual = np.sqrt(
-            np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)
-        )
+
         ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
@@ -64,6 +67,7 @@ def __(np, plt):
         ax.set_yscale("log")
         ax.legend()
         ax.set_title("dual residuals")
+        ax.set_ylim(*ylims)
 
         ax = axes[1][0]
         ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
@@ -105,15 +109,52 @@ def __(runner):
 
 
 @app.cell
-def __(config, runner):
-    data = runner.load_dataset(**config["data"])
-    net, devices = data["net"], data["devices"]
-    return data, devices, net
+def __():
+    force_dc = False
+    return force_dc,
 
 
 @app.cell
-def __(config, data, runner):
-    cpu_problem_data = runner.setup_problem(**data, **config["problem"])
+def __(zap):
+    dev_types = [zap.Generator, zap.Load, zap.Battery, zap.Ground, zap.DCLine, zap.ACLine]
+    return dev_types,
+
+
+@app.cell
+def __(config, dev_types, force_dc, runner, zap):
+    data = runner.load_dataset(**config["data"])
+    net, devices = data["net"], data["devices"]
+
+    devices = [d for d in devices if type(d) in dev_types]
+
+
+    if force_dc:
+        for i, _d in enumerate(devices):
+            if isinstance(_d, zap.ACLine):
+                devices[i] = zap.DCLine(
+                    num_nodes=_d.num_nodes,
+                    source_terminal=_d.source_terminal,
+                    sink_terminal=_d.sink_terminal,
+                    capacity=_d.capacity,
+                    nominal_capacity=_d.nominal_capacity,
+                    capital_cost=_d.capital_cost,
+                    slack=_d.slack,
+                    min_nominal_capacity=_d.min_nominal_capacity,
+                    max_nominal_capacity=_d.max_nominal_capacity
+                )
+    return data, devices, i, net
+
+
+@app.cell
+def __(devices):
+    for d in devices:
+        print(type(d))
+    return d,
+
+
+@app.cell
+def __(config, devices, net, runner):
+    cpu_problem_data = runner.setup_problem(net, devices, **config["problem"])
     cpu_full_prob, cpu_stoch_prob = (
         cpu_problem_data["problem"],
         cpu_problem_data["stochastic_problem"],
@@ -122,9 +163,9 @@ def __(config, data, runner):
 
 
 @app.cell
-def __(config, data, runner, torch):
+def __(config, devices, net, runner, torch):
     problem_data = runner.setup_problem(
-        **data, **config["problem"], **config["layer"]
+        net, devices, **config["problem"], **config["layer"]
     )
     full_prob, stoch_prob = (
         problem_data["problem"],
@@ -197,7 +238,7 @@ def __(mo):
 
 
 @app.cell
-def __(devices, np, problem_id, stoch_prob, y0):
+def __(devices, np, problem_id, stoch_prob, theta0_gpu, y0):
     J_gpu = stoch_prob.subproblems[problem_id]
 
     tnt = J_gpu.layer.devices[0].time_horizon * (
@@ -209,29 +250,25 @@ def __(devices, np, problem_id, stoch_prob, y0):
 
     J_gpu.layer.warm_start = False
 
-    J_gpu.layer.solver.atol = 1.0e-3
+    J_gpu.layer.solver.atol = 1.0e-4
     J_gpu.layer.solver.num_iterations = 1000
-    J_gpu.layer.solver.rho_angle = 0.5
-    J_gpu.layer.solver.alpha = 1.1
-    J_gpu.layer.solver.scale_dual_residuals = False
+    J_gpu.layer.solver.relative_rho_angle = True
+    J_gpu.layer.solver.rho_angle = 0.25
+    J_gpu.layer.solver.alpha = 1.5
+    J_gpu.layer.solver.scale_dual_residuals = True
 
     J_gpu.layer.solver.rho_power = 0.1 * y0.problem.value / np.sqrt(tnt)
-    return J_gpu, tnt
+    J_gpu.layer.solver.adaptive_rho = True
+    J_gpu.layer.solver.adaptation_tolerance = 2.0
+    J_gpu.layer.solver.tau = 1.1
+    J_gpu.layer.solver.verbose = False
 
-
-@app.cell
-def __(J_gpu):
-    J_gpu.layer.solver.rho_power
-    return
-
-
-@app.cell
-def __(J_gpu, theta0_gpu):
     s0 = J_gpu.layer(**theta0_gpu)
-    return s0,
+    J_gpu.layer.solver.rho_power
+    return J_gpu, s0, tnt
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(J_gpu, np, s0, y0):
     s0  # Force dependency
     print("f_star:", y0.problem.value)
@@ -243,18 +280,6 @@ def __(J_gpu, np, s0, y0):
 
 
 @app.cell
-def __():
-    model_id = 1
-    return model_id,
-
-
-@app.cell
-def __():
-    problem_id = 0
-    return problem_id,
-
-
-@app.cell(hide_code=True)
 def __(J_gpu, plot_convergence, s0, y0):
     s0  # Force dependency
     plot_convergence(J_gpu.layer.history, J_gpu.layer.solver, y0.problem.value)
@@ -262,11 +287,15 @@ def __(J_gpu, plot_convergence, s0, y0):
 
 
 @app.cell
-def __(J_gpu, zap):
-    _battery = J_gpu.layer.devices[-2]
+def __():
+    model_id = 300  # 1, 30, 300
+    return model_id,
 
-    zap.devices.store.C_matrix(_battery, 24, machine="cuda").shape
-    return
+
+@app.cell
+def __():
+    problem_id = 0  # 0, 1, 8, 9, 10, 11, 26, 32
+    return problem_id,
 
 
 if __name__ == "__main__":

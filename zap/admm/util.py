@@ -62,6 +62,10 @@ def nested_map(f, *args, none_value=None):
     ]
 
 
+def nested_ax(x, a):
+    return nested_map(lambda x: a * x, x)
+
+
 def nested_a1bpa2x(x1, x2, a1, a2):
     return nested_map(lambda x, y: a1 * x + a2 * y, x1, x2)
 
