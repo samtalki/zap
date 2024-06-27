@@ -42,7 +42,7 @@ def __(importlib):
 @app.cell
 def __(runner):
     config_list = runner.expand_config(
-        runner.load_config("experiments/config/year_gpu_test_v01.yaml")
+        runner.load_config("experiments/config/test_gpu_v01.yaml")
     )
 
     config = config_list[0]
@@ -152,38 +152,38 @@ def __(np, problem, result):
 
     sp = problem["stochastic_problem"].subproblems
     prob0 = problem["stochastic_problem"].subproblems[0]
-    prob1 = problem["stochastic_problem"].subproblems[1]
+    # prob1 = problem["stochastic_problem"].subproblems[1]
 
     layer0 = prob0.layer
-    eps_pd= layer0.solver.rtol * np.sqrt(layer0.solver.total_terminals)
+    eps_pd= layer0.solver.atol * np.sqrt(layer0.solver.total_terminals)
     s0 = sp[-1].layer.state.copy()
-    return eps_pd, layer0, prob0, prob1, s0, sp
+    return eps_pd, layer0, prob0, s0, sp
 
 
 @app.cell
-def __(np, plot_convergence, prob0, sp):
-    L = _L = sp[4].layer
+def __(eps_pd, plot_convergence, prob0, sp):
+    L = _L = sp[0].layer
 
-    rtol = 1.0e-3
+    # rtol = 1.0e-3
 
-    _L.solver.num_iterations = 10_000
+    _L.solver.num_iterations = 1000
     _L.solver.rho_power = 0.1
-    _L.solver.rho_angle = _L.solver.rho_power
-    _L.solver.rtol = rtol
-    _L.solver.minimum_iterations = 100
-    _L.warm_start = False
+    # _L.solver.rho_angle = _L.solver.rho_power
+    # _L.solver.rtol = rtol
+    # _L.solver.minimum_iterations = 100
+    # _L.warm_start = False
 
     _L(**prob0.initialize_parameters(None), initial_state=None)
 
-    _L.solver.num_iterations = 1000
-    _L.solver.rho_power = 1.0
-    _L.solver.rho_angle = 1.0
-    _L.solver.rtol = 1.0e-3
-    _L.solver.minimum_iterations = 100
-    _L.warm_start = True
+    # _L.solver.num_iterations = 1000
+    # _L.solver.rho_power = 1.0
+    # _L.solver.rho_angle = 1.0
+    # _L.solver.rtol = 1.0e-3
+    # _L.solver.minimum_iterations = 100
+    # _L.warm_start = True
 
-    plot_convergence(_L.history, eps_pd=rtol * np.sqrt(_L.solver.total_terminals))
-    return L, rtol
+    plot_convergence(_L.history, eps_pd=eps_pd)
+    return L,
 
 
 @app.cell
