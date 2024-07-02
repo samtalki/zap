@@ -63,6 +63,12 @@ CVX_LAYER_ARGS = {
     "add_ground": False,
 }
 
+TORCH_DTYPES = {
+    "float32": torch.float32,
+    "float64": torch.float64,
+    "float16": torch.float16,
+}
+
 
 def expand_config(config: dict) -> list[dict]:
     configs = _expand_config(config)
@@ -270,7 +276,9 @@ def setup_pypysa_dataset(
     return net, devices
 
 
-def layer_function(net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, admm_args: dict):
+def layer_function(
+    net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, torch_dtype, admm_args: dict
+):
     if use_admm:
         print("Using ADMM layer.")
 
@@ -280,7 +288,7 @@ def layer_function(net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, ad
                 devices,
                 parameter_names,
                 time_horizon=time_horizon,
-                solver=ADMMSolver(**admm_args, dtype=torch.float32),
+                solver=ADMMSolver(**admm_args, dtype=torch_dtype),
                 adapt_rho=adapt_rho,
                 adapt_rho_rate=adapt_rho_rate,
             )
@@ -312,18 +320,21 @@ def setup_problem(
     use_admm=False,
     adapt_rho=False,
     adapt_rho_rate=0.1,
+    torch_dtype="float32",
     args={},
 ):
     print("Building planning problem...")
     print("ADMM is enabled." if use_admm else "ADMM is disabled.")
     time_horizon = np.max([d.time_horizon for d in devices])
 
+    torch_dtype = TORCH_DTYPES[torch_dtype]
+
     # Drop batteries
     if stochastic and hours_per_scenario == 1:
         devices = [d for d in devices if type(d) != zap.Battery]
 
     if use_admm:
-        devices = [d.torchify(machine=args["machine"], dtype=torch.float32) for d in devices]
+        devices = [d.torchify(machine=args["machine"], dtype=torch_dtype) for d in devices]
 
     # Setup parameters
     parameter_names = {}
@@ -337,7 +348,9 @@ def setup_problem(
             print(f"Warning: device {dev} not found in devices. Will not be expanded.")
 
     # Setup layer
-    layer_map = layer_function(net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, args)
+    layer_map = layer_function(
+        net, parameter_names, use_admm, adapt_rho, adapt_rho_rate, torch_dtype, args
+    )
     layer = layer_map(devices, time_horizon)
 
     # Build objective
@@ -522,7 +535,7 @@ def solve_problem(
     parameters, history = problem.solve(
         num_iterations=num_iterations,
         algorithm=alg,
-        trackers=tr.DEFAULT_TRACKERS,
+        trackers=tr.DEFAULT_TRACKERS + [tr.GRAD],
         initial_state=initial_state,
         wandb=logger,
         log_wandb_every=log_wandb_every,
@@ -809,6 +822,11 @@ def checkpoint_model(parameters, history, config):
     with open(result_dir / f"model_{iteration:05d}.json", "w") as f:
         ps = {k: v.ravel().tolist() for k, v in parameters.items()}
         json.dump(ps, f)
+
+    # Save current gradient
+    with open(result_dir / f"gradient_{iteration:05d}.json", "w") as f:
+        gs = {k: v.ravel().tolist() for k, v in history[tr.GRAD][-1].items()}
+        json.dump(gs, f)
 
     return None
 

@@ -292,7 +292,7 @@ class Battery(AbstractDevice):
             gamma1 = torch.multiply(self.initial_soc, smax)
             gammaT = torch.multiply(self.final_soc, smax)
             ymin, ymax = get_ymin_ymax(T, power_capacity, smax, gamma1, gammaT, machine, dtype)
-            A = A_matrix(T, machine)
+            A = A_matrix(T, machine, dtype=dtype)
             b = b_vector(self, T, machine)
             self.temp_data = (smax, gamma1, gammaT, ymin, ymax, A, b)
 
@@ -336,48 +336,52 @@ class Battery(AbstractDevice):
 # ====
 
 
-def difference_matrix(T, machine=None):
+def difference_matrix(T, machine=None, dtype=None):
     # Should return a (T, T+1) matrix where
     # D = [-1 1 0 0]
     #     [0 -1 1 0]
     #     [0 0 -1 1]
     # for T = 3
 
-    D1 = torch.eye(T + 1, device=machine)[0:T, :]
-    D2 = torch.eye(T + 1, device=machine)[1:, :]
+    D1 = torch.eye(T + 1, device=machine, dtype=dtype)[0:T, :]
+    D2 = torch.eye(T + 1, device=machine, dtype=dtype)[1:, :]
 
     return D2 - D1
 
 
 def b_vector(device: Battery, T, machine=None):
+    dtype = device.power_capacity.dtype
+
     # TODO - Support multiple costs
     alpha = device.linear_cost[0]
     return torch.vstack(
         [
-            alpha * torch.ones((T, 1), device=machine),
-            torch.zeros((2 * T + 1, 1), device=machine),
+            alpha * torch.ones((T, 1), device=machine, dtype=dtype),
+            torch.zeros((2 * T + 1, 1), device=machine, dtype=dtype),
         ]
     )
 
 
-def C_matrix(device: Battery, T, machine=None):
+def C_matrix(device: Battery, T, machine=None, dtype=None):
     # TODO - Support multiple charge efficiencies
     beta = device.charge_efficiency[0]
-    D = difference_matrix(T, machine)
-    Id = torch.eye(T, device=machine)
+    D = difference_matrix(T, machine, dtype)
+    Id = torch.eye(T, device=machine, dtype=dtype)
 
     return torch.hstack([-beta * Id, Id, D])
 
 
-def A_matrix(T, machine=None):
+def A_matrix(T, machine=None, dtype=None):
     Id = torch.eye(T, device=machine)
-    return torch.hstack([-Id, Id, torch.zeros(T, T + 1, device=machine)])
+    return torch.hstack([-Id, Id, torch.zeros(T, T + 1, device=machine, dtype=dtype)])
 
 
 def K_matrix(device: Battery, T, rho, w, machine=None):
-    A = A_matrix(T, machine)
-    C = C_matrix(device, T, machine)
-    Id = torch.eye(3 * T + 1, device=machine)
+    dtype = device.power_capacity.dtype
+
+    A = A_matrix(T, machine, dtype)
+    C = C_matrix(device, T, machine, dtype)
+    Id = torch.eye(3 * T + 1, device=machine, dtype=dtype)
 
     dKdx = rho * (A.T @ A) + w * Id
 
@@ -388,9 +392,11 @@ def K_matrix(device: Battery, T, rho, w, machine=None):
 
 
 def schur_matrix(device, T, rho, w, machine=None):
-    A = A_matrix(T, machine)
-    C = C_matrix(device, T, machine)
-    Id = torch.eye(3 * T + 1, device=machine)
+    dtype = device.power_capacity.dtype
+
+    A = A_matrix(T, machine, dtype)
+    C = C_matrix(device, T, machine, dtype)
+    Id = torch.eye(3 * T + 1, device=machine, dtype=dtype)
 
     # Hessian
     H = rho * (A.T @ A) + w * Id
