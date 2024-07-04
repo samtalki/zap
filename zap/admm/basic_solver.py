@@ -144,6 +144,7 @@ class ADMMSolver:
         num_contingencies=0,
         contingency_device: Optional[int] = None,
         contingency_mask=None,
+        **kwargs,
     ):
         if num_contingencies > 0:
             assert contingency_device is not None
@@ -152,6 +153,12 @@ class ADMMSolver:
                 num_contingencies + 1,
                 devices[contingency_device].num_devices,
             )
+
+        # Override algorithm settings
+        original_settings = {}
+        for k, v in kwargs.items():
+            original_settings[k] = getattr(self, k)
+            setattr(self, k, v)
 
         if parameters is None:
             parameters = [{} for _ in devices]
@@ -172,6 +179,8 @@ class ADMMSolver:
 
         for d in devices:
             d.has_changed = True
+
+        print("Initial value of rho_power:", self.rho_power)
 
         for iteration in range(self.num_iterations):
             self.iteration = iteration + 1
@@ -212,6 +221,13 @@ class ADMMSolver:
 
         if not self.converged:
             print(f"Did not converge. Ran for {self.iteration} iterations.")
+
+        print("Final value of rho_power:", self.rho_power)
+
+        # Restore original settings
+        for k, v in original_settings.items():
+            setattr(self, k, v)
+
         return st, history
 
     # ====
@@ -426,7 +442,7 @@ class ADMMSolver:
             # print(f"Keeping rho at {self.rho_power}.")
 
         # Update rho angle
-        if not self.relative_rho_angle:
+        if (self.rho_angle is not None) and (not self.relative_rho_angle):
             self.rho_angle *= self.rho_power / old_rho
 
         # Update prices

@@ -92,6 +92,7 @@ class AbstractPlanningProblem:
         checkpoint_func=lambda x: None,
         batch_size=None,
         batch_strategy="sequential",
+        verbosity=10,
     ):
         if algorithm is None:
             algorithm = GradientDescent()
@@ -121,7 +122,7 @@ class AbstractPlanningProblem:
         # Initialize loop
         self.iteration = 0
 
-        print(batch)
+        print(batch) if verbosity >= 2 else None
         J, grad = self.forward_and_back(**state, batch=batch)
         if self.la == torch:
             torch.cuda.empty_cache()
@@ -138,6 +139,7 @@ class AbstractPlanningProblem:
                 last_state = deepcopy(state)
 
             self.iteration = iteration + 1
+            print("Starting iteration", self.iteration) if verbosity >= 1 else None
 
             # Checkpoint
             if (self.iteration) % checkpoint_every == 0:
@@ -156,7 +158,8 @@ class AbstractPlanningProblem:
                 batch = get_next_batch(batch, batch_size, self.num_subproblems)
             else:  # fixed
                 batch = batch
-            print(batch)
+
+            print(batch) if verbosity >= 2 else None
 
             J, grad = self.forward_and_back(**state, batch=batch)
 

@@ -21,6 +21,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
     ):
         # Call super initializer
         self.la = torch
+        self.rho_history = []
         super().__init__(
             operation_objective, investment_objective, layer, lower_bounds, upper_bounds
         )
@@ -38,6 +39,7 @@ class PlanningProblemADMM(AbstractPlanningProblem):
         # Forward pass through dispatch layer
         # Store this for efficient backward pass
         # with torch.amp.autocast(device_type=self.layer.solver.machine):
+        self.rho_history += [self.layer.solver.rho_power]
         admm_state = self.layer.forward(initial_state=initial_state, **kwargs)
         state = admm_state.as_outcome()
 

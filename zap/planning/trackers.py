@@ -10,6 +10,7 @@ PARAM = "param"
 TIME = "time"
 SUBOPTIMALITY = "suboptimality"
 GRAD = "grad"
+ADMM_STATE = "admm_state"
 
 
 def track_loss(J, grad, state, last_state, problem):
@@ -53,6 +54,14 @@ def suboptimality(J, grad, state, last_state, problem):
     return (J.cpu().detach().numpy() / lb) - 1.0
 
 
+def admm_state(J, grad, state, last_state, problem):
+    # Do this by checkif if the state object has a copy function
+    if hasattr(problem.layer, "state"):
+        return problem.layer.state.copy()
+    else:
+        return None
+
+
 TRACKER_MAPS = {
     LOSS: track_loss,
     GRAD_NORM: track_grad_norm,
@@ -61,6 +70,7 @@ TRACKER_MAPS = {
     TIME: track_time,
     SUBOPTIMALITY: suboptimality,
     GRAD: track_grad,
+    ADMM_STATE: admm_state,
 }
 
 DEFAULT_TRACKERS = [LOSS, GRAD_NORM, PROJ_GRAD_NORM, TIME, SUBOPTIMALITY]
