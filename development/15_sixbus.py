@@ -4,7 +4,7 @@ __generated_with = "0.6.25"
 app = marimo.App(app_title="Six Bus System")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __():
     import marimo as mo
     import numpy as np
@@ -176,7 +176,7 @@ def __(tr, zap):
     solver_kwargs = {
         "trackers": tr.DEFAULT_TRACKERS + [tr.GRAD, tr.PARAM, tr.ADMM_STATE],
         "algorithm": zap.planning.GradientDescent(step_size=1e-3, clip=1e3),
-        "num_iterations": 200,
+        "num_iterations": 100,
         "verbosity": 1
     }
     return solver_kwargs,
@@ -184,7 +184,12 @@ def __(tr, zap):
 
 @app.cell
 def __(problem_cvx, solver_kwargs):
-    theta_cvx, history_cvx = problem_cvx.solve(**solver_kwargs)
+    theta_cvx, history_cvx = problem_cvx.solve(
+        num_iterations=solver_kwargs["num_iterations"],
+        verbosity=1,
+        algorithm=solver_kwargs["algorithm"],
+        trackers=solver_kwargs["trackers"],
+    )
     return history_cvx, theta_cvx
 
 
@@ -268,7 +273,7 @@ def __(mo):
 
 @app.cell
 def __():
-    iteration = 8
+    iteration = 50
     return iteration,
 
 
@@ -303,10 +308,16 @@ def __(
     layer_admm.warm_start = False
     layer_admm.verbose = True
 
-    layer_admm.solver.verbose = False
-    layer_admm.solver.rho_power = problem_admm.rho_history[iteration + 1]
+    layer_admm.solver.verbose = True
     layer_admm.solver.minimum_iterations = 100
     layer_admm.solver.atol = 1e-6
+
+    layer_admm.solver.rho_power = problem_admm.rho_history[iteration + 1]
+    layer_admm.solver.adaptation_tolerance = 2.0
+    layer_admm.solver.adaptation_frequency = 50
+    layer_admm.solver.tau = 1.1
+
+    layer_admm.solver.alpha = 1.1
 
     theta_test2 = {k: v.clone().detach() for k,v in theta_test.items()}
     for k in theta_test2.keys():
@@ -322,7 +333,7 @@ def __(
     return f_admm, grad_admm, k, theta_test2, y_admm
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(problem_admm, torch):
     def full_cost(y, theta):
         _p = problem_admm
@@ -355,7 +366,7 @@ def __(
 def __(layer_admm, plot_convergence, y_admm, y_cvx):
     y_admm  # Force dependency
     _fig = plot_convergence(
-        layer_admm.history, layer_admm.solver, fstar=y_cvx.problem.value, ylims=(1e-4, 1e2)
+        layer_admm.history, layer_admm.solver, fstar=y_cvx.problem.value, ylims=(1e-6, 1e2)
     )
     _fig
     return

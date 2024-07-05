@@ -1,6 +1,7 @@
 import time
 import torch
 import numpy as np
+import wandb as wb
 from copy import deepcopy
 
 from zap.layer import DispatchLayer
@@ -206,6 +207,11 @@ class AbstractPlanningProblem:
 
                 wand_data = {k: history[k][-1] for k in history.keys()}
                 wand_data["iteration"] = iteration
+
+                for k, v in wand_data.items():
+                    if k in ["grad", "param"]:
+                        # Convert to histogram
+                        wand_data[k] = {kk: wb.Histogram(vv) for kk, vv in v.items()}
 
                 # Add extra trackers
                 if self.extra_wandb_trackers is not None:

@@ -535,7 +535,7 @@ def solve_problem(
     parameters, history = problem.solve(
         num_iterations=num_iterations,
         algorithm=alg,
-        trackers=tr.DEFAULT_TRACKERS + [tr.GRAD],
+        trackers=tr.DEFAULT_TRACKERS + [tr.GRAD, tr.PARAM],
         initial_state=initial_state,
         wandb=logger,
         log_wandb_every=log_wandb_every,
