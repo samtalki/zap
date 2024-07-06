@@ -211,7 +211,12 @@ class AbstractPlanningProblem:
                 for k, v in wand_data.items():
                     if k in ["grad", "param"]:
                         # Convert to histogram
-                        wand_data[k] = {kk: wb.Histogram(vv) for kk, vv in v.items()}
+                        wand_data[k] = {
+                            kk: wb.Histogram(vv)
+                            if isinstance(vv, np.ndarray)
+                            else wb.Histogram(vv.cpu())
+                            for kk, vv in v.items()
+                        }
 
                 # Add extra trackers
                 if self.extra_wandb_trackers is not None:
