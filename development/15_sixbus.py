@@ -116,9 +116,21 @@ def __(np, zap):
 
 
 @app.cell
+def __(devices):
+    devices[0].linear_cost
+    return
+
+
+@app.cell
+def __(devices):
+    devices[0].emission_rates * 100.0
+    return
+
+
+@app.cell
 def __():
     common_params = {
-        "emissions_weight": 10.0,
+        "emissions_weight": 50.0,
         "parameters": ["generator", "ac_line"],
     }
     return common_params,
@@ -183,7 +195,24 @@ def __(tr, zap):
 
 
 @app.cell
-def __(problem_cvx, solver_kwargs):
+def __():
+    mosek_tol = 1e-8
+    return mosek_tol,
+
+
+@app.cell
+def __(mosek_tol, problem_cvx, solver_kwargs):
+    problem_cvx.layer.solver_kwargs["verbose"] = False
+    problem_cvx.layer.solver_kwargs["mosek_params"][
+        "MSK_DPAR_INTPNT_TOL_REL_GAP"
+    ] = mosek_tol
+    problem_cvx.layer.solver_kwargs["mosek_params"][
+        "MSK_DPAR_INTPNT_TOL_DFEAS"
+    ] = mosek_tol
+    problem_cvx.layer.solver_kwargs["mosek_params"][
+        "MSK_DPAR_INTPNT_TOL_PFEAS"
+    ] = mosek_tol
+
     theta_cvx, history_cvx = problem_cvx.solve(
         num_iterations=solver_kwargs["num_iterations"],
         verbosity=1,
@@ -273,7 +302,7 @@ def __(mo):
 
 @app.cell
 def __():
-    iteration = 50
+    iteration = 44
     return iteration,
 
 
@@ -289,11 +318,24 @@ def __(history_admm, iteration):
 
 @app.cell
 def __(layer_cvx, problem_cvx, theta_test):
+    layer_mosek_tol = 1e-8
+
+    layer_cvx.solver_kwargs["verbose"] = False
+    layer_cvx.solver_kwargs["mosek_params"][
+        "MSK_DPAR_INTPNT_TOL_REL_GAP"
+    ] = layer_mosek_tol
+    layer_cvx.solver_kwargs["mosek_params"][
+        "MSK_DPAR_INTPNT_TOL_DFEAS"
+    ] = layer_mosek_tol
+    layer_cvx.solver_kwargs["mosek_params"][
+        "MSK_DPAR_INTPNT_TOL_PFEAS"
+    ] = layer_mosek_tol
+
     y_cvx = layer_cvx(**{k: v.detach().clone() for k, v in theta_test.items()})
     f_cvx, grad_cvx = problem_cvx.forward_and_back(
         **{k: v.detach().clone().numpy() for k, v in theta_test.items()}
     )
-    return f_cvx, grad_cvx, y_cvx
+    return f_cvx, grad_cvx, layer_mosek_tol, y_cvx
 
 
 @app.cell
@@ -302,6 +344,7 @@ def __(
     history_admm,
     iteration,
     layer_admm,
+    num_unroll_iterations,
     problem_admm,
     theta_test,
 ):
@@ -310,7 +353,7 @@ def __(
 
     layer_admm.solver.verbose = True
     layer_admm.solver.minimum_iterations = 100
-    layer_admm.solver.atol = 1e-6
+    layer_admm.solver.atol = 1e-3
 
     layer_admm.solver.rho_power = problem_admm.rho_history[iteration + 1]
     layer_admm.solver.adaptation_tolerance = 2.0
@@ -319,18 +362,26 @@ def __(
 
     layer_admm.solver.alpha = 1.1
 
+    # Gradient version of parameters
     theta_test2 = {k: v.clone().detach() for k,v in theta_test.items()}
     for k in theta_test2.keys():
         theta_test2[k].requires_grad = True
 
     _initial_state = history_admm["admm_state"][iteration - 1].copy()
 
-    y_admm = layer_admm(**theta_test2, initial_state=_initial_state)
-    f_admm = full_cost(y_admm, theta_test2)
+    # Solve once to high accuracy
+    y_admm = layer_admm(**theta_test, initial_state=_initial_state)
+
+    # Solve again to unroll
+    layer_admm.solver.minimum_iterations = num_unroll_iterations
+    layer_admm.solver.atol = 1e-6
+    y_admm2 = layer_admm(**theta_test2, initial_state=y_admm)
+
+    f_admm = full_cost(y_admm2, theta_test2)
     f_admm.backward()
 
     grad_admm = {k: v.grad for k, v in theta_test2.items()}
-    return f_admm, grad_admm, k, theta_test2, y_admm
+    return f_admm, grad_admm, k, theta_test2, y_admm, y_admm2
 
 
 @app.cell
@@ -406,20 +457,33 @@ def __(np, plt):
     return grad_plot,
 
 
+@app.cell
+def __():
+    num_unroll_iterations = 500
+    return num_unroll_iterations,
+
+
 @app.cell(hide_code=True)
 def __(grad_admm, grad_cvx, layer_admm, torch):
     _subnorms = [
-        torch.linalg.vector_norm(grad_admm[k] - grad_cvx[k], 2) ** 2
+        torch.linalg.vector_norm(grad_admm[k] - grad_cvx[k], 2)
         for k in grad_admm.keys()
     ]
     _err = torch.linalg.vector_norm(torch.tensor(_subnorms)).item()
 
+    _subnorms = [
+        torch.linalg.vector_norm(grad_cvx[k], 2)
+        for k in grad_admm.keys()
+    ]
+    _total_grad = torch.linalg.vector_norm(torch.tensor(_subnorms)).item()
+
     print(f"Tolerance:\t\t\t {layer_admm.solver.atol:.1e}")
     print("Gradient Error:\t\t", _err)
+    print("Total Gradient:\t\t", _total_grad)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(grad_admm, grad_cvx, grad_plot, iteration):
     _iter = iteration
     grad_plot(
