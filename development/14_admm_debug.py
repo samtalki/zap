@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.6.17"
+__generated_with = "0.7.1"
 app = marimo.App(app_title="ADMM Debugger")
 
 
@@ -38,7 +38,7 @@ def __():
 
 @app.cell(hide_code=True)
 def __(np, plt):
-    def plot_convergence(hist, admm, fstar=1.0, ylims=(1e-3, 1e0)):
+    def plot_convergence(hist, admm, fstar=1.0, ylims=None):
         fig, axes = plt.subplots(2, 2, figsize=(7, 3.5))
 
         admm_num_iters = len(hist.objective)
@@ -56,7 +56,8 @@ def __(np, plt):
         ax.plot(total_primal, color="black", ls="dashed")
         ax.set_yscale("log")
         ax.set_title("primal residuals")
-        ax.set_ylim(*ylims)
+        if ylims is not None:
+            ax.set_ylim(*ylims)
 
         ax = axes[0][1]
 
@@ -67,7 +68,8 @@ def __(np, plt):
         ax.set_yscale("log")
         ax.legend()
         ax.set_title("dual residuals")
-        ax.set_ylim(*ylims)
+        if ylims is not None:
+            ax.set_ylim(*ylims)
 
         ax = axes[1][0]
         ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
@@ -116,7 +118,14 @@ def __():
 
 @app.cell
 def __(zap):
-    dev_types = [zap.Generator, zap.Load, zap.Battery, zap.Ground, zap.DCLine, zap.ACLine]
+    dev_types = [
+        zap.Generator,
+        zap.Load,
+        zap.Battery,
+        zap.Ground,
+        zap.DCLine,
+        zap.ACLine,
+    ]
     return dev_types,
 
 
@@ -140,7 +149,7 @@ def __(config, dev_types, force_dc, runner, zap):
                     capital_cost=_d.capital_cost,
                     slack=_d.slack,
                     min_nominal_capacity=_d.min_nominal_capacity,
-                    max_nominal_capacity=_d.max_nominal_capacity
+                    max_nominal_capacity=_d.max_nominal_capacity,
                 )
     return data, devices, i, net
 
@@ -238,7 +247,13 @@ def __(mo):
 
 
 @app.cell
-def __(devices, np, problem_id, stoch_prob, theta0_gpu, y0):
+def __(np, tnt, y0):
+    y0.problem.value / np.sqrt(tnt)
+    return
+
+
+@app.cell
+def __(devices, problem_id, stoch_prob, theta0_gpu):
     J_gpu = stoch_prob.subproblems[problem_id]
 
     tnt = J_gpu.layer.devices[0].time_horizon * (
@@ -251,13 +266,15 @@ def __(devices, np, problem_id, stoch_prob, theta0_gpu, y0):
     J_gpu.layer.warm_start = False
 
     J_gpu.layer.solver.atol = 1.0e-4
-    J_gpu.layer.solver.num_iterations = 1000
-    J_gpu.layer.solver.relative_rho_angle = True
-    J_gpu.layer.solver.rho_angle = 0.25
-    J_gpu.layer.solver.alpha = 1.5
+    J_gpu.layer.solver.num_iterations = 5000
+    J_gpu.layer.solver.alpha = 1.4
     J_gpu.layer.solver.scale_dual_residuals = True
+    J_gpu.layer.solver.relative_rho_angle = False
 
-    J_gpu.layer.solver.rho_power = 0.1 * y0.problem.value / np.sqrt(tnt)
+    J_gpu.layer.solver.rho_power = 0.5  # 0.1 * y0.problem.value / np.sqrt(tnt)
+    J_gpu.layer.solver.rho_angle = J_gpu.layer.solver.rho_power
+    J_gpu.layer.solver.battery_inner_weight = 1.0
+
     J_gpu.layer.solver.adaptive_rho = True
     J_gpu.layer.solver.adaptation_tolerance = 2.0
     J_gpu.layer.solver.tau = 1.1
@@ -288,7 +305,7 @@ def __(J_gpu, plot_convergence, s0, y0):
 
 @app.cell
 def __():
-    model_id = 300  # 1, 30, 300
+    model_id = 30  # 1, 30, 300
     return model_id,
 
 

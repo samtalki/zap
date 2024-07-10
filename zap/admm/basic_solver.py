@@ -95,6 +95,8 @@ class ADMMSolver:
     rho_angle: Optional[float] = None
     alpha: float = 1.0
     atol: float = 0.0
+    rtol: float = 0.0
+    angle_converges_separately: bool = False
     resid_norm: object = None
     safe_mode: bool = False
     track_objective: bool = True
@@ -164,10 +166,13 @@ class ADMMSolver:
             parameters = [{} for _ in devices]
 
         # Initialize
-        self.total_terminals = time_horizon * (
-            sum(d.num_devices * d.num_terminals_per_device for d in devices)
-            + sum(d.num_devices * d.num_terminals_per_device for d in devices if d.is_ac)
+        self.num_dc_terminals = time_horizon * sum(
+            d.num_devices * d.num_terminals_per_device for d in devices
         )
+        self.num_ac_terminals = time_horizon * sum(
+            d.num_devices * d.num_terminals_per_device for d in devices if d.is_ac
+        )
+        self.total_terminals = self.num_dc_terminals + self.num_ac_terminals
         history = self.initialize_history()
 
         if initial_state is None:
@@ -181,6 +186,7 @@ class ADMMSolver:
             d.has_changed = True
 
         print("Initial value of rho_power:", self.rho_power)
+        print("Initial value of rho_angle:", self.rho_angle)
 
         for iteration in range(self.num_iterations):
             self.iteration = iteration + 1
@@ -213,7 +219,10 @@ class ADMMSolver:
                 break  # Quit early
 
             if self.adaptive_rho and self.iteration % self.adaptation_frequency == 0:
-                st = self.adjust_rho(st, history)
+                if not self.relative_rho_angle:
+                    st = self.adjust_rho_power_and_angle(st, history)
+                else:
+                    st = self.adjust_rho(st, history)
 
             if self.safe_mode:
                 self.dimension_checks(st, net, devices, time_horizon)
@@ -223,6 +232,7 @@ class ADMMSolver:
             print(f"Did not converge. Ran for {self.iteration} iterations.")
 
         print("Final value of rho_power:", self.rho_power)
+        print("Final value of rho_angle:", self.rho_angle)
 
         # Restore original settings
         for k, v in original_settings.items():
@@ -407,18 +417,49 @@ class ADMMSolver:
     def has_converged(self, st: ADMMState, history: ADMMState, num_cont: int):
         p = 2 if self.resid_norm is None else self.resid_norm
 
-        total_tol = self.atol * np.power(self.total_terminals * (num_cont + 1), 1 / p)
-        self.total_tol = total_tol
+        # Absolute component
+        primal_tol_power = self.atol * np.power(self.num_dc_terminals * (num_cont + 1), 1 / p)
+        primal_tol_angle = self.atol * np.power(self.num_ac_terminals * (num_cont + 1), 1 / p)
+        dual_tol_power = primal_tol_power
+        dual_tol_angle = primal_tol_angle
 
-        primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
-        dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+        # primal_tol = self.atol * np.power(self.total_terminals * (num_cont + 1), 1 / p)
+        # dual_tol = primal_tol
 
-        if primal_resid < total_tol and dual_resid < total_tol:
-            print(f"ADMM converged early in {len(history.power)} iterations.")
-            self.converged = True
+        # Relative component
+        if self.rtol > 0.0:  # We add this check so we don't waste time computing norms
+            primal_tol_power += self.rtol * nested_norm(st.power, p).item()
+            dual_tol_power += (
+                self.rtol * torch.linalg.norm((st.num_terminals * st.avg_power).ravel(), p).item()
+            )
+
+            primal_tol_angle += self.rtol * nested_norm(st.phase, p).item()
+            dual_tol_angle += self.rtol * nested_norm(st.dual_phase, p).item()
+
+        # Track tolerances
+        self.primal_tol_power = primal_tol_power
+        self.primal_tol_angle = primal_tol_angle
+        self.dual_tol_power = dual_tol_power
+        self.dual_tol_angle = dual_tol_angle
+        self.primal_tol = primal_tol_power + primal_tol_angle
+        self.dual_tol = dual_tol_power + dual_tol_angle
+
+        if self.angle_converges_separately:
+            self.converged = (
+                history.power[-1] < primal_tol_power
+                and history.phase[-1] < primal_tol_angle
+                and history.dual_power[-1] < dual_tol_power
+                and history.dual_phase[-1] < dual_tol_angle
+            )
+        else:
+            primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
+            dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+            self.converged = (primal_resid < self.primal_tol) and (dual_resid < self.dual_tol)
+
+        if self.converged:
+            print(f"ADMM converged in {len(history.power)} iterations.")
             return True
         else:
-            self.converged = False
             return False
 
     def adjust_rho(self, st: ADMMState, history: ADMMState):
@@ -426,20 +467,9 @@ class ADMMSolver:
         dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
 
         old_rho = self.rho_power
-
-        if primal_resid > self.adaptation_tolerance * dual_resid:
-            self.rho_power *= self.tau
-            if self.verbose:
-                print(f"Increasing rho to {self.rho_power} on iteration {self.iteration}.")
-
-        elif dual_resid > self.adaptation_tolerance * primal_resid:
-            self.rho_power /= self.tau
-            if self.verbose:
-                print(f"Decreasing rho to {self.rho_power} on iteration {self.iteration}.")
-
-        else:
-            pass
-            # print(f"Keeping rho at {self.rho_power}.")
+        self.rho_power = self.tweak_rho(
+            old_rho, primal_resid, dual_resid, name="both power and angle"
+        )
 
         # Update rho angle
         if (self.rho_angle is not None) and (not self.relative_rho_angle):
@@ -453,6 +483,38 @@ class ADMMSolver:
             )
 
         return st
+
+    def adjust_rho_power_and_angle(self, st: ADMMState, history: ADMMState):
+        assert not self.relative_rho_angle
+        # First adjust power
+        primal_resid, dual_resid = history.power[-1], history.dual_power[-1]
+        old_rho = self.rho_power
+
+        self.rho_power = self.tweak_rho(old_rho, primal_resid, dual_resid, name="power")
+        if self.rho_power != old_rho:
+            st = st.update(dual_power=st.dual_power * (old_rho / self.rho_power))
+
+        # Now adjust angle
+        primal_resid, dual_resid = history.phase[-1], history.dual_phase[-1]
+        old_rho = self.rho_angle
+
+        self.rho_angle = self.tweak_rho(old_rho, primal_resid, dual_resid, name="angle")
+        if self.rho_angle != old_rho:
+            st = st.update(dual_phase=nested_ax(st.dual_phase, old_rho / self.rho_angle))
+
+        return st
+
+    def tweak_rho(self, old_rho, r_primal, r_dual, name="power"):
+        if r_primal > self.adaptation_tolerance * r_dual:
+            if self.verbose:
+                print(f"Increasing rho to {old_rho * self.tau} for {name}.")
+            return old_rho * self.tau
+        elif r_dual > self.adaptation_tolerance * r_primal:
+            if self.verbose:
+                print(f"Decreasing rho to {old_rho / self.tau} for {name}.")
+            return old_rho / self.tau
+        else:
+            return old_rho
 
     def update_history(
         self, history: ADMMState, st: ADMMState, last_avg_phase, last_resid_power, nu_star
