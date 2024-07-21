@@ -4,7 +4,7 @@ __generated_with = "0.7.1"
 app = marimo.App(app_title="Six Bus System")
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __():
     import marimo as mo
     import numpy as np
@@ -57,7 +57,28 @@ def __(np, plt):
         )
 
         ax = axes[0][0]
-        ax.hlines(admm.primal_tol, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+        ax.hlines(
+            admm.primal_tol,
+            xmin=0,
+            xmax=admm_num_iters,
+            color="black",
+            zorder=-100,
+        )
+        ax.hlines(
+            admm.primal_tol_power,
+            color="C0",
+            xmin=0,
+            xmax=admm_num_iters,
+            zorder=-100,
+        )
+        ax.hlines(
+            admm.primal_tol_angle,
+            color="C1",
+            xmin=0,
+            xmax=admm_num_iters,
+            zorder=-100,
+        )
+
         ax.plot(hist.power, label="power")
         ax.plot(hist.phase, label="angle")
         ax.plot(total_primal, color="black", ls="dashed")
@@ -68,7 +89,15 @@ def __(np, plt):
 
         ax = axes[0][1]
 
-        ax.hlines(admm.dual_tol, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+        ax.hlines(
+            admm.dual_tol, xmin=0, xmax=admm_num_iters, color="black", zorder=-100
+        )
+        ax.hlines(
+            admm.dual_tol_power, xmin=0, xmax=admm_num_iters, color="C0", zorder=-100
+        )
+        ax.hlines(
+            admm.dual_tol_angle, xmin=0, xmax=admm_num_iters, color="C1", zorder=-100
+        )
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
         ax.plot(total_dual, color="black", ls="dashed")
@@ -119,10 +148,13 @@ def __(runner):
     _config = runner.expand_config(
         runner.load_config("experiments/config/test_gpu_v09.yaml")
     )[0]
+    # _config["data"]["use_batteries"] = False
+    _config["data"]["args"]["cost_unit"] = 100.0
 
     _dataset = runner.load_dataset(**_config["data"])
 
     net, devices = _dataset["net"], _dataset["devices"]
+    # devices[3].susceptance *= 100.0
     return devices, net
 
 
@@ -130,7 +162,7 @@ def __(runner):
 def __():
     common_params = {
         "emissions_weight": 200.0,
-        "parameters": ["generator", "ac_line", "dc_line", "battery"],
+        "parameters": ["generator", "dc_line", "ac_line", "battery"],
     }
     return common_params,
 
@@ -149,17 +181,19 @@ def __():
     admm_args = {
         "machine": "cuda",
         "num_iterations": 5000,
-        "minimum_iterations": 100,
+        "minimum_iterations": 250,
         "atol": 1.0e-3,
         "verbose": False,
         "battery_window": 24,
         "alpha": 1.0,
         "relative_rho_angle": False,
-        "rho_power": 1.0,
-        "rho_angle": 0.5,
+        "rho_power": 1.0,  # / 100.0,
+        "rho_angle": 1.0,  # 0.5 / 100.0,
         "adaptive_rho": True,
         "adaptation_tolerance": 2.0,
         "tau": 1.1,
+
+        "battery_inner_iterations": 20,
     }
     return admm_args,
 
@@ -189,8 +223,8 @@ def __():
 def __(tr, zap):
     solver_kwargs = {
         "trackers": tr.DEFAULT_TRACKERS + [tr.GRAD, tr.PARAM, tr.ADMM_STATE],
-        "algorithm": zap.planning.GradientDescent(step_size=1e-3, clip=1e3),
-        "num_iterations": 5,
+        "algorithm": zap.planning.GradientDescent(step_size=1e-3 * 100.0, clip=1e3),
+        "num_iterations": 25,
         "verbosity": 1,
     }
     return solver_kwargs,
@@ -263,7 +297,7 @@ def __(
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(history_admm, history_cvx, np, plt):
     fig, ax = plt.subplots(figsize=(6, 2))
 
@@ -316,16 +350,16 @@ def __(mo):
 
 @app.cell
 def __():
-    iteration = 2
+    iteration = 0
     return iteration,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(emissions_admm, fuel_admm, history_admm, iteration):
     fuel_admm, emissions_admm  # Force dep
 
     theta_test = {
-        k: v.detach() for k, v in history_admm["param"][iteration].items()
+        k: v.detach().clone() + 1.0 for k, v in history_admm["param"][iteration].items()
     }
 
     # problem_admm.initialize_parameters(None)
@@ -359,29 +393,24 @@ def __(layer_cvx, problem_cvx, theta_test):
 
 
 @app.cell
-def __(
-    full_cost,
-    history_admm,
-    iteration,
-    layer_admm,
-    problem_admm,
-    theta_test,
-):
+def __(full_cost, history_admm, iteration, layer_admm, theta_test):
     extra_unroll = False
-    num_unroll_iterations = 500
+    num_unroll_iterations = 250
 
     layer_admm.warm_start = False
     layer_admm.verbose = True
 
-    layer_admm.solver.verbose = False
+    layer_admm.solver.verbose = True
     layer_admm.solver.scale_dual_residuals = True
-    layer_admm.solver.minimum_iterations = 500
+    layer_admm.solver.minimum_iterations = 250
     layer_admm.solver.num_iterations = 1000
-    layer_admm.solver.atol = 0.0
-    layer_admm.solver.rtol = 5e-4
 
-    layer_admm.solver.rho_power = problem_admm.rho_history[iteration + 1]
-    layer_admm.solver.rho_angle = 0.5 * layer_admm.solver.rho_power
+    layer_admm.solver.atol = 1e-3
+    layer_admm.solver.rtol = 1e-3
+    layer_admm.solver.angle_converges_separately = True
+
+    layer_admm.solver.rho_power = 1.0  # problem_admm.rho_power_history[iteration + 1]
+    layer_admm.solver.rho_angle = 1.0  # problem_admm.rho_angle_history[iteration + 1]
     layer_admm.solver.relative_rho_angle = False
 
     layer_admm.solver.adaptive_rho = True
@@ -390,8 +419,8 @@ def __(
     layer_admm.solver.tau = 1.1
 
     layer_admm.solver.battery_window = 24
-    layer_admm.solver.battery_inner_over_relaxation = 1.0
-    layer_admm.solver.battery_inner_weight = 1.0
+    layer_admm.solver.battery_inner_over_relaxation = 1.8
+    layer_admm.solver.battery_inner_weight = 0.5
     layer_admm.solver.battery_inner_iterations = 10
 
     layer_admm.solver.alpha = 1.0
@@ -434,6 +463,18 @@ def __(
     )
 
 
+@app.cell
+def __(layer_admm):
+    layer_admm.devices[-2].rho
+    return
+
+
+@app.cell
+def __(layer_admm, np, y_cvx):
+    y_cvx.problem.value / np.sqrt(layer_admm.solver.num_dc_terminals)
+    return
+
+
 @app.cell(hide_code=True)
 def __(
     full_cost,
@@ -453,7 +494,7 @@ def __(
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(layer_admm, plot_convergence, y_admm, y_cvx):
     y_admm  # Force dependency
     _fig = plot_convergence(
@@ -476,24 +517,12 @@ def __(problem_admm, torch):
     return full_cost,
 
 
-@app.cell
-def __(grad_cvx):
-    grad_cvx["generator"].shape[0]
-    return
-
-
-@app.cell
-def __(grad_cvx):
-    len(grad_cvx.keys())
-    return
-
-
 @app.cell(hide_code=True)
-def __(clip_size, np, plt, torch):
-    def grad_plot(grad_cvx, grad_admm, iter=None, n1=0, n2=None):
-        num_plots = len(grad_cvx.keys())
+def __(clips, np, plt, torch):
+    def grad_plot(grad_cvx, grad_admm, iter=None, n1=0, n2=None, diff=False):
+        num_plots = np.maximum(len(grad_cvx.keys()), 2)
 
-        fig, axes = plt.subplots(num_plots, 1, figsize=(7, 2 * num_plots))
+        fig, axes = plt.subplots(num_plots, 1, figsize=(7, 1.5 * num_plots))
 
         names = ["cvx", "admm"]
         grads = [grad_cvx, grad_admm]
@@ -507,16 +536,28 @@ def __(clip_size, np, plt, torch):
 
             x = np.arange(order.shape[0])
 
-            axes[j].plot(x, grad_cvx[ky].ravel()[order], label="cvx")
-            axes[j].scatter(
-                x,
-                torch.clip(
-                    grad_admm[ky].ravel().cpu()[order], -clip_size, clip_size
-                ),
-                label="admm",
-                c="C1",
-                s=4,
-            )
+            if diff:
+                axes[j].scatter(
+                    x,
+                    torch.clip(
+                        grad_admm[ky].ravel().cpu()[order], -clips[ky], clips[ky]
+                    )
+                    - grad_cvx[ky].ravel()[order],
+                    label="diff",
+                    s=5,
+                )
+
+            else:
+                axes[j].plot(x, grad_cvx[ky].ravel()[order], label="cvx")
+                axes[j].scatter(
+                    x,
+                    torch.clip(
+                        grad_admm[ky].ravel().cpu()[order], -clips[ky], clips[ky]
+                    ),
+                    label="admm",
+                    c="red",
+                    s=5,
+                )
 
             axes[j].set_ylabel(ky, fontsize=10)
             if n2 is not None:
@@ -535,23 +576,11 @@ def __(clip_size, np, plt, torch):
     return grad_plot,
 
 
-@app.cell
-def __(grad_admm):
-    grad_admm["ac_line"].shape[0]
-    return
-
-
-@app.cell
-def __():
-    clip_size = 200.0
-    return clip_size,
-
-
-@app.cell
-def __(clip_size, grad_admm, grad_cvx, layer_admm, torch):
+@app.cell(hide_code=True)
+def __(clips, grad_admm, grad_cvx, layer_admm, torch):
     _subnorms = [
         torch.linalg.vector_norm(
-            torch.clip(grad_admm[k].cpu(), -clip_size, clip_size) - grad_cvx[k], 2
+            torch.clip(grad_admm[k].cpu(), -clips[k], clips[k]) - grad_cvx[k], 2
         )
         for k in grad_admm.keys()
     ]
@@ -562,15 +591,15 @@ def __(clip_size, grad_admm, grad_cvx, layer_admm, torch):
     ]
     _total_grad = torch.linalg.vector_norm(torch.tensor(_subnorms)).item()
 
-    print(f"Tolerance:\t\t\t {layer_admm.solver.rtol:.1e}")
+    print(f"Tolerance:\t\t\t {layer_admm.solver.atol:.1e} / {layer_admm.solver.rtol:.1e}")
     print("Gradient Error:\t\t", _err)
     print("Total Gradient:\t\t", _total_grad)
     return
 
 
 @app.cell(hide_code=True)
-def __(np, y_admm, y_cvx):
-    _nu1 = y_admm.dual_power.detach().cpu()
+def __(layer_admm, np, y_admm, y_cvx):
+    _nu1 = y_admm.dual_power.detach().cpu() * layer_admm.solver.rho_power
     _nu2 = y_cvx.prices
 
     print("Price Error:\t", np.linalg.norm((_nu1 + _nu2).ravel()))
@@ -579,7 +608,30 @@ def __(np, y_admm, y_cvx):
 
 
 @app.cell
-def __(np, y_cvx):
+def __(grad_admm, torch):
+    clips = {k: 10_000.0 * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()}
+    return clips,
+
+
+@app.cell(hide_code=True)
+def __(grad_admm, grad_cvx, grad_plot, iteration):
+    _iter = iteration
+    _fig, _axes = grad_plot(
+        grad_cvx,
+        grad_admm,
+        iter=_iter,
+        diff=False
+    )
+
+    # for _ax in _axes:
+    #     _ax.set_ylim(*_axes[-1].get_ylim())
+
+    _fig
+    return
+
+
+@app.cell(hide_code=True)
+def __(layer_admm, np, y_admm, y_cvx):
     _op = np.linalg.norm
 
     primal_scale_power = _op([_op([_op(pi) for pi in p]) for p in y_cvx.power])
@@ -587,13 +639,15 @@ def __(np, y_cvx):
         [_op([_op(pi) for pi in p]) for p in y_cvx.angle if p is not None]
     )
 
-    dual_scale_power = _op(y_cvx.prices.ravel())
-    dual_scale_angle = _op(
+    dual_scale_power = layer_admm.solver.rho_power * _op(
+        (y_admm.num_terminals * y_admm.dual_power).detach().cpu()
+    )
+    dual_scale_angle = layer_admm.solver.rho_angle * _op(
         [_op([_op(pi) for pi in p]) for p in y_cvx.phase_duals if p is not None]
     )
 
-    print(primal_scale_power, "-", dual_scale_power)
-    print(primal_scale_angle, "-", dual_scale_angle)
+    print("Power:", primal_scale_power, "-", dual_scale_power)
+    print("Angle:", primal_scale_angle, "-", dual_scale_angle)
     return (
         dual_scale_angle,
         dual_scale_power,
@@ -603,15 +657,42 @@ def __(np, y_cvx):
 
 
 @app.cell(hide_code=True)
-def __(grad_admm, grad_cvx, grad_plot, iteration):
-    _iter = iteration
-    _fig, _axes = grad_plot(
-        grad_cvx,
-        grad_admm,
-        iter=_iter,  # n2=50
-    )
+def __():
+    # _rhop = 1.0
+    # _rhov = 1.0
+    # _op = np.inf
 
-    _fig
+    # x1, v1 = problem_cvx.layer.devices[3].cvx_admm_prox_update(
+    #     _rhop,
+    #     _rhov,
+    #     [p.detach().cpu() for p in y_admm.power[3]],
+    #     [p.detach().cpu() for p in y_admm.phase[3]],
+    #     theta_test["ac_line"].cpu(),
+    # )
+
+    # problem_admm.layer.devices[3].has_changed = True
+    # x2, v2 = problem_admm.layer.devices[3].admm_prox_update(
+    #     _rhop,
+    #     _rhov,
+    #     y_admm.power[3],
+    #     y_admm.phase[3],
+    #     theta_test["ac_line"]
+    # )
+
+    # print(np.linalg.norm((x1[0] - x2[0].detach().cpu().numpy()).ravel(), _op))
+    # print(np.linalg.norm((x1[1] - x2[1].detach().cpu().numpy()).ravel(), _op))
+
+    # print(np.linalg.norm((v1[0] - v2[0].detach().cpu().numpy()).ravel(), _op))
+    # print(np.linalg.norm((v1[1] - v2[1].detach().cpu().numpy()).ravel(), _op))
+
+    # inds = np.argsort(-np.abs((x1[0] - x2[0].detach().cpu().numpy()) ), axis=0)[:10, 4]
+    return
+
+
+@app.cell
+def __():
+    # layer_admm.solver.primal_tol_power, layer_admm.solver.dual_tol_power
+    # layer_admm.solver.primal_tol_angle, layer_admm.solver.dual_tol_angle
     return
 
 

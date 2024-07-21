@@ -286,7 +286,7 @@ class Battery(AbstractDevice):
 
         # Variable data that changes between solves
         if self.has_changed:
-            self.has_changed = False
+            print("Changing battery data.")
 
             smax = torch.multiply(power_capacity, self.duration)
             gamma1 = torch.multiply(self.initial_soc, smax)
@@ -294,15 +294,28 @@ class Battery(AbstractDevice):
             ymin, ymax = get_ymin_ymax(T, power_capacity, smax, gamma1, gammaT, machine, dtype)
             A = A_matrix(T, machine, dtype=dtype)
             b = b_vector(self, T, machine)
-            self.temp_data = (smax, gamma1, gammaT, ymin, ymax, A, b)
+
+            _zT = power[0].reshape(-1, num_scenarios, T, 1)
+            _rhs = K_rhs_fixed(rho_power, A, b, _zT)
+            zero_nu = torch.zeros(
+                (_rhs.shape[0], _rhs.shape[1], T, _rhs.shape[3]), device=machine, dtype=dtype
+            )
+
+            self.temp_data = (smax, gamma1, gammaT, ymin, ymax, A, b, zero_nu)
 
         if self.has_changed or self.rho != rho_power:
             # print("Updating battery Schur matrix.")
             self.rho = rho_power
             self.schur = schur_matrix(self, T, rho_power, inner_weight, machine)
+            # _K = K_matrix(self, T, rho_power, inner_weight, machine)
+            # self.K_inv = torch.linalg.inv(_K)
 
+        self.has_changed = False
+
+        # schur = self.schur
+        # K_inv = self.K_inv
         schur = self.schur
-        smax, gamma1, gammaT, ymin, ymax, A, b = self.temp_data
+        smax, gamma1, gammaT, ymin, ymax, A, b, zero_nu = self.temp_data
 
         # Changes every proximal evaluation
         zT = power[0].reshape(-1, num_scenarios, T, 1)
@@ -419,6 +432,7 @@ def K_rhs_fixed(rho, A, b, z):
 def battery_prox_inner(x, y, u, rhs, schur, ymin, ymax, w: float, alpha: float = 1.0):
     # x update
     rhs_var = rhs + w * (y - u)
+
     # full_rhs = torch.cat([rhs_var, zero_nu], dim=2)
     # x = (K_inv @ full_rhs)[:, :, : x.shape[2], :]
     x = schur @ rhs_var

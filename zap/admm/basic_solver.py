@@ -213,9 +213,9 @@ class ADMMSolver:
 
             self.update_history(history, st, last_avg_phase, last_resid_power, nu_star)
 
-            if iteration + 1 >= self.minimum_iterations and self.has_converged(
-                st, history, num_contingencies
-            ):
+            self.converged = self.has_converged(st, history, num_contingencies)
+            if iteration + 1 >= self.minimum_iterations and self.converged:
+                print(f"ADMM converged in {len(history.power)} iterations.")
                 break  # Quit early
 
             if self.adaptive_rho and self.iteration % self.adaptation_frequency == 0:
@@ -416,6 +416,7 @@ class ADMMSolver:
 
     def has_converged(self, st: ADMMState, history: ADMMState, num_cont: int):
         p = 2 if self.resid_norm is None else self.resid_norm
+        rho_power, rho_angle = self.get_rho()
 
         # Absolute component
         primal_tol_power = self.atol * np.power(self.num_dc_terminals * (num_cont + 1), 1 / p)
@@ -430,11 +431,13 @@ class ADMMSolver:
         if self.rtol > 0.0:  # We add this check so we don't waste time computing norms
             primal_tol_power += self.rtol * nested_norm(st.power, p).item()
             dual_tol_power += (
-                self.rtol * torch.linalg.norm((st.num_terminals * st.avg_power).ravel(), p).item()
+                self.rtol
+                * rho_power
+                * torch.linalg.norm((st.num_terminals * st.dual_power).ravel(), p).item()
             )
 
             primal_tol_angle += self.rtol * nested_norm(st.phase, p).item()
-            dual_tol_angle += self.rtol * nested_norm(st.dual_phase, p).item()
+            dual_tol_angle += self.rtol * rho_angle * nested_norm(st.dual_phase, p).item()
 
         # Track tolerances
         self.primal_tol_power = primal_tol_power
@@ -445,7 +448,7 @@ class ADMMSolver:
         self.dual_tol = dual_tol_power + dual_tol_angle
 
         if self.angle_converges_separately:
-            self.converged = (
+            converged = (
                 history.power[-1] < primal_tol_power
                 and history.phase[-1] < primal_tol_angle
                 and history.dual_power[-1] < dual_tol_power
@@ -454,10 +457,9 @@ class ADMMSolver:
         else:
             primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
             dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
-            self.converged = (primal_resid < self.primal_tol) and (dual_resid < self.dual_tol)
+            converged = (primal_resid < self.primal_tol) and (dual_resid < self.dual_tol)
 
-        if self.converged:
-            print(f"ADMM converged in {len(history.power)} iterations.")
+        if converged:
             return True
         else:
             return False
@@ -465,6 +467,10 @@ class ADMMSolver:
     def adjust_rho(self, st: ADMMState, history: ADMMState):
         primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
         dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+
+        # Scale by tolerances
+        primal_resid /= self.primal_tol
+        dual_resid /= self.dual_tol
 
         old_rho = self.rho_power
         self.rho_power = self.tweak_rho(
@@ -490,6 +496,10 @@ class ADMMSolver:
         primal_resid, dual_resid = history.power[-1], history.dual_power[-1]
         old_rho = self.rho_power
 
+        # Scale by tolerances
+        primal_resid /= self.primal_tol_power
+        dual_resid /= self.dual_tol_power
+
         self.rho_power = self.tweak_rho(old_rho, primal_resid, dual_resid, name="power")
         if self.rho_power != old_rho:
             st = st.update(dual_power=st.dual_power * (old_rho / self.rho_power))
@@ -497,6 +507,10 @@ class ADMMSolver:
         # Now adjust angle
         primal_resid, dual_resid = history.phase[-1], history.dual_phase[-1]
         old_rho = self.rho_angle
+
+        # Scale by tolerances
+        primal_resid /= self.primal_tol_angle
+        dual_resid /= self.dual_tol_angle
 
         self.rho_angle = self.tweak_rho(old_rho, primal_resid, dual_resid, name="angle")
         if self.rho_angle != old_rho:

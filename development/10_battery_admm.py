@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.4.3"
+__generated_with = "0.7.1"
 app = marimo.App()
 
 
@@ -103,12 +103,6 @@ def __(devices, time_horizon):
 
     print(N)
     return N, T, battery, battery_cpu
-
-
-@app.cell
-def __():
-    rho = 2.0
-    return rho,
 
 
 @app.cell
@@ -397,13 +391,14 @@ def __(
     battery_prox_data,
     power_capacity,
     rho,
+    window,
     z_torch,
 ):
-    data = battery_prox_data(24, battery, rho, z_torch, admm_weight, power_capacity)
+    data = battery_prox_data(window, battery, rho, z_torch, admm_weight, power_capacity)
     return data,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(battery_prox_inner, torch):
     def battery_prox_admm(
         T,
@@ -509,12 +504,13 @@ def __(
     rho,
     time,
     torch,
+    window,
     z_torch,
 ):
     _start_time = time.time()
 
     c_ad, d_ad, s_ad = battery_prox_admm(
-        24, rho, z_torch, num_iterations=num_admm_iter, weight=admm_weight,
+        window, rho, z_torch, num_iterations=num_admm_iter, weight=admm_weight,
         power_capacity=power_capacity,
         data=data,
         over_relaxation=over_relaxation_weight
@@ -528,7 +524,7 @@ def __(
     return c_ad, d_ad, s_ad
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(c_ad, d_ad, s_ad):
     c_admm = c_ad.detach().to("cpu").numpy()
     d_admm = d_ad.detach().to("cpu").numpy()
@@ -539,10 +535,49 @@ def __(c_ad, d_ad, s_ad):
 
 @app.cell
 def __():
-    num_admm_iter = 25
-    admm_weight = 1.0
-    over_relaxation_weight = 1.7
+    rho = 2.0
+    return rho,
+
+
+@app.cell
+def __(rho):
+    num_admm_iter = 30
+    admm_weight = rho / 2.0
+    over_relaxation_weight = 1.8
     return admm_weight, num_admm_iter, over_relaxation_weight
+
+
+@app.cell(hide_code=True)
+def __(
+    admm_weight,
+    battery,
+    num_admm_iter,
+    over_relaxation_weight,
+    rho,
+    window,
+    z_torch,
+):
+    battery.has_changed = True
+
+    p_admm_2, _ = battery.admm_prox_update(
+        rho,
+        None,
+        [z_torch],
+        None,
+        inner_weight=admm_weight / rho,
+        inner_over_relaxation=over_relaxation_weight,
+        inner_iterations=num_admm_iter,
+        window=window,
+    )
+
+    p_admm_2 = p_admm_2[0].detach().cpu().numpy()
+    return p_admm_2,
+
+
+@app.cell
+def __(np, p_admm, p_admm_2):
+    np.linalg.norm((p_admm - p_admm_2).ravel(), 1)
+    return
 
 
 @app.cell
@@ -565,6 +600,7 @@ def __(
     np,
     num_scenarios,
     p_admm,
+    p_admm_2,
     p_cvx,
     plt,
     s_admm,
@@ -574,6 +610,9 @@ def __(
 
     print("Absolute Error:", np.sum(np.abs(p_admm - p_cvx)))
     print("Relative Error:", np.sum(np.abs(p_admm - p_cvx)) / np.sum(np.abs(p_cvx)))
+
+    print("\nV2 Absolute Error:", np.sum(np.abs(p_admm_2 - p_cvx)))
+    print("V2 Relative Error:", np.sum(np.abs(p_admm_2 - p_cvx)) / np.sum(np.abs(p_cvx)))
 
     _smax = battery_cpu.power_capacity[_ind] * battery_cpu.duration[_ind]
     _s0 = battery_cpu.initial_soc[_ind] * _smax
@@ -586,7 +625,7 @@ def __(
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(
     battery_cpu,
     c_admm,

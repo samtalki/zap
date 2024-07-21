@@ -171,17 +171,17 @@ class Transporter(AbstractDevice):
         angle_weights=None,
     ):
         assert angle is None
-        machine, dtype = power[0].device, power[0].dtype
+        # machine, dtype = power[0].device, power[0].dtype
         nominal_capacity = self.parameterize(nominal_capacity=nominal_capacity)
 
         quadratic_cost = 0.0 if self.quadratic_cost is None else self.quadratic_cost
         pmax = torch.multiply(self.max_power, nominal_capacity) + self.slack
         pmin = torch.multiply(self.min_power, nominal_capacity) - self.slack
 
-        if power_weights is None:
-            power_weights = [torch.tensor(1.0, device=machine, dtype=dtype) for _ in power]
+        # if power_weights is None:
+        #     power_weights = [torch.tensor(1.0, device=machine, dtype=dtype) for _ in power]
 
-        Dp2 = [torch.pow(p, 2) for p in power_weights]
+        # Dp2 = [torch.pow(p, 2) for p in power_weights]
 
         # TODO
         # This shouldn't be too hard, we just solve the two cases (p1 < 0) and (p1 > 0)
@@ -208,10 +208,10 @@ class Transporter(AbstractDevice):
         #     p1 = (rho D1^2 power1 - rho D0^2 power0 - b sign(p1)) / (2 a + rho D0^2 + rho D1^2)
 
         # Default is sign(num) = +1.0
-        num = rho_power * (Dp2[1] * power[1] - Dp2[0] * power[0]) - self.linear_cost
+        num = rho_power * (power[1] - power[0]) - self.linear_cost
 
         # This term is always positive, so we can pick it after choosing the sign
-        denom = 2 * quadratic_cost + rho_power * (Dp2[0] + Dp2[1])
+        denom = 2 * (quadratic_cost + rho_power)
         p1 = torch.divide(num, denom)
 
         # Finally, we project onto the box constraints

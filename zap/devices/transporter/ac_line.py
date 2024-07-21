@@ -229,7 +229,7 @@ class ACLine(PowerLine):
         ]
 
         prob = cp.Problem(cp.Minimize(objective), constraints)
-        prob.solve(solver=cp.MOSEK)
+        prob.solve(solver=cp.MOSEK, verbose=True)
 
         return [p0.value, p1.value], [theta0.value, theta1.value]
 
