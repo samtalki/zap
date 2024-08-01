@@ -94,6 +94,7 @@ class AbstractPlanningProblem:
         batch_size=None,
         batch_strategy="sequential",
         verbosity=10,
+        init_full_loss=True,
     ):
         if algorithm is None:
             algorithm = GradientDescent()
@@ -118,7 +119,8 @@ class AbstractPlanningProblem:
 
         # Run full forward pass to initialize everything
         # TODO - We evaluate the full loss twice :/
-        self(**state)
+        if init_full_loss:
+            self.forward(**state)
 
         # Initialize loop
         self.iteration = 0

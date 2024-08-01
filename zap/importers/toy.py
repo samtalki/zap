@@ -2,9 +2,49 @@ import numpy as np
 from typing import Tuple
 
 from zap.network import PowerNetwork
-from zap.devices import AbstractDevice, Generator, Load, DCLine, ACLine, Battery
+from zap.devices import AbstractDevice, Generator, Load, DCLine, ACLine, Battery, Ground
 
 TestCase = Tuple[PowerNetwork, list[AbstractDevice]]
+
+
+def load_battery_network(mode="unique") -> TestCase:
+    net = PowerNetwork(1)
+
+    # One load
+    loads = Load(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0]),
+        load=np.array([[10.0, 20.0, 80.0]]),
+        linear_cost=np.array([100.0]),
+    )
+
+    # One battery
+    batteries = Battery(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0]),
+        power_capacity=np.array([10.0]),
+        duration=np.array([4.0]),
+        linear_cost=np.array([0.0]),
+        capital_cost=np.array([15.0]),
+    )
+
+    # Two generators
+    generators = Generator(
+        num_nodes=net.num_nodes,
+        terminal=np.array([0, 0]),
+        dynamic_capacity=np.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]),
+        linear_cost=np.array([1.0, 30.0]),
+        nominal_capacity=np.array([15.0, 100.0]),
+        capital_cost=np.array([25.0, 5.0]),
+        emission_rates=np.array([0.0, 0.5]),
+    )
+
+    # One ground
+    ground = Ground(num_nodes=net.num_nodes, terminal=np.array([0]))
+
+    devices = [generators, loads, batteries, ground]
+
+    return net, devices
 
 
 def load_test_network(num_nodes: int = 7, line_type=ACLine) -> TestCase:
