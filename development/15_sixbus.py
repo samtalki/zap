@@ -130,7 +130,7 @@ def __(mo):
 
 
 @app.cell
-def __(runner):
+def __(zap):
     # net, devices = zap.importers.load_garver_network(line_slack=2.0, init_solar=50.0)
 
     # devices[2].nominal_capacity += 1.0
@@ -145,17 +145,27 @@ def __(runner):
     # for d in devices:
     #     d.scale_power(100.0)
 
-    _config = runner.expand_config(
-        runner.load_config("experiments/config/test_gpu_v09.yaml")
-    )[0]
-    # _config["data"]["use_batteries"] = False
-    _config["data"]["args"]["cost_unit"] = 100.0
+    # ----
 
-    _dataset = runner.load_dataset(**_config["data"])
+    # _config = runner.expand_config(
+    #     runner.load_config("experiments/config/test_gpu_v09.yaml")
+    # )[0]
+    # # _config["data"]["use_batteries"] = False
+    # _config["data"]["args"]["cost_unit"] = 100.0
 
-    net, devices = _dataset["net"], _dataset["devices"]
-    # devices[3].susceptance *= 100.0
-    return devices, net
+    # _dataset = runner.load_dataset(**_config["data"])
+
+    # net, devices = _dataset["net"], _dataset["devices"]
+
+    # # devices[4].linear_cost += 0.005
+    # # devices = [devices[i] for i in [0, 1, 4, 5]]
+    # # devices[3].susceptance *= 100.0
+
+    net, devices = zap.importers.load_battery_network()
+
+    for d in devices:
+        print(type(d))
+    return d, devices, net
 
 
 @app.cell
@@ -350,7 +360,7 @@ def __(mo):
 
 @app.cell
 def __():
-    iteration = 0
+    iteration = 3
     return iteration,
 
 
@@ -406,8 +416,8 @@ def __(full_cost, history_admm, iteration, layer_admm, theta_test):
     layer_admm.solver.num_iterations = 1000
 
     layer_admm.solver.atol = 1e-3
-    layer_admm.solver.rtol = 1e-3
-    layer_admm.solver.angle_converges_separately = True
+    layer_admm.solver.rtol = 0.0  # 1e-3
+    layer_admm.solver.angle_converges_separately = False  # True
 
     layer_admm.solver.rho_power = 1.0  # problem_admm.rho_power_history[iteration + 1]
     layer_admm.solver.rho_angle = 1.0  # problem_admm.rho_angle_history[iteration + 1]
@@ -519,7 +529,16 @@ def __(problem_admm, torch):
 
 @app.cell(hide_code=True)
 def __(clips, np, plt, torch):
-    def grad_plot(grad_cvx, grad_admm, iter=None, n1=0, n2=None, diff=False):
+    def grad_plot(
+        grad_cvx,
+        grad_admm,
+        iter=None,
+        n1=0,
+        n2=None,
+        diff=False,
+        title="Gradients",
+        should_clip=False,
+    ):
         num_plots = np.maximum(len(grad_cvx.keys()), 2)
 
         fig, axes = plt.subplots(num_plots, 1, figsize=(7, 1.5 * num_plots))
@@ -549,11 +568,16 @@ def __(clips, np, plt, torch):
 
             else:
                 axes[j].plot(x, grad_cvx[ky].ravel()[order], label="cvx")
+                if should_clip:
+                    dx = torch.clip(
+                        grad_admm[ky].ravel().cpu()[order], -clips[ky], clips[ky]
+                    )
+                else:
+                    dx = grad_admm[ky].ravel().cpu()[order]
+
                 axes[j].scatter(
                     x,
-                    torch.clip(
-                        grad_admm[ky].ravel().cpu()[order], -clips[ky], clips[ky]
-                    ),
+                    dx,
                     label="admm",
                     c="red",
                     s=5,
@@ -567,9 +591,9 @@ def __(clips, np, plt, torch):
         # axes[0].set_ylim(-5, 5)
 
         if iter is None:
-            fig.suptitle("Gradients")
+            fig.suptitle(f"{title}")
         else:
-            fig.suptitle(f"Gradients on iteration {iter}", fontsize=10)
+            fig.suptitle(f"{title} on iteration {iter}", fontsize=10)
         fig.tight_layout()
 
         return fig, axes
@@ -609,18 +633,45 @@ def __(layer_admm, np, y_admm, y_cvx):
 
 @app.cell
 def __(grad_admm, torch):
-    clips = {k: 10_000.0 * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()}
+    clips = {k: 10.0 * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()}
     return clips,
 
 
+@app.cell
+def __(devices):
+    z = devices[0]
+    return z,
+
+
 @app.cell(hide_code=True)
+def __(devices, grad_plot, iteration, torch, y_admm, y_cvx):
+    _iter = iteration
+    _fig, _axes = grad_plot(
+        {
+            f"{type(devices[i]).__name__}": torch.Tensor(y_cvx.power[i][0])
+            for i in range(len(devices))
+        },
+        {
+            f"{type(devices[i]).__name__}": y_admm.power[i][0].detach()
+            for i in range(len(devices))
+        },
+        iter=_iter,
+        diff=False,
+        title="Variable"
+    )
+    _fig
+    return
+
+
+@app.cell
 def __(grad_admm, grad_cvx, grad_plot, iteration):
     _iter = iteration
     _fig, _axes = grad_plot(
         grad_cvx,
         grad_admm,
         iter=_iter,
-        diff=False
+        diff=False,
+        should_clip=True,
     )
 
     # for _ax in _axes:
