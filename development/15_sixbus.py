@@ -130,7 +130,17 @@ def __(mo):
 
 
 @app.cell
-def __(zap):
+def __(runner):
+    _config = runner.expand_config(
+        runner.load_config("experiments/config/test_gpu_v09.yaml")
+    )[0]
+    _dataset = runner.load_dataset(**_config["data"])
+    _dataset["devices"][0].linear_cost
+    return
+
+
+@app.cell
+def __(runner):
     # net, devices = zap.importers.load_garver_network(line_slack=2.0, init_solar=50.0)
 
     # devices[2].nominal_capacity += 1.0
@@ -147,21 +157,29 @@ def __(zap):
 
     # ----
 
-    # _config = runner.expand_config(
-    #     runner.load_config("experiments/config/test_gpu_v09.yaml")
-    # )[0]
-    # # _config["data"]["use_batteries"] = False
-    # _config["data"]["args"]["cost_unit"] = 100.0
+    _config = runner.expand_config(
+        runner.load_config("experiments/config/test_gpu_v09.yaml")
+    )[0]
+    # _config["data"]["use_batteries"] = False
+    _config["data"]["args"]["cost_unit"] = 100.0
 
-    # _dataset = runner.load_dataset(**_config["data"])
+    _dataset = runner.load_dataset(**_config["data"])
 
-    # net, devices = _dataset["net"], _dataset["devices"]
+    net, devices = _dataset["net"], _dataset["devices"]
 
-    # # devices[4].linear_cost += 0.005
-    # # devices = [devices[i] for i in [0, 1, 4, 5]]
-    # # devices[3].susceptance *= 100.0
+    devices[4].linear_cost += 0.005
+    # devices = [devices[i] for i in [0, 1, 4, 5]]
+    devices[-2].initial_soc *= 0.0
+    devices[-2].final_soc *= 0.0
 
-    net, devices = zap.importers.load_battery_network()
+    # devices[3].susceptance *= 100.0
+
+    # ----
+
+    # net, devices = zap.importers.load_battery_network(battery_discharge_cost=1.0)
+
+    # devices[2].initial_soc *= 0.0
+    # devices[2].final_soc *= 0.0
 
     for d in devices:
         print(type(d))
@@ -187,14 +205,14 @@ def __(common_params, devices, net, runner):
 
 
 @app.cell
-def __():
+def __(devices, np):
     admm_args = {
         "machine": "cuda",
-        "num_iterations": 5000,
+        "num_iterations": 500,
         "minimum_iterations": 250,
         "atol": 1.0e-3,
         "verbose": False,
-        "battery_window": 24,
+        "battery_window": np.minimum(24, devices[0].time_horizon),
         "alpha": 1.0,
         "relative_rho_angle": False,
         "rho_power": 1.0,  # / 100.0,
@@ -360,7 +378,7 @@ def __(mo):
 
 @app.cell
 def __():
-    iteration = 3
+    iteration = 10
     return iteration,
 
 
@@ -369,7 +387,7 @@ def __(emissions_admm, fuel_admm, history_admm, iteration):
     fuel_admm, emissions_admm  # Force dep
 
     theta_test = {
-        k: v.detach().clone() + 1.0 for k, v in history_admm["param"][iteration].items()
+        k: v.detach().clone() for k, v in history_admm["param"][iteration].items()
     }
 
     # problem_admm.initialize_parameters(None)
@@ -403,7 +421,15 @@ def __(layer_cvx, problem_cvx, theta_test):
 
 
 @app.cell
-def __(full_cost, history_admm, iteration, layer_admm, theta_test):
+def __(
+    devices,
+    full_cost,
+    history_admm,
+    iteration,
+    layer_admm,
+    np,
+    theta_test,
+):
     extra_unroll = False
     num_unroll_iterations = 250
 
@@ -419,7 +445,7 @@ def __(full_cost, history_admm, iteration, layer_admm, theta_test):
     layer_admm.solver.rtol = 0.0  # 1e-3
     layer_admm.solver.angle_converges_separately = False  # True
 
-    layer_admm.solver.rho_power = 1.0  # problem_admm.rho_power_history[iteration + 1]
+    layer_admm.solver.rho_power = 5.0  # problem_admm.rho_power_history[iteration + 1]
     layer_admm.solver.rho_angle = 1.0  # problem_admm.rho_angle_history[iteration + 1]
     layer_admm.solver.relative_rho_angle = False
 
@@ -428,7 +454,7 @@ def __(full_cost, history_admm, iteration, layer_admm, theta_test):
     layer_admm.solver.adaptation_frequency = 50
     layer_admm.solver.tau = 1.1
 
-    layer_admm.solver.battery_window = 24
+    layer_admm.solver.battery_window = np.minimum(24, devices[0].time_horizon)
     layer_admm.solver.battery_inner_over_relaxation = 1.8
     layer_admm.solver.battery_inner_weight = 0.5
     layer_admm.solver.battery_inner_iterations = 10
@@ -632,15 +658,21 @@ def __(layer_admm, np, y_admm, y_cvx):
 
 
 @app.cell
-def __(grad_admm, torch):
-    clips = {k: 10.0 * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()}
+def __(grad_admm, np, torch):
+    clips = {k: np.inf * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()}
     return clips,
 
 
 @app.cell
-def __(devices):
-    z = devices[0]
-    return z,
+def __(y_admm):
+    y_admm.power[0][0], y_admm.power[2][0]
+    return
+
+
+@app.cell
+def __(y_cvx):
+    y_cvx.power[0][0], y_cvx.power[2][0]
+    return
 
 
 @app.cell(hide_code=True)
@@ -663,7 +695,7 @@ def __(devices, grad_plot, iteration, torch, y_admm, y_cvx):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(grad_admm, grad_cvx, grad_plot, iteration):
     _iter = iteration
     _fig, _axes = grad_plot(
@@ -678,6 +710,18 @@ def __(grad_admm, grad_cvx, grad_plot, iteration):
     #     _ax.set_ylim(*_axes[-1].get_ylim())
 
     _fig
+    return
+
+
+@app.cell
+def __(grad_admm):
+    grad_admm
+    return
+
+
+@app.cell
+def __(grad_cvx):
+    grad_cvx
     return
 
 

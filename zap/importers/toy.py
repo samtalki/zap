@@ -7,14 +7,17 @@ from zap.devices import AbstractDevice, Generator, Load, DCLine, ACLine, Battery
 TestCase = Tuple[PowerNetwork, list[AbstractDevice]]
 
 
-def load_battery_network(mode="unique") -> TestCase:
+def load_battery_network(
+    mode="unique",
+    battery_discharge_cost=0.0,
+) -> TestCase:
     net = PowerNetwork(1)
 
     # One load
     loads = Load(
         num_nodes=net.num_nodes,
         terminal=np.array([0]),
-        load=np.array([[10.0, 20.0, 80.0]]),
+        load=np.array([[10.0, 13.0, 80.0]]),
         linear_cost=np.array([100.0]),
     )
 
@@ -24,7 +27,7 @@ def load_battery_network(mode="unique") -> TestCase:
         terminal=np.array([0]),
         power_capacity=np.array([10.0]),
         duration=np.array([4.0]),
-        linear_cost=np.array([0.0]),
+        linear_cost=np.array([battery_discharge_cost]),
         capital_cost=np.array([15.0]),
     )
 
@@ -33,7 +36,7 @@ def load_battery_network(mode="unique") -> TestCase:
         num_nodes=net.num_nodes,
         terminal=np.array([0, 0]),
         dynamic_capacity=np.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]),
-        linear_cost=np.array([1.0, 30.0]),
+        linear_cost=np.array([[1.0, 1.2, 1.4], [30.0, 30.3, 30.6]]),
         nominal_capacity=np.array([15.0, 100.0]),
         capital_cost=np.array([25.0, 5.0]),
         emission_rates=np.array([0.0, 0.5]),
