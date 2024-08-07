@@ -1,8 +1,6 @@
 # Basic config
-# Check: battery inner iterations, battery inner weight, adaptation frequency
 
 ---
-tags: []
 
 system:
   threads: 16
@@ -36,31 +34,7 @@ data:
     drop_empty_generators: false
     expand_empty_generators: 0.5  # MW
 
-problem:
-  stochastic: true
-  hours_per_scenario: 192
-  cost_weight: 1.0
-  emissions_weight: 200.0  # $ / ton CO2
-  regularize: 1.0e-6  # Jacobian regularization
-  parameters: [generator, dc_line, ac_line, battery]
-
-optimizer:
-  name: gradient_descent
-  num_iterations: 1000
-  initial_state: initial
-  use_wandb: true
-  log_wandb_every: 1
-  checkpoint_every: 1
-  parallel: false
-  batch_size: 1
-  num_parallel_workers: 8
-  track_full_loss_every: 25
-  args:
-    step_size: [expand, 1.0, 1.0e-1]
-    clip: 5000.0
-
 layer:
-  use_admm: true
   adapt_rho: false
   adapt_rho_rate: 1.0
   args:
@@ -78,18 +52,10 @@ layer:
     atol: 1.0e-3
     rho_power: 1.0
     rho_angle: 1.0
-    alpha: 1.0 # 1.1, 1.5
+    alpha: 1.0
     adaptive_rho: true
     adaptation_tolerance: 2.0
     adaptation_frequency: 10  # 20, 50
-    tau: 1.0  #  <--- fix
+    tau: 1.0  # 1.1, 1.5
     battery_inner_iterations: [expand, 10, 20]
     battery_inner_weight: [expand, 1.0, 0.5]
-
-
-
-
-relaxation:
-  should_solve: false
-  price_bound: 50.0  # In scaled units
-  inf_value: 50.0  # Relative to maximum lower bound of that device type

@@ -208,7 +208,14 @@ def parse_ac_lines(
 
 
 def parse_batteries(
-    net: pypsa.Network, dates, *, battery_discharge_cost, cost_per_battery_mw, cost_per_battery_mwh
+    net: pypsa.Network,
+    dates,
+    *,
+    battery_discharge_cost,
+    cost_per_battery_mw,
+    cost_per_battery_mwh,
+    battery_init_soc,
+    battery_final_soc,
 ):
     buses, buses_to_index = parse_buses(net)
     terminals = net.storage_units.bus.replace(buses_to_index).values.astype(int)
@@ -224,6 +231,8 @@ def parse_batteries(
         charge_efficiency=net.storage_units.efficiency_dispatch.values,
         linear_cost=battery_discharge_cost * np.ones(terminals.size),
         capital_cost=capital_cost * (len(dates) / HOURS_PER_YEAR),
+        initial_soc=battery_init_soc * np.ones(duration.size),
+        final_soc=battery_final_soc * np.ones(duration.size),
     )
 
 
@@ -232,6 +241,8 @@ def load_pypsa_network(
     dates,
     seed=0,
     battery_discharge_cost=0.0,
+    battery_init_soc=0.5,
+    battery_final_soc=0.5,
     ac_transmission_cost=0.0,
     generator_cost_perturbation=0.0,
     load_cost_perturbation=0.0,
@@ -288,6 +299,8 @@ def load_pypsa_network(
             battery_discharge_cost=battery_discharge_cost,
             cost_per_battery_mw=cost_per_battery_mw,
             cost_per_battery_mwh=cost_per_battery_mwh,
+            battery_init_soc=battery_init_soc,
+            battery_final_soc=battery_final_soc,
         ),
     ]
 

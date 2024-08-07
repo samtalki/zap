@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.6.17"
+__generated_with = "0.7.1"
 app = marimo.App()
 
 
@@ -22,19 +22,23 @@ def __():
     import matplotlib.pyplot as plt
     import seaborn
 
-    seaborn.set_theme(style="whitegrid", rc={
-        "font.size" : 10,
-        "axes.labelsize": 10,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        # "axes.ticksize": 8,
-    })
+    seaborn.set_theme(
+        style="whitegrid",
+        rc={
+            "font.size": 10,
+            "axes.labelsize": 10,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            # "axes.ticksize": 8,
+        },
+    )
     return plt, seaborn
 
 
 @app.cell
 def __(importlib):
-    from experiments import runner
+    from experiments.plan import runner
+
     _ = importlib.reload(runner)
     return runner,
 
@@ -42,7 +46,7 @@ def __(importlib):
 @app.cell
 def __(runner):
     config_list = runner.expand_config(
-        runner.load_config("experiments/config/test_gpu_v01.yaml")
+        runner.load_config("experiments/plan/config/test_gpu_v10.yaml")
     )
 
     config = config_list[0]
@@ -114,7 +118,9 @@ def __(np, plt):
 
         ax = axes[0]
         if eps_pd is not None:
-            ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+            ax.hlines(
+                eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100
+            )
         ax.plot(hist.power, label="power")
         ax.plot(hist.phase, label="angle")
         ax.set_yscale("log")
@@ -123,7 +129,9 @@ def __(np, plt):
 
         ax = axes[1]
         if eps_pd is not None:
-            ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
+            ax.hlines(
+                eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100
+            )
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
         ax.set_yscale("log")
@@ -155,7 +163,7 @@ def __(np, problem, result):
     # prob1 = problem["stochastic_problem"].subproblems[1]
 
     layer0 = prob0.layer
-    eps_pd= layer0.solver.atol * np.sqrt(layer0.solver.total_terminals)
+    eps_pd = layer0.solver.atol * np.sqrt(layer0.solver.total_terminals)
     s0 = sp[-1].layer.state.copy()
     return eps_pd, layer0, prob0, s0, sp
 
@@ -253,21 +261,27 @@ def __():
 
 @app.cell
 def __(importlib):
-    from experiments import plotter
+    from experiments.plan import plotter
     _ = importlib.reload(plotter)
     return plotter,
 
 
 @app.cell
 def __(json, model_iter, np, problem, torch):
-    with open(f"./data/results/base_v05/000/model_{model_iter:05d}.json", "r") as f:
+    with open(
+        f"./data/results/base_v05/000/model_{model_iter:05d}.json", "r"
+    ) as f:
         model_state = json.load(f)
 
     _ref_shapes = {
-        k: v.shape for k, v in problem["problem"].initialize_parameters(None).items()
+        k: v.shape
+        for k, v in problem["problem"].initialize_parameters(None).items()
     }
     model_state = {
-        k: torch.tensor(np.array(v).reshape(_ref_shapes[k]), device="cuda", dtype=torch.float32) for k, v in model_state.items()
+        k: torch.tensor(
+            np.array(v).reshape(_ref_shapes[k]), device="cuda", dtype=torch.float32
+        )
+        for k, v in model_state.items()
     }
     return f, model_state
 
