@@ -13,12 +13,12 @@ system:
 data:
   name: pypsa
   case: load_medium
+  start_hour: peak_hybrid_day
+  num_nodes: 100
+  num_hours: 24
   add_ground: true
   use_batteries: true
-  num_nodes: 100
   use_extra_components: true
-  start_hour: peak_hybrid_day
-  num_hours: 24
   dont_expand: [hydro, coal, biomass]
   args:
     power_unit: 1000.0  # 1e3 = GW
@@ -86,7 +86,6 @@ layer:
     adaptation_frequency: 50
     tau: 1.1
     verbose: false
-
 
 relaxation:
   should_solve: false

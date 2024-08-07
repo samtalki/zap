@@ -11,18 +11,15 @@ system:
 data:
   name: pypsa
   case: load_medium
+  start_hour: peak_hybrid_day
+  num_nodes: 100
+  num_hours: 24
   add_ground: true
   use_batteries: true
-  num_nodes: 500
   use_extra_components: true
-  start_hour: peak_hybrid_day
-  num_hours: 8640  # days = 360
-  battery_cost_scale: 1.0
-  generator_cost_scale:
-    hydro: 1.0
   dont_expand: [hydro, coal, biomass]
   args:
-    power_unit: 1.0e3  # 1e3 = GW
+    power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
     scale_load: 1.0
@@ -33,29 +30,31 @@ data:
     load_cost_perturbation: 10.0  # MW
     drop_empty_generators: false
     expand_empty_generators: 0.5  # MW
+    battery_discharge_cost: 1.0  # $ / MWh
+    battery_init_soc: 0.0
+    battery_final_soc: 0.0
 
-layer:
-  adapt_rho: false
-  adapt_rho_rate: 1.0
-  args:
-    # Leave alone
-    machine: cuda
-    resid_norm: 2
-    safe_mode: false
-    scale_dual_residuals: true
-    battery_window: 24
-    relative_rho_angle: false
 
-    # Tweak as needed
-    num_iterations: 1000
-    minimum_iterations: 100
-    atol: 1.0e-3
-    rho_power: 1.0
-    rho_angle: 1.0
-    alpha: 1.0
-    adaptive_rho: true
-    adaptation_tolerance: 2.0
-    adaptation_frequency: 10  # 20, 50
-    tau: 1.0  # 1.1, 1.5
-    battery_inner_iterations: [expand, 10, 20]
-    battery_inner_weight: [expand, 1.0, 0.5]
+solver: admm
+admm_args:
+  # Leave alone
+  machine: cuda
+  resid_norm: 2
+  safe_mode: false
+  scale_dual_residuals: true
+  battery_window: 24
+  relative_rho_angle: false
+
+  # Tweak as needed
+  num_iterations: 1000
+  minimum_iterations: 100
+  atol: 1.0e-3
+  rho_power: 1.0
+  rho_angle: 1.0
+  alpha: 1.0
+  adaptive_rho: true
+  adaptation_tolerance: 2.0
+  adaptation_frequency: 10  # 20, 50
+  tau: 1.0  # 1.1, 1.5
+  battery_inner_iterations: [expand, 10, 20]
+  battery_inner_weight: [expand, 1.0, 0.5]

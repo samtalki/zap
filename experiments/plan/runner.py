@@ -265,7 +265,7 @@ def setup_pypysa_dataset(
     net, devices = zap.importers.load_pypsa_network(pn, hours, **args)
 
     if (not use_batteries) or (num_hours == 1):
-        devices = [d for d in devices if type(d) != zap.Battery]
+        devices = [d for d in devices if type(d) is not zap.Battery]
 
     if add_ground:
         ground = zap.Ground(
@@ -331,7 +331,7 @@ def setup_problem(
 
     # Drop batteries
     if stochastic and hours_per_scenario == 1:
-        devices = [d for d in devices if type(d) != zap.Battery]
+        devices = [d for d in devices if type(d) is not zap.Battery]
 
     if use_admm:
         devices = [d.torchify(machine=args["machine"], dtype=torch_dtype) for d in devices]
@@ -592,6 +592,9 @@ def run_experiment(config):
 
     if "layer" not in config.keys():
         config["layer"] = {}
+
+    if "relaxation" not in config.keys():
+        config["relaxation"] = {"should_solve": False}
 
     # Load data and formulate problem
     data = load_dataset(**config["data"])
