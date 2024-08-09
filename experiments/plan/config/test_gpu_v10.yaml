@@ -24,6 +24,7 @@ data:
     power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
+    quadratic_load_cost: 1.0  # $ / MWh^2
     scale_load: 1.0
     scale_generator_capacity_factor: 0.7
     scale_line_capacity_factor: 0.7

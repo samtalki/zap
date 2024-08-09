@@ -687,10 +687,16 @@ class PowerNetwork:
         # TODO - Local objective
 
         # Part 5 - Power (interface)
+        power_hessians = [
+            sp.block_diag(d.hessian_power(p, a, u, **param))  # Block diagonal by terminal
+            for d, p, a, u, param in zip(devices, x.power, x.angle, x.local_variables, parameters)
+        ]
+        H_p = sp.block_diag(power_hessians)
+
+        jac.power.power += H_p
         jac.power.prices = -power_incidence.T
         jac.power.local_equality_duals = A_p.T
         jac.power.local_inequality_duals = C_p.T
-        # TODO - Local objective
 
         # Part 6 - Angle (interface)
         jac.angle.phase_duals = -sp.eye(dims.angle)

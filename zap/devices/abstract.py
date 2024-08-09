@@ -100,6 +100,9 @@ class AbstractDevice:
     def _inequality_matrices(self, inequalities, **kwargs):
         raise NotImplementedError
 
+    def _hessian_power(self, hessians, power, angle, local_vars, **kwargs):
+        return hessians
+
     # ====
     # ADMM Functionality
     # ====
@@ -289,6 +292,11 @@ class AbstractDevice:
             return None
 
     # Differentiation Tools
+
+    def hessian_power(self, power, angle, local_vars, **kwargs):
+        # One Hessian per terminals
+        hessians = [sp.coo_matrix((p.size, p.size)) for p in power]
+        return self._hessian_power(hessians, power, angle, local_vars, **kwargs)
 
     def equality_matrices(self, equalities, power, angle, local_vars, **kwargs):
         equalities = self.get_empty_constraint_matrix(equalities, power, angle, local_vars)

@@ -125,6 +125,7 @@ def parse_loads(
     *,
     load_cost_perturbation,
     marginal_load_value,
+    quadratic_load_cost,
     scale_load,
 ):
     buses, buses_to_index = parse_buses(net)
@@ -135,11 +136,18 @@ def parse_loads(
     load_cost = marginal_load_value * np.ones(net.loads.shape[0])
     load_cost += load_cost_perturbation * rng.random(load_cost.shape)
 
+    # Add quadratic term
+    if quadratic_load_cost == 0.0:
+        quadratic_cost = None
+    else:
+        quadratic_cost = quadratic_load_cost * np.ones_like(load_cost)
+
     return Load(
         num_nodes=len(buses),
         terminal=terminals,
         load=load * scale_load,
         linear_cost=load_cost,
+        quadratic_cost=quadratic_cost,
     )
 
 
@@ -247,6 +255,7 @@ def load_pypsa_network(
     generator_cost_perturbation=0.0,
     load_cost_perturbation=0.0,
     marginal_load_value=1000.0,
+    quadratic_load_cost=0.0,
     drop_empty_generators=True,
     expand_empty_generators=0.0,
     power_unit=1.0,  # MW
@@ -282,6 +291,7 @@ def load_pypsa_network(
             rng,
             load_cost_perturbation=load_cost_perturbation,
             marginal_load_value=marginal_load_value,
+            quadratic_load_cost=quadratic_load_cost,
             scale_load=scale_load,
         ),
         parse_dc_lines(net, dates, scale_line_capacity_factor=scale_line_capacity_factor),

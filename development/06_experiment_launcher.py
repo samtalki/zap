@@ -44,6 +44,12 @@ def __(importlib):
 
 
 @app.cell
+def __():
+    # devices[1].quadratic_cost = (1.0 / 500.0) * devices[1].linear_cost * np.ones_like(devices[1].linear_cost)
+    return
+
+
+@app.cell
 def __(runner):
     config_list = runner.expand_config(
         runner.load_config("experiments/plan/config/test_gpu_v10.yaml")
@@ -318,14 +324,14 @@ def __():
 
 
 @app.cell
-def __(devices, p0, p1, plotter):
-    plotter.capacity_plot(p0, p1, devices)[0]
+def __():
+    # plotter.capacity_plot(p0, p1, devices)[0]
     return
 
 
 @app.cell
-def __(layer, p1, plotter, y1):
-    plotter.stackplot(p1, layer, y1)[0]
+def __():
+    # plotter.stackplot(p1, layer, y1)[0]
     return
 
 

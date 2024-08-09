@@ -77,6 +77,10 @@ class Transporter(AbstractDevice):
             self.max_nominal_capacity /= scale
         self.slack /= scale
 
+        # Invest scaling because term is quadratic
+        if self.quadratic_cost is not None:
+            self.quadratic_cost *= scale
+
     # ====
     # CORE MODELING FUNCTIONS
     # ====

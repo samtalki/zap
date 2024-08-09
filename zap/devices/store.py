@@ -91,6 +91,10 @@ class Battery(AbstractDevice):
         if self.max_power_capacity is not None:
             self.max_power_capacity /= scale
 
+        # Invert scaling because term is quadratic
+        if self.quadratic_cost is not None:
+            self.quadratic_cost *= scale
+
     # ====
     # CORE MODELING FUNCTIONS
     # ====

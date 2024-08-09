@@ -62,6 +62,10 @@ class Injector(AbstractDevice):
     def scale_power(self, scale):
         self.nominal_capacity /= scale
 
+        # Invert scaling because term is quadratic
+        if self.quadratic_cost is not None:
+            self.quadratic_cost *= scale
+
     # ====
     # CORE MODELING FUNCTIONS
     # ====
@@ -114,6 +118,13 @@ class Injector(AbstractDevice):
         inequalities[1].power[0] += sp.eye(size)
         return inequalities
 
+    def _hessian_power(self, hessians, power, angle, _, nominal_capacity=None, la=np):
+        if self.quadratic_cost is None:
+            return hessians
+
+        hessians[0] += 2 * sp.diags((self.quadratic_cost * power[0]).ravel())
+        return hessians
+
     # ====
     # ADMM FUNCTIONS
     # ====
@@ -140,6 +151,7 @@ class Injector(AbstractDevice):
             pmax = torch.multiply(self.max_power, nominal_capacity)
             pmin = torch.multiply(self.min_power, nominal_capacity)
             self.admm_data = (quadratic_cost, pmax, pmin)
+            self.has_changed = False
 
         quadratic_cost, pmax, pmin = self.admm_data
 
@@ -269,12 +281,12 @@ class Load(Injector):
 @torch.jit.script
 def _admm_prox_update(power: list[torch.Tensor], rho: float, lin_cost, quad_cost, pmin, pmax):
     # Problem is
-    #     min_p    a p^2 + b p + (rho / 2) || Dp (p - power) ||_2^2 + {box constraints}
+    #     min_p    a (p - pmin)^2 + b (p - pmin) + (rho / 2) || (p - power) ||_2^2 + {box constraints}
     # Objective derivative is
-    #     2 a p + b +  rho Dp^2 (p - power) = 0
+    #     2 a (p - pmin) + b +  rho (p - power) = 0
     # Which is solved by
-    #     p = (rho Dp^2 power - b) / (2 a + rho Dp^2)
-    num = rho * power[0] - lin_cost
+    #     p = (rho power + 2 a pmin - b) / (2 a + rho )
+    num = rho * power[0] + 2 * quad_cost * pmin - lin_cost
     denom = 2 * quad_cost + rho
     p = torch.divide(num, denom)
 
