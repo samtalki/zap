@@ -129,6 +129,13 @@ class Transporter(AbstractDevice):
 
         return inequalities
 
+    def _hessian_power(self, hessians, power, angle, _, nominal_capacity=None, la=np):
+        if self.quadratic_cost is None:
+            return hessians
+
+        hessians[1] += 2 * sp.diags((self.quadratic_cost * power[1]).ravel())
+        return hessians
+
     # ====
     # PLANNING
     # ====
