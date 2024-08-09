@@ -44,7 +44,7 @@ for i, config in enumerate(config_list):
 
 module load conda
 conda activate $ZAP_ENV
-srun python -u experiments/runner.py {config_path} {i}
+srun python -u experiments/plan/runner.py {config_path} {i}
 """
 
     with open(script_file, "w") as f:
