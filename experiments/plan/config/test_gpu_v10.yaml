@@ -34,6 +34,7 @@ data:
     drop_empty_generators: false
     expand_empty_generators: 0.5  # MW
     battery_discharge_cost: 1.0  # $ / MWh
+    battery_quadratic_discharge_cost: 0.01  # $ / MWh^2
     battery_init_soc: 0.0
     battery_final_soc: 0.0
 
@@ -62,7 +63,7 @@ optimizer:
     clip: 5000.0
 
 layer:
-  use_admm: true
+  use_admm: false
   adapt_rho: false
   adapt_rho_rate: 0.1  # Ignored
   torch_dtype: float32

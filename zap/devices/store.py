@@ -236,6 +236,13 @@ class Battery(AbstractDevice):
 
         return inequalities
 
+    def _hessian_local_variables(self, hessians, power, angle, state, power_capacity=None, la=np):
+        if self.quadratic_cost is None:
+            return hessians
+
+        hessians[2] += 2 * sp.diags((self.quadratic_cost * state.discharge).ravel())
+        return hessians
+
     # ====
     # PLANNING FUNCTIONS
     # ====
@@ -401,6 +408,8 @@ def K_matrix(device: Battery, T, rho, w, machine=None):
     Id = torch.eye(3 * T + 1, device=machine, dtype=dtype)
 
     dKdx = rho * (A.T @ A) + w * Id
+    if device.quadratic_cost is not None:
+        dKdx[2 * T + 1 :, 2 * T + 1 :] += torch.diag(device.quadratic_cost)
 
     row1 = torch.hstack([dKdx, C.T])
     row2 = torch.hstack([C, torch.zeros(T, T, device=machine)])
@@ -417,6 +426,9 @@ def schur_matrix(device, T, rho, w, machine=None):
 
     # Hessian
     H = rho * (A.T @ A) + w * Id
+    if device.quadratic_cost is not None:
+        H[2 * T + 1 :, 2 * T + 1 :] += torch.diag(device.quadratic_cost)
+
     H_inv = torch.linalg.inv(H)
 
     # Reduced terms

@@ -682,9 +682,15 @@ class PowerNetwork:
         jac.local_inequality_duals.local_variables = diag_lamb * C_u
 
         # Part 4 - Local variables (local)
+        local_hessians = [
+            sp.block_diag(d.hessian_local_variables(p, a, u, **param))  # Block diagonal by var
+            for d, p, a, u, param in zip(devices, x.power, x.angle, x.local_variables, parameters)
+        ]
+        H_u = sp.block_diag(local_hessians)
+
+        jac.local_variables.local_variables += H_u
         jac.local_variables.local_equality_duals = A_u.T
         jac.local_variables.local_inequality_duals = C_u.T
-        # TODO - Local objective
 
         # Part 5 - Power (interface)
         power_hessians = [
@@ -699,10 +705,16 @@ class PowerNetwork:
         jac.power.local_inequality_duals = C_p.T
 
         # Part 6 - Angle (interface)
+        angle_hessians = [
+            sp.block_diag(d.hessian_angle(p, a, u, **param))  # Block diagonal by terminal
+            for d, p, a, u, param in zip(devices, x.power, x.angle, x.local_variables, parameters)
+        ]
+        H_a = sp.block_diag(angle_hessians)
+
+        jac.angle.angle += H_a
         jac.angle.phase_duals = -sp.eye(dims.angle)
         jac.angle.local_equality_duals = A_a.T
         jac.angle.local_inequality_duals = C_a.T
-        # TODO - Local objective
 
         # Part 7 - Prices, nu (global)
         # Only participates in the power balance constraint, just a single constraint

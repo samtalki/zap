@@ -38,7 +38,7 @@ def __():
 
 @app.cell
 def __(importlib):
-    from experiments import runner
+    from experiments.plan import runner
 
     _ = importlib.reload(runner)
     return runner,
@@ -93,10 +93,18 @@ def __(np, plt):
             admm.dual_tol, xmin=0, xmax=admm_num_iters, color="black", zorder=-100
         )
         ax.hlines(
-            admm.dual_tol_power, xmin=0, xmax=admm_num_iters, color="C0", zorder=-100
+            admm.dual_tol_power,
+            xmin=0,
+            xmax=admm_num_iters,
+            color="C0",
+            zorder=-100,
         )
         ax.hlines(
-            admm.dual_tol_angle, xmin=0, xmax=admm_num_iters, color="C1", zorder=-100
+            admm.dual_tol_angle,
+            xmin=0,
+            xmax=admm_num_iters,
+            color="C1",
+            zorder=-100,
         )
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
@@ -132,7 +140,7 @@ def __(mo):
 @app.cell
 def __(runner):
     _config = runner.expand_config(
-        runner.load_config("experiments/config/test_gpu_v09.yaml")
+        runner.load_config("experiments/plan/config/test_gpu_v09.yaml")
     )[0]
     _dataset = runner.load_dataset(**_config["data"])
     _dataset["devices"][0].linear_cost
@@ -140,7 +148,7 @@ def __(runner):
 
 
 @app.cell
-def __(runner):
+def __(np, runner):
     # net, devices = zap.importers.load_garver_network(line_slack=2.0, init_solar=50.0)
 
     # devices[2].nominal_capacity += 1.0
@@ -158,19 +166,28 @@ def __(runner):
     # ----
 
     _config = runner.expand_config(
-        runner.load_config("experiments/config/test_gpu_v09.yaml")
+        runner.load_config("experiments/plan/config/test_gpu_v09.yaml")
     )[0]
-    # _config["data"]["use_batteries"] = False
+
     _config["data"]["args"]["cost_unit"] = 100.0
+    _config["data"]["args"]["quadratic_load_cost"] = 1.0
+
+    _config["data"]["args"]["battery_discharge_cost"] = 10.0
+    _config["data"]["args"]["battery_quadratic_discharge_cost"] = 1.0
+    _config["data"]["args"]["battery_init_soc"] = 0.0
+    _config["data"]["args"]["battery_final_soc"] = 0.0
+
 
     _dataset = runner.load_dataset(**_config["data"])
 
     net, devices = _dataset["net"], _dataset["devices"]
 
-    devices[4].linear_cost += 0.005
+    devices[0].quadratic_cost = 0.001 * np.ones_like(devices[0].nominal_capacity)
+
+    # devices[4].linear_cost += 0.005
     # devices = [devices[i] for i in [0, 1, 4, 5]]
-    devices[-2].initial_soc *= 0.0
-    devices[-2].final_soc *= 0.0
+    # devices[-2].initial_soc *= 0.0
+    # devices[-2].final_soc *= 0.0
 
     # devices[3].susceptance *= 100.0
 
@@ -220,7 +237,6 @@ def __(devices, np):
         "adaptive_rho": True,
         "adaptation_tolerance": 2.0,
         "tau": 1.1,
-
         "battery_inner_iterations": 20,
     }
     return admm_args,
@@ -251,8 +267,10 @@ def __():
 def __(tr, zap):
     solver_kwargs = {
         "trackers": tr.DEFAULT_TRACKERS + [tr.GRAD, tr.PARAM, tr.ADMM_STATE],
-        "algorithm": zap.planning.GradientDescent(step_size=1e-3 * 100.0, clip=1e3),
-        "num_iterations": 25,
+        "algorithm": zap.planning.GradientDescent(
+            step_size=1e-3 * 100.0, clip=1e3
+        ),
+        "num_iterations": 10,
         "verbosity": 1,
     }
     return solver_kwargs,
@@ -325,7 +343,7 @@ def __(
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(history_admm, history_cvx, np, plt):
     fig, ax = plt.subplots(figsize=(6, 2))
 
@@ -336,6 +354,7 @@ def __(history_admm, history_cvx, np, plt):
     ax.set_ylabel("Loss")
     ax.set_xlabel("Iteration")
     ax.set_xticks(np.arange(25))
+    # ax.set_ylim(ax.get_ylim()[0], 200.0)
 
     # ax.set_yscale("log")
     # ax.set_ylim(10_000.0, 15_500.0)
@@ -378,7 +397,7 @@ def __(mo):
 
 @app.cell
 def __():
-    iteration = 10
+    iteration = 5
     return iteration,
 
 
@@ -396,7 +415,7 @@ def __(emissions_admm, fuel_admm, history_admm, iteration):
     return theta_test,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(layer_cvx, problem_cvx, theta_test):
     layer_mosek_tol = 1e-8
 
@@ -439,14 +458,18 @@ def __(
     layer_admm.solver.verbose = True
     layer_admm.solver.scale_dual_residuals = True
     layer_admm.solver.minimum_iterations = 250
-    layer_admm.solver.num_iterations = 1000
+    layer_admm.solver.num_iterations = 2000
 
-    layer_admm.solver.atol = 1e-3
+    layer_admm.solver.atol = 1e-4
     layer_admm.solver.rtol = 0.0  # 1e-3
     layer_admm.solver.angle_converges_separately = False  # True
 
-    layer_admm.solver.rho_power = 5.0  # problem_admm.rho_power_history[iteration + 1]
-    layer_admm.solver.rho_angle = 1.0  # problem_admm.rho_angle_history[iteration + 1]
+    layer_admm.solver.rho_power = (
+        5.0  # problem_admm.rho_power_history[iteration + 1]
+    )
+    layer_admm.solver.rho_angle = (
+        1.0  # problem_admm.rho_angle_history[iteration + 1]
+    )
     layer_admm.solver.relative_rho_angle = False
 
     layer_admm.solver.adaptive_rho = True
@@ -641,7 +664,9 @@ def __(clips, grad_admm, grad_cvx, layer_admm, torch):
     ]
     _total_grad = torch.linalg.vector_norm(torch.tensor(_subnorms)).item()
 
-    print(f"Tolerance:\t\t\t {layer_admm.solver.atol:.1e} / {layer_admm.solver.rtol:.1e}")
+    print(
+        f"Tolerance:\t\t\t {layer_admm.solver.atol:.1e} / {layer_admm.solver.rtol:.1e}"
+    )
     print("Gradient Error:\t\t", _err)
     print("Total Gradient:\t\t", _total_grad)
     return
@@ -659,19 +684,21 @@ def __(layer_admm, np, y_admm, y_cvx):
 
 @app.cell
 def __(grad_admm, np, torch):
-    clips = {k: np.inf * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()}
+    clips = {
+        k: np.inf * torch.median(torch.abs(v)).item() for k, v in grad_admm.items()
+    }
     return clips,
 
 
 @app.cell
-def __(y_admm):
-    y_admm.power[0][0], y_admm.power[2][0]
+def __():
+    # y_admm.power[0][0], y_admm.power[2][0]
     return
 
 
 @app.cell
-def __(y_cvx):
-    y_cvx.power[0][0], y_cvx.power[2][0]
+def __():
+    # y_cvx.power[0][0], y_cvx.power[2][0]
     return
 
 
@@ -689,7 +716,7 @@ def __(devices, grad_plot, iteration, torch, y_admm, y_cvx):
         },
         iter=_iter,
         diff=False,
-        title="Variable"
+        title="Variable",
     )
     _fig
     return
@@ -714,14 +741,14 @@ def __(grad_admm, grad_cvx, grad_plot, iteration):
 
 
 @app.cell
-def __(grad_admm):
-    grad_admm
+def __():
+    # grad_admm
     return
 
 
 @app.cell
-def __(grad_cvx):
-    grad_cvx
+def __():
+    # grad_cvx
     return
 
 

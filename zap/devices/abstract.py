@@ -103,6 +103,12 @@ class AbstractDevice:
     def _hessian_power(self, hessians, power, angle, local_vars, **kwargs):
         return hessians
 
+    def _hessian_angle(self, hessians, power, angle, local_vars, **kwargs):
+        return hessians
+
+    def _hessian_local_variables(self, hessians, power, angle, local_vars, **kwargs):
+        return hessians
+
     # ====
     # ADMM Functionality
     # ====
@@ -297,6 +303,20 @@ class AbstractDevice:
         # One Hessian per terminals
         hessians = [sp.coo_matrix((p.size, p.size)) for p in power]
         return self._hessian_power(hessians, power, angle, local_vars, **kwargs)
+
+    def hessian_angle(self, power, angle, local_vars, **kwargs):
+        if angle is None:
+            return [sp.coo_matrix((0, 0))]
+
+        hessians = [sp.coo_matrix((a.size, a.size)) for a in angle]
+        return self._hessian_angle(hessians, power, angle, local_vars, **kwargs)
+
+    def hessian_local_variables(self, power, angle, local_vars, **kwargs):
+        if local_vars is None:
+            return [sp.coo_matrix((0, 0))]
+
+        hessians = [sp.coo_matrix((u.size, u.size)) for u in local_vars]
+        return hessians
 
     def equality_matrices(self, equalities, power, angle, local_vars, **kwargs):
         equalities = self.get_empty_constraint_matrix(equalities, power, angle, local_vars)

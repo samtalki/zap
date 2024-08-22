@@ -220,6 +220,7 @@ def parse_batteries(
     dates,
     *,
     battery_discharge_cost,
+    battery_quadratic_discharge_cost,
     cost_per_battery_mw,
     cost_per_battery_mwh,
     battery_init_soc,
@@ -231,6 +232,11 @@ def parse_batteries(
     duration = net.storage_units.max_hours.values
     capital_cost = cost_per_battery_mw + cost_per_battery_mwh * duration
 
+    if battery_quadratic_discharge_cost == 0.0:
+        quadratic_cost = None
+    else:
+        quadratic_cost = battery_quadratic_discharge_cost * np.ones(terminals.size)
+
     return Battery(
         num_nodes=len(buses),
         terminal=terminals,
@@ -238,6 +244,7 @@ def parse_batteries(
         duration=duration,
         charge_efficiency=net.storage_units.efficiency_dispatch.values,
         linear_cost=battery_discharge_cost * np.ones(terminals.size),
+        quadratic_cost=quadratic_cost,
         capital_cost=capital_cost * (len(dates) / HOURS_PER_YEAR),
         initial_soc=battery_init_soc * np.ones(duration.size),
         final_soc=battery_final_soc * np.ones(duration.size),
@@ -249,6 +256,7 @@ def load_pypsa_network(
     dates,
     seed=0,
     battery_discharge_cost=0.0,
+    battery_quadratic_discharge_cost=0.0,
     battery_init_soc=0.5,
     battery_final_soc=0.5,
     ac_transmission_cost=0.0,
@@ -307,6 +315,7 @@ def load_pypsa_network(
             net,
             dates,
             battery_discharge_cost=battery_discharge_cost,
+            battery_quadratic_discharge_cost=battery_quadratic_discharge_cost,
             cost_per_battery_mw=cost_per_battery_mw,
             cost_per_battery_mwh=cost_per_battery_mwh,
             battery_init_soc=battery_init_soc,
