@@ -120,6 +120,9 @@ class ADMMSolver:
             # Infer machine
             self.machine = infer_machine()
 
+        if self.battery_window == 0:
+            self.battery_window = None
+
         self.cumulative_iteration = 0
 
     def get_rho(self):

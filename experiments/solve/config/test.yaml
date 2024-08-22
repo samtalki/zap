@@ -34,15 +34,30 @@ data:
     battery_init_soc: 0.0
     battery_final_soc: 0.0
 
+parameters:
+  parameter_types: [generator, dc_line, ac_line, battery]
+  hours_per_scenario: 12  # 0 = num_hours
+  capacities: [base, 1.5]  # base, 1.5, base_v07/000/model_00500
 
-solver: admm
+solver: cvxpy  # admm, cvxpy
+
+cvxpy_args:
+  solver: "MOSEK"
+  solver_kwargs:
+    verbose: false
+    accept_unknown: true
+    mosek_params:
+      MSK_IPAR_NUM_THREADS: 16
+
 admm_args:
   # Leave alone
   machine: cuda
+  dtype: float32
+
   resid_norm: 2
   safe_mode: false
   scale_dual_residuals: true
-  battery_window: 24
+  battery_window: 0
   relative_rho_angle: false
 
   # Tweak as needed
@@ -51,10 +66,10 @@ admm_args:
   atol: 1.0e-3
   rho_power: 1.0
   rho_angle: 1.0
-  alpha: 1.0
+  alpha: 1.0  # 1.1, 1.5
   adaptive_rho: true
   adaptation_tolerance: 2.0
   adaptation_frequency: 10  # 20, 50
-  tau: 1.0  # 1.1, 1.5
-  battery_inner_iterations: [expand, 10, 20]
-  battery_inner_weight: [expand, 1.0, 0.5]
+  tau: 1.1
+  battery_inner_iterations: [sweep, 10, 20]
+  battery_inner_weight: [sweep, 1.0, 0.5]

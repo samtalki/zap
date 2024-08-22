@@ -70,8 +70,8 @@ TORCH_DTYPES = {
 }
 
 
-def expand_config(config: dict) -> list[dict]:
-    configs = _expand_config(config)
+def expand_config(config: dict, key="expand") -> list[dict]:
+    configs = _expand_config(config, key=key)
 
     # Tag every config with an index
     for i, c in enumerate(configs):
@@ -80,7 +80,7 @@ def expand_config(config: dict) -> list[dict]:
     return configs
 
 
-def _expand_config(config: dict) -> list[dict]:
+def _expand_config(config: dict, key="expand") -> list[dict]:
     """Expand config with multiple values for a single parameter.
 
     Lists of the form `param: [expand, arg1, arg2, ..., argn]` will be expanded into
@@ -91,15 +91,15 @@ def _expand_config(config: dict) -> list[dict]:
     # Expand sub-dictionaries
     for k, v in config.items():
         if isinstance(v, dict):
-            v = _expand_config(v)
+            v = _expand_config(v, key=key)
             if len(v) == 1:
                 config[k] = v[0]
             else:
-                config[k] = ["expand"] + v
+                config[k] = [key] + v
 
     # Expand lists
     for k, v in config.items():
-        if isinstance(v, list) and len(v) > 0 and v[0] == "expand":
+        if isinstance(v, list) and len(v) > 0 and v[0] == key:
             data: list = v[1:]
             assert isinstance(data, list)
 
@@ -108,7 +108,9 @@ def _expand_config(config: dict) -> list[dict]:
             for i, d in enumerate(data):
                 expanded_configs[i][k] = d
 
-            return sum([_expand_config(e) for e in expanded_configs], start=[])  # Join lists
+            return sum(
+                [_expand_config(e, key=key) for e in expanded_configs], start=[]
+            )  # Join lists
 
     # No expansion happened, just return a singleton list
     return [config]
