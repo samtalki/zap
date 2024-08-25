@@ -1,6 +1,7 @@
 import sys
 import platform
 import pickle
+import time
 import numpy as np
 
 from pathlib import Path
@@ -92,6 +93,7 @@ def setup_layers(
     net,
     time_cases,
     parameters,
+    battery_window=0,
     solver=None,
     config=None,
 ):
@@ -120,14 +122,17 @@ def setup_layers(
     for arg in arg_list:
         del arg["index"]
         for case in time_cases:
-            layers += [build_layer(net, case, parameters, solver, arg)]
+            layers += [build_layer(net, case, parameters, solver, arg, battery_window)]
 
     print(f"Initialized {len(layers)} layers with {solver} solver.")
     return layers
 
 
-def build_layer(net, case, parameters, solver, args):
+def build_layer(net, case, parameters, solver, args, battery_window):
     time_horizon = np.max([d.time_horizon for d in case])
+    if battery_window == 0:
+        battery_window = time_horizon
+    assert time_horizon % battery_window == 0
 
     if solver == "admm":
         return ADMMLayer(
@@ -135,19 +140,27 @@ def build_layer(net, case, parameters, solver, args):
             case,
             parameter_names=parameters,
             time_horizon=time_horizon,
-            solver=ADMMSolver(**args),
+            solver=ADMMSolver(battery_window=battery_window, **args),
             adapt_rho=False,
             warm_start=False,
+            verbose=True,
         )
 
     if solver == "cvxpy":
-        return DispatchLayer(
-            net,
-            case,
-            parameter_names=parameters,
-            time_horizon=time_horizon,
-            **args,
-        )
+        # Sample time by battery window
+        windows = [range(i, i + battery_window) for i in range(0, time_horizon, battery_window)]
+        subcases = [[d.sample_time(s, time_horizon) for d in case] for s in windows]
+        print(f"CVXPY splitting into {len(subcases)} individual problems.")
+        return [
+            DispatchLayer(
+                net,
+                c,
+                parameter_names=parameters,
+                time_horizon=battery_window,
+                **args,
+            )
+            for c in subcases
+        ]
 
 
 def solve_problem(layers, param_cases):
@@ -169,14 +182,24 @@ def solve_problem(layers, param_cases):
                     theta, machine=layer.solver.machine, dtype=layer.solver.dtype
                 )
 
-            y = layer(**theta)
+            t0 = time.time()
+            if isinstance(layer, list):
+                y = [layer[i](**theta) for i in range(len(layer))]
+            else:
+                y = layer(**theta)
+            solve_time = time.time() - t0
+            print(f"Solved in {solve_time:.2f} seconds.")
 
             if isinstance(layer, ADMMLayer):
-                solver_data[i_theta] += [(layer.state, layer.history)]
+                solver_data[i_theta] += [
+                    {"time": solve_time, "state": layer.state, "history": layer.history}
+                ]
             else:
-                solver_data[i_theta] += [y.problem]
-
-            y.problem = None  # This got moved to solver_data
+                solver_data[i_theta] += [
+                    {"time": solve_time, "problem_data": [yi.problem for yi in y]}
+                ]
+                for yi in y:
+                    yi.problem = None  # This got moved to solver_data
 
             ys[i_theta] += [y]
             i += 1
@@ -218,7 +241,14 @@ def run_experiment(config):
     time_cases, capacity_cases, parameters = load_parameter_set(
         net, devices, **config["parameters"]
     )
-    layers = setup_layers(net, time_cases, parameters, solver=config["solver"], config=config)
+    layers = setup_layers(
+        net,
+        time_cases,
+        parameters,
+        solver=config["solver"],
+        battery_window=config["battery_window"],
+        config=config,
+    )
     print("\n\n\n")
 
     ys, solver_data = solve_problem(layers, capacity_cases)

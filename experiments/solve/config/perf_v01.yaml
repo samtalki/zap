@@ -3,8 +3,8 @@
 ---
 
 system:
-  threads: 16
-  runtime: 10  # minutes
+  threads: 32
+  runtime: 60  # minutes
   memory: auto
   gpu: 1
 
@@ -12,8 +12,8 @@ data:
   name: pypsa
   case: load_medium
   start_hour: peak_hybrid_day
-  num_nodes: 100
-  num_hours: 24  # Total number of hourds in the dataset
+  num_nodes: 500
+  num_hours: 6144  # Total number of hourds in the dataset
   add_ground: true
   use_batteries: true
   use_extra_components: true
@@ -22,7 +22,7 @@ data:
     power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
-    scale_load: [expand, 0.5, 1.0]
+    scale_load: [expand, 0.5, 0.75, 1.0]
     scale_generator_capacity_factor: 0.7
     scale_line_capacity_factor: 0.7
     carbon_tax: 0.0  # $ / ton CO2
@@ -36,12 +36,12 @@ data:
 
 parameters:
   parameter_types: [generator, dc_line, ac_line, battery]
-  hours_per_scenario: 12  # Hours for a single case (0 = num_hours)
-  capacities: [base, 1.5]  # base, 1.5, base_v07/000/model_00500
+  hours_per_scenario: [expand, 24, 192, 768]  # Hours in one "batch"
+  capacities: base  # base, 1.5, base_v07/000/model_00500
 
-solver: cvxpy  # admm, cvxpy
+solver: [expand, admm, cvxpy]  # admm, cvxpy
 
-battery_window: 6  # Hours for battery time horizon
+battery_window: 24  # Hours for battery time horizon
 
 cvxpy_args:
   solver: MOSEK
@@ -59,7 +59,6 @@ admm_args:
   resid_norm: 2
   safe_mode: false
   scale_dual_residuals: true
-  # battery_window: 0
   relative_rho_angle: false
 
   # Tweak as needed
@@ -68,10 +67,10 @@ admm_args:
   atol: 1.0e-3
   rho_power: 1.0
   rho_angle: 1.0
-  alpha: 1.0  # 1.1, 1.5
+  alpha: [sweep, 1.0, 1.1, 1.5]  # 1.1, 1.5
   adaptive_rho: true
   adaptation_tolerance: 2.0
   adaptation_frequency: 10  # 20, 50
   tau: 1.1
-  battery_inner_iterations: [sweep, 10, 20]
-  battery_inner_weight: [sweep, 1.0, 0.5]
+  battery_inner_iterations: 10
+  battery_inner_weight: 1.0
