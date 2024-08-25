@@ -18,6 +18,10 @@ from zap.admm import ADMMLayer, ADMMSolver
 SOLVERS = ["admm", "cvxpy"]
 
 
+def datadir(*args):
+    return runner.datadir("solver", *args)
+
+
 def load_config(path):
     return runner.load_config(path)
 
@@ -166,13 +170,16 @@ def solve_problem(layers, param_cases):
                 )
 
             y = layer(**theta)
-            ys[i_theta] += [y]
-            i += 1
 
             if isinstance(layer, ADMMLayer):
                 solver_data[i_theta] += [(layer.state, layer.history)]
             else:
-                solver_data[i_theta] += [None]
+                solver_data[i_theta] += [y.problem]
+
+            y.problem = None  # This got moved to solver_data
+
+            ys[i_theta] += [y]
+            i += 1
 
     print("Solved all cases.")
     return ys, solver_data
@@ -198,9 +205,9 @@ def save_results(ys, solver_data, time_cases, capacity_cases, config):
 
 def get_results_path(config_name, index=None):
     if index is None:
-        return runner.datadir("solver", config_name)
+        return datadir(config_name)
     else:
-        return runner.datadir("solver", config_name, f"{index:03d}")
+        return datadir(config_name, f"{index:03d}")
 
 
 def run_experiment(config):
