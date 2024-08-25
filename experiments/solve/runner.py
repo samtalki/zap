@@ -1,5 +1,6 @@
 import sys
 import platform
+import pickle
 import numpy as np
 
 from pathlib import Path
@@ -148,8 +149,14 @@ def build_layer(net, case, parameters, solver, args):
 def solve_problem(layers, param_cases):
     i = 0
 
-    for layer in layers:
-        for theta in param_cases:
+    ys = []
+    solver_data = []
+
+    for i_theta, theta in enumerate(param_cases):
+        ys += [[]]
+        solver_data += [[]]
+
+        for i_layer, layer in enumerate(layers):
             print(f"Solving case {i}.")
 
             # Convert layer to torch, if needed
@@ -158,10 +165,42 @@ def solve_problem(layers, param_cases):
                     theta, machine=layer.solver.machine, dtype=layer.solver.dtype
                 )
 
-            layer(**theta)
+            y = layer(**theta)
+            ys[i_theta] += [y]
             i += 1
 
+            if isinstance(layer, ADMMLayer):
+                solver_data[i_theta] += [(layer.state, layer.history)]
+            else:
+                solver_data[i_theta] += [None]
+
     print("Solved all cases.")
+    return ys, solver_data
+
+
+def save_results(ys, solver_data, time_cases, capacity_cases, config):
+    results_path = get_results_path(config["id"], config.get("index", None))
+    results_path.mkdir(parents=True, exist_ok=True)
+
+    # Save ys
+    with open(results_path / "ys.pkl", "wb") as f:
+        pickle.dump(ys, f)
+
+    # Save solver ouptuts
+    with open(results_path / "solver_data.pkl", "wb") as f:
+        pickle.dump(solver_data, f)
+
+    # Save times and capacities
+    cases = {"time": len(time_cases), "capacity": capacity_cases}
+    with open(results_path / "cases.pkl", "wb") as f:
+        pickle.dump(cases, f)
+
+
+def get_results_path(config_name, index=None):
+    if index is None:
+        return runner.datadir("solver", config_name)
+    else:
+        return runner.datadir("solver", config_name, f"{index:03d}")
 
 
 def run_experiment(config):
@@ -175,7 +214,8 @@ def run_experiment(config):
     layers = setup_layers(net, time_cases, parameters, solver=config["solver"], config=config)
     print("\n\n\n")
 
-    solve_problem(layers, capacity_cases)
+    ys, solver_data = solve_problem(layers, capacity_cases)
+    save_results(ys, solver_data, time_cases, capacity_cases, config)
 
 
 if __name__ == "__main__":
