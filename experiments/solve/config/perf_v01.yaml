@@ -37,7 +37,7 @@ data:
 parameters:
   parameter_types: [generator, dc_line, ac_line, battery]
   hours_per_scenario: [expand, 24, 192, 768]  # Hours in one "batch"
-  capacities: base  # base, 1.5, base_v07/000/model_00500
+  capacities: [base]  # base, 1.5, base_v07/000/model_00500
 
 solver: [expand, admm, cvxpy]  # admm, cvxpy
 
@@ -50,6 +50,9 @@ cvxpy_args:
     accept_unknown: true
     mosek_params:
       MSK_IPAR_NUM_THREADS: 16
+      MSK_DPAR_INTPNT_TOL_REL_GAP: 1.0e-3
+      MSK_DPAR_INTPNT_TOL_DFEAS: 1.0e-3
+      MSK_DPAR_INTPNT_TOL_PFEAS: 1.0e-3
 
 admm_args:
   # Leave alone

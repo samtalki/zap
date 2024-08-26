@@ -190,22 +190,32 @@ def solve_problem(layers, param_cases):
             solve_time = time.time() - t0
             print(f"Solved in {solve_time:.2f} seconds.")
 
+            i += 1
             if isinstance(layer, ADMMLayer):
-                solver_data[i_theta] += [
-                    {"time": solve_time, "state": layer.state, "history": layer.history}
-                ]
+                solver_data[i_theta] += [{"time": solve_time, "history": layer.history}]
+                ys += [(y, layer.state)]
+
             else:
                 solver_data[i_theta] += [
-                    {"time": solve_time, "problem_data": [yi.problem for yi in y]}
+                    {"time": solve_time, "problem_data": [cvxpy_data(yi) for yi in y]}
                 ]
                 for yi in y:
                     yi.problem = None  # This got moved to solver_data
 
-            ys[i_theta] += [y]
-            i += 1
+                ys += y
 
     print("Solved all cases.")
     return ys, solver_data
+
+
+def cvxpy_data(y):
+    prob = y.problem
+    return {
+        "status": prob.status,
+        "value": prob.value,
+        "solver_stats": prob.solver_stats,
+        "compilation_time": prob.compilation_time,
+    }
 
 
 def save_results(ys, solver_data, time_cases, capacity_cases, config):

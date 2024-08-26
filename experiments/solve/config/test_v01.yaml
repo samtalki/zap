@@ -39,7 +39,7 @@ parameters:
   hours_per_scenario: 12  # Hours for a single case (0 = num_hours)
   capacities: [base, 1.5]  # base, 1.5, base_v07/000/model_00500
 
-solver: cvxpy  # admm, cvxpy
+solver: [expand, cvxpy, admm]  # admm, cvxpy
 
 battery_window: 6  # Hours for battery time horizon
 
