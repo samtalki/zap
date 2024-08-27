@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.8.3"
-app = marimo.App()
+app = marimo.App(width="medium")
 
 
 @app.cell
@@ -27,6 +27,7 @@ def __():
 def __():
     import matplotlib.pyplot as plt
     import seaborn
+    seaborn.set_theme(style="whitegrid")
     return plt, seaborn
 
 
@@ -52,7 +53,7 @@ def __(mo):
 
 @app.cell
 def __(runner):
-    config_path = "./experiments/solve/config/test_v01.yaml"
+    config_path = "./experiments/solve/config/perf_v01.yaml"
     configs = runner.expand_config(runner.load_config(config_path))
     return config_path, configs
 
@@ -75,33 +76,33 @@ def __(Path, pickle, runner):
 
 
 @app.cell
-def __():
+def __(extract_runtime, np, pd):
     def build_runtime_table(configs):
-
-        # Extract runtime
+        df = {}
 
         # Add config info
         # Index, solver, load_scale, hps full config reference
+        index = [cfg["index"] for cfg in configs]
+        df["solver"] = [cfg["solver"] for cfg in configs]
+        df["scale_load"] = [cfg["data"]["args"]["scale_load"] for cfg in configs]
+        df["hours_per_scenario"] = [
+            cfg["parameters"]["hours_per_scenario"] for cfg in configs
+        ]
 
-        # Build a row in the table
-        pass
+        # Extract runtime
+        runtimes = [extract_runtime(cfg) for cfg in configs]
+        df["mean_runtime"] = [np.mean(rt) for rt in runtimes]
+        df["runtimes"] = runtimes
+
+        return pd.DataFrame(df, index=index)
     return build_runtime_table,
 
 
 @app.cell
-def __():
-    # solver_data = []
-
-    # for index, cfg in enumerate(configs):
-    #     path = Path(runner.get_results_path(cfg["id"], index))
-    #     with open(path / "solver_data.pkl", "rb") as f:
-    #         solver_data += [pickle.load(f)]
-    return
-
-
-@app.cell
-def __():
-    return
+def __(build_runtime_table, configs):
+    df = build_runtime_table(configs)
+    df.sort_values(by=["hours_per_scenario", "solver"])
+    return df,
 
 
 @app.cell(hide_code=True)
@@ -110,20 +111,41 @@ def __(mo):
     return
 
 
+@app.cell(hide_code=True)
+def __(plt):
+    def plot_runtimes(df, compare="solver", x_index="scale_load", value="mean_runtime"):
+        fig, ax = plt.subplots(figsize=(7, 2.5))
+
+        keys = sorted(df[compare].unique())
+
+        for k in keys:
+            data = df[df[compare] == k]
+
+            data = data[[x_index, value]]
+            data = data.groupby(x_index).mean()
+            data = data.sort_values(by=x_index)
+
+            ax.plot(data.index, data[value], label=k, marker=".", ms=8)
+            ax.set_xlabel(x_index)
+            ax.set_ylabel(value)
+
+        ax.legend()
+
+        return fig, ax
+    return plot_runtimes,
+
+
 @app.cell
-def __():
+def __(df, plot_runtimes):
+    _fig, _ax = plot_runtimes(df, x_index="hours_per_scenario")
+    _ax.set_yscale("log")
+    _fig
     return
 
 
 @app.cell(hide_code=True)
 def __(mo):
     mo.md(r"""## Debug""")
-    return
-
-
-@app.cell
-def __(configs, extract_runtime):
-    extract_runtime(configs[0])
     return
 
 
@@ -138,9 +160,9 @@ def __(Path, configs, pickle, runner):
 
 
 @app.cell
-def __(data):
-    _c = data[1][0]
-    _c["time"]
+def __():
+    # _c = data[1][0]
+    # _c["time"]
     return
 
 

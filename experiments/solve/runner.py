@@ -27,8 +27,8 @@ def load_config(path):
     return runner.load_config(path)
 
 
-def expand_config(config):
-    return runner.expand_config(config)
+def expand_config(config, key="expand"):
+    return runner.expand_config(config, key=key)
 
 
 def load_network(**kwargs):
@@ -192,7 +192,25 @@ def solve_problem(layers, param_cases):
 
             i += 1
             if isinstance(layer, ADMMLayer):
-                solver_data[i_theta] += [{"time": solve_time, "history": layer.history}]
+                solver_data[i_theta] += [
+                    {
+                        "time": solve_time,
+                        "history": layer.history,
+                        "iteration": layer.solver.iteration,
+                        "converged": layer.solver.converged,
+                        "num_dc_terminals": layer.solver.num_dc_terminals,
+                        "num_ac_terminals": layer.solver.num_ac_terminals,
+                        "total_terminals": layer.solver.total_terminals,
+                        "primal_tol_power": layer.solver.primal_tol_power,
+                        "primal_tol_angle": layer.solver.primal_tol_angle,
+                        "dual_tol_power": layer.solver.dual_tol_power,
+                        "dual_tol_angle": layer.solver.dual_tol_angle,
+                        "primal_tol": layer.solver.primal_tol,
+                        "dual_tol": layer.solver.dual_tol,
+                        "rho_power": layer.solver.rho_power,
+                        "rho_angle": layer.solver.rho_angle,
+                    }
+                ]
                 ys += [(y, layer.state)]
 
             else:
