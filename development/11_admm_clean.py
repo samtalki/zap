@@ -1,7 +1,7 @@
 import marimo
 
-__generated_with = "0.6.13"
-app = marimo.App()
+__generated_with = "0.8.3"
+app = marimo.App(width="medium")
 
 
 @app.cell
@@ -31,6 +31,7 @@ def __():
 def __():
     import matplotlib.pyplot as plt
     import seaborn
+
     seaborn.set_theme()
     return plt, seaborn
 
@@ -41,33 +42,21 @@ def __(mo):
     return
 
 
-@app.cell(hide_code=True)
-def __():
-    DEFAULT_PYPSA_KWARGS = {
-        "marginal_load_value": 500.0,
-        "load_cost_perturbation": 50.0,
-        "generator_cost_perturbation": 1.0,
-        "cost_unit": 100.0,  # 1000.0,
-        "power_unit": 1000.0,
-    }
-    return DEFAULT_PYPSA_KWARGS,
-
-
 @app.cell
 def __():
-    num_days = 8
+    num_days = 1
     return num_days,
 
 
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/elec_s_500")
+    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500")
     return pn,
 
 
 @app.cell(hide_code=True)
-def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
+def __(dt, pd, zap):
     def load_pypsa_network(
         pn,
         time_horizon=1,
@@ -75,10 +64,6 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
         exclude_batteries=False,
         **pypsa_kwargs,
     ):
-        all_kwargs = deepcopy(DEFAULT_PYPSA_KWARGS)
-        all_kwargs.update(pypsa_kwargs)
-        print(all_kwargs)
-
         dates = pd.date_range(
             start_date,
             start_date + dt.timedelta(hours=time_horizon),
@@ -86,7 +71,7 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
             inclusive="left",
         )
 
-        net, devices = zap.importers.load_pypsa_network(pn, dates, **all_kwargs)
+        net, devices = zap.importers.load_pypsa_network(pn, dates, **pypsa_kwargs)
         if exclude_batteries:
             devices = devices[:-1]
 
@@ -95,8 +80,30 @@ def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
 
 
 @app.cell
-def __(load_pypsa_network, np, num_days, pn, zap):
-    net, devices, time_horizon = load_pypsa_network(pn, time_horizon=24 * num_days)
+def __(dt, load_pypsa_network, np, num_days, pn, zap):
+    net, devices, time_horizon = load_pypsa_network(
+        pn,
+        time_horizon=24 * num_days,
+        start_date=dt.datetime(2019, 8, 9, 0),
+        # Units
+        power_unit=1000.0,
+        cost_unit=100.0,
+        # Costs
+        marginal_load_value=500.0,
+        load_cost_perturbation=10.0,
+        generator_cost_perturbation=1.0,
+        # Rescale capacities
+        scale_load=0.5,
+        scale_generator_capacity_factor=0.7,
+        scale_line_capacity_factor=0.7,
+        # Empty generators
+        drop_empty_generators=False,
+        expand_empty_generators=0.5,
+        # Battery stuff
+        battery_discharge_cost=1.0,
+        battery_init_soc=0.0,
+        battery_final_soc=0.0,
+    )
     _ground = zap.Ground(
         num_nodes=net.num_nodes,
         terminal=np.array([0]),
@@ -110,15 +117,13 @@ def __(load_pypsa_network, np, num_days, pn, zap):
 def __(admm, devices, torch):
     torch.cuda.empty_cache()
 
-    torch_devices = [
-        d.torchify(machine=admm.machine, dtype=admm.dtype) for d in devices
-    ]
+    torch_devices = [d.torchify(machine=admm.machine, dtype=admm.dtype) for d in devices]
     return torch_devices,
 
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("## Parameters")
+    mo.md("""## Parameters""")
     return
 
 
@@ -137,7 +142,24 @@ def __(backprop, devices, torch_devices):
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("## Solve Part 1")
+    mo.md(r"""## Baseline Solve""")
+    return
+
+
+@app.cell
+def __(cp, devices, net, param0):
+    y_cvx = net.dispatch(
+        devices,
+        add_ground=False,
+        solver=cp.MOSEK,
+        parameters=[{k: v.cpu() for k, v in p.items()} for p in param0],
+    )
+    return y_cvx,
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md("""## Solve Part 1""")
     return
 
 
@@ -158,7 +180,7 @@ def __(backprop, torch_devices):
 
 @app.cell
 def __():
-    backprop = True
+    backprop = False
     return backprop,
 
 
@@ -168,28 +190,40 @@ def __(ADMMSolver, backprop, torch):
         print("Gradient tape enabled.")
 
     admm = ADMMSolver(
-        num_iterations=10_000,
-        rtol=1e-3,
-        rho_power=1.0,
-        rho_angle=1.5,
-        resid_norm=2,
-        safe_mode=False,
         machine="cuda",
         dtype=torch.float32,
+        resid_norm=2,
+        safe_mode=False,
+        scale_dual_residuals=True,
+        relative_rho_angle=False,
+        # Battery prox specs
         battery_window=24,
         battery_inner_iterations=10,
         battery_inner_over_relaxation=1.8,
+        # Algorithm specs
+        num_iterations=10_000,
+        atol=1e-4,
+        rho_power=1.0,
+        rho_angle=0.5,
+        alpha=1.0,
+        # Adaptive rho parameters
+        adaptive_rho=True,
+        adaptation_frequency=10,
+        adaptation_tolerance=2.0,
+        tau=1.1,
     )
     return admm,
 
 
 @app.cell(hide_code=True)
 def __(devices, num_days):
-    print(f"Solving for {num_days*24} hours and {sum(d.num_devices for d in devices)} devices.")
+    print(
+        f"Solving for {num_days*24} hours and {sum(d.num_devices for d in devices)} devices."
+    )
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(admm, net, param0, time_horizon, torch_devices):
     state, history = admm.solve(
         net,
@@ -200,20 +234,31 @@ def __(admm, net, param0, time_horizon, torch_devices):
     return history, state
 
 
+@app.cell(hide_code=True)
+def __(devices, np, state, torch, y_cvx):
+    _load_met = -np.sum(y_cvx.power[1][0])
+    _total_load = -np.sum(devices[1].min_power * devices[1].nominal_capacity)
+    _admm_load_met = -torch.sum(state.power[1][0])
+
+    print(f"CVX Load Met: {_load_met:.1f} / {_total_load:.1f}")
+    print(f"ADMM Load Met: {_admm_load_met:.1f} / {_total_load:.1f}")
+    return
+
+
 @app.cell
-def __(admm, history, np, plot_convergence):
-    plot_convergence(history, eps_pd=admm.rtol * np.sqrt(admm.total_terminals))
+def __(admm, history, plot_convergence, y_cvx):
+    plot_convergence(history, eps_pd=admm.primal_tol, fstar=y_cvx.problem.value)
     return
 
 
 @app.cell(hide_code=True)
 def __(np, plt):
-    def plot_convergence(hist, eps_pd=None):
+    def plot_convergence(hist, eps_pd=None, fstar=None):
         fig, axes = plt.subplots(1, 3, figsize=(7, 2))
 
-        print(f"Primal Resid: {hist.power[-1] + hist.phase[-1]}")
-        print(f"Dual Resid: {hist.dual_power[-1] + hist.dual_phase[-1]}")
-        print(f"Objective: {hist.objective[-1]}")
+        print(f"Primal Resid:\t\t {hist.power[-1] + hist.phase[-1]}")
+        print(f"Dual Resid:\t\t\t {hist.dual_power[-1] + hist.dual_phase[-1]}")
+        print(f"Objective:\t\t\t {hist.objective[-1]}")
 
         admm_num_iters = len(hist.power)
 
@@ -237,8 +282,11 @@ def __(np, plt):
 
         ax = axes[2]
         ax.plot(np.array(hist.objective))
-        # ax.set_yscale("log")
         ax.set_title("f")
+        if fstar is not None:
+            ax.hlines(fstar, xmin=0, xmax=len(hist.objective), color="black")
+            print(f"Optimal Objective:\t {fstar}")
+            print(f"Objective Gap:\t\t {np.abs(hist.objective[-1] - fstar) / np.abs(fstar)}")
 
         # ax = axes[1][1]
         # if len(hist.price_error) > 0:
@@ -262,12 +310,12 @@ def __(deepcopy, param0, torch):
     param1 = deepcopy(param0)
 
     for _p in param1:
-        for k,v in _p.items():
+        for k, v in _p.items():
             _p[k] = v.clone().detach() + torch.rand(v.shape, device="cuda") * 0.010
     return k, param1, v
 
 
-@app.cell
+@app.cell(disabled=True)
 def __(admm, net, param1, state, time_horizon, torch_devices):
     state1, history1 = admm.solve(
         net,

@@ -154,6 +154,7 @@ def load_dataset(
     dont_expand=[],
     reconductoring_cost=1.0,
     reconductoring_threshold=1.4,
+    scale_by_hours=True,
     **kwargs,
 ):
     print("Loading dataset...")
@@ -162,8 +163,10 @@ def load_dataset(
 
     if name == "pypsa":
         net, devices = setup_pypysa_dataset(**kwargs)
-        for d in devices:
-            d.scale_costs(kwargs["num_hours"])  # Divide costs by number of hours
+
+        if scale_by_hours:
+            for d in devices:
+                d.scale_costs(kwargs["num_hours"])  # Divide costs by number of hours
 
     else:
         raise ValueError("Unknown dataset")

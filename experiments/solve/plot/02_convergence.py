@@ -56,7 +56,7 @@ def __(mo):
 
 @app.cell
 def __(runner):
-    config_path = "./experiments/solve/config/converge_v01.yaml"
+    config_path = "./experiments/solve/config/converge_v02.yaml"
     configs = runner.expand_config(runner.load_config(config_path))
     return config_path, configs
 
@@ -100,17 +100,14 @@ def __(mo):
 
 @app.cell
 def __():
-    scale_load = 0.5
-    hours_per_scenario = 24
+    scale_load = 0.75
+    hours_per_scenario = 192
     return hours_per_scenario, scale_load
 
 
 @app.cell
 def __(df, hours_per_scenario, scale_load):
-    _df = df[
-        (df.scale_load == scale_load)
-        * (df.hours_per_scenario == hours_per_scenario)
-    ]
+    _df = df[(df.scale_load == scale_load) * (df.hours_per_scenario == hours_per_scenario)]
     baseline_index = _df[_df.solver == "cvxpy"].index[0]
     admm_index = _df[_df.solver == "admm"].index[0]
     return admm_index, baseline_index
@@ -141,23 +138,20 @@ def __(admm_index, configs, plotter):
 def __(admm_index, configs, pd, runner):
     arg_table = runner.runner.expand_config(configs[admm_index]["admm_args"], key="sweep")
     arg_table = pd.DataFrame(arg_table)
-    arg_table
+    # arg_table
     return arg_table,
 
 
 @app.cell
 def __():
-    atol = 1.0e-3
+    atol = 1.0e-6
     alpha = 1.0
     return alpha, atol
 
 
 @app.cell
 def __(alpha, arg_table, atol):
-    _df = arg_table[
-        (arg_table.atol == atol)
-        * (arg_table.alpha == alpha)
-    ]
+    _df = arg_table[(arg_table.atol == atol) * (arg_table.alpha == alpha)]
     assert _df.shape[0] == 1
     arg_index = _df.index[0]
     return arg_index,
@@ -178,39 +172,19 @@ def __(mo):
 
 @app.cell(hide_code=True)
 def __(np, plt):
-    def plot_convergence(hist, fstar=1.0, ylims=(1e-3, 1e0)):
-        fig, axes = plt.subplots(2, 2, figsize=(7, 3.5))
-
+    def plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0)):
+        hist = solver_data["history"]
         admm_num_iters = len(hist.objective)
 
         total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2))
-        total_dual = np.sqrt(
-            np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)
-        )
+        total_dual = np.sqrt(np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2))
+
+        hline_settings = {"zorder": -100, "xmin": 0, "xmax": admm_num_iters}
+
+        fig, axes = plt.subplots(2, 2, figsize=(7, 3.5))
 
         ax = axes[0][0]
-        # ax.hlines(
-        #     admm.primal_tol,
-        #     xmin=0,
-        #     xmax=admm_num_iters,
-        #     color="black",
-        #     zorder=-100,
-        # )
-        # ax.hlines(
-        #     admm.primal_tol_power,
-        #     color="C0",
-        #     xmin=0,
-        #     xmax=admm_num_iters,
-        #     zorder=-100,
-        # )
-        # ax.hlines(
-        #     admm.primal_tol_angle,
-        #     color="C1",
-        #     xmin=0,
-        #     xmax=admm_num_iters,
-        #     zorder=-100,
-        # )
-
+        ax.hlines(solver_data["primal_tol"], color="black", **hline_settings)
         ax.plot(hist.power, label="power")
         ax.plot(hist.phase, label="angle")
         ax.plot(total_primal, color="black", ls="dashed")
@@ -220,24 +194,7 @@ def __(np, plt):
             ax.set_ylim(*ylims)
 
         ax = axes[0][1]
-
-        # ax.hlines(
-        #     admm.dual_tol, xmin=0, xmax=admm_num_iters, color="black", zorder=-100
-        # )
-        # ax.hlines(
-        #     admm.dual_tol_power,
-        #     xmin=0,
-        #     xmax=admm_num_iters,
-        #     color="C0",
-        #     zorder=-100,
-        # )
-        # ax.hlines(
-        #     admm.dual_tol_angle,
-        #     xmin=0,
-        #     xmax=admm_num_iters,
-        #     color="C1",
-        #     zorder=-100,
-        # )
+        ax.hlines(solver_data["dual_tol"], color="black", **hline_settings)
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
         ax.plot(total_dual, color="black", ls="dashed")
@@ -263,20 +220,18 @@ def __(np, plt):
     return plot_convergence,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(
     admm_data,
     admm_layer_index,
     baseline_data,
     case_index,
     get_objective_value,
-    plot_convergence,
 ):
-    plot_convergence(
-        admm_data[0][admm_layer_index]["history"],
-        fstar=get_objective_value(baseline_data[0][case_index]),
-        ylims=None,
-    )
+    print(len(admm_data[0][admm_layer_index]["history"].objective))
+    print(admm_data[0][admm_layer_index]["history"].objective[0])
+    print(admm_data[0][admm_layer_index]["history"].objective[-1])
+    print(get_objective_value(baseline_data[0][case_index]))
     return
 
 
@@ -287,9 +242,13 @@ def __(
     baseline_data,
     case_index,
     get_objective_value,
+    plot_convergence,
 ):
-    print(admm_data[0][admm_layer_index]["history"].objective[-1])
-    print(get_objective_value(baseline_data[0][case_index]))
+    plot_convergence(
+        admm_data[0][admm_layer_index],
+        fstar=get_objective_value(baseline_data[0][case_index]),
+        ylims=None,
+    )
     return
 
 
