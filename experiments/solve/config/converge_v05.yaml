@@ -1,6 +1,7 @@
 
 # Changes
-# - Disabled scale by hours
+# - More load cases
+# - More tolerances and longer to converge if needed
 
 ---
 
@@ -15,17 +16,17 @@ data:
   case: load_medium
   start_hour: peak_hybrid_day
   num_nodes: 500
-  num_hours: 1536  # Total number of hourds in the dataset
+  num_hours: 768  # Total number of hourds in the dataset
   add_ground: true
   use_batteries: true
-  use_extra_components: true
+  use_extra_components: false
   dont_expand: [hydro, coal, biomass]
   scale_by_hours: false
   args:
     power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
-    scale_load: [expand, 0.5, 0.75, 1.0]
+    scale_load: [expand, 0.5, 0.6, 0.7]
     scale_generator_capacity_factor: 0.7
     scale_line_capacity_factor: 0.7
     carbon_tax: 0.0  # $ / ton CO2
@@ -68,9 +69,9 @@ admm_args:
   verbose: false
 
   # Tweak as needed
-  num_iterations: 5000
+  num_iterations: 10_000
   minimum_iterations: 100
-  atol: [sweep, 1.0e-3, 1.0e-4]
+  atol: [sweep, 1.0e-2, 1.0e-3, 1.0e-4]
   rho_power: 1.0
   rho_angle: 1.0
   alpha: [sweep, 1.0, 1.1, 1.5]  # 1.1, 1.5

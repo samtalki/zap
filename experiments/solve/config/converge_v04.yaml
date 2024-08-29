@@ -1,12 +1,14 @@
 
 # Changes
-# - Disabled scale by hours
+# - Disabled extra components
+# - Fewer hours, scale_load settings
+# - Shorter runtime
 
 ---
 
 system:
   threads: 32
-  runtime: 120  # minutes
+  runtime: 60  # minutes
   memory: auto
   gpu: 1
 
@@ -15,17 +17,17 @@ data:
   case: load_medium
   start_hour: peak_hybrid_day
   num_nodes: 500
-  num_hours: 1536  # Total number of hourds in the dataset
+  num_hours: 768  # Total number of hourds in the dataset
   add_ground: true
   use_batteries: true
-  use_extra_components: true
+  use_extra_components: false
   dont_expand: [hydro, coal, biomass]
   scale_by_hours: false
   args:
     power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
-    scale_load: [expand, 0.5, 0.75, 1.0]
+    scale_load: [expand, 0.5, 0.75]
     scale_generator_capacity_factor: 0.7
     scale_line_capacity_factor: 0.7
     carbon_tax: 0.0  # $ / ton CO2

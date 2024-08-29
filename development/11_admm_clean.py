@@ -51,7 +51,8 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500")
+    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500_ec")
+    # pn.storage_units = pn.storage_units[pn.storage_units.p_nom > 0.0]
     return pn,
 
 
@@ -84,7 +85,7 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
     net, devices, time_horizon = load_pypsa_network(
         pn,
         time_horizon=24 * num_days,
-        start_date=dt.datetime(2019, 8, 9, 0),
+        start_date=dt.datetime(2019, 8, 9, 7),
         # Units
         power_unit=1000.0,
         cost_unit=100.0,
@@ -93,7 +94,7 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
         load_cost_perturbation=10.0,
         generator_cost_perturbation=1.0,
         # Rescale capacities
-        scale_load=0.5,
+        scale_load=0.75,
         scale_generator_capacity_factor=0.7,
         scale_line_capacity_factor=0.7,
         # Empty generators
@@ -114,10 +115,16 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
 
 
 @app.cell
-def __(admm, devices, torch):
+def __(torch):
+    machine, dtype = "cuda", torch.float32
+    return dtype, machine
+
+
+@app.cell
+def __(devices, dtype, machine, torch):
     torch.cuda.empty_cache()
 
-    torch_devices = [d.torchify(machine=admm.machine, dtype=admm.dtype) for d in devices]
+    torch_devices = [d.torchify(machine=machine, dtype=dtype) for d in devices]
     return torch_devices,
 
 
@@ -128,15 +135,23 @@ def __(mo):
 
 
 @app.cell
-def __(backprop, devices, torch_devices):
+def __(backprop, devices, torch_devices, zap):
     param0 = [{} for d in devices]
 
-    for i in [0, 2, 3]:
-        p = torch_devices[i].nominal_capacity.clone().detach()
+    for i in [0, 2, 3, 4]:
+        if i == 4:
+            assert isinstance(devices[i], zap.Battery)
+            p = torch_devices[i].power_capacity.clone().detach()
+        else:    
+            p = torch_devices[i].nominal_capacity.clone().detach()
+
         if backprop:
             p.requires_grad = True
 
-        param0[i]["nominal_capacity"] = p
+        if i == 4:
+            param0[i]["power_capacity"] = p + 0.001
+        else:    
+            param0[i]["nominal_capacity"] = p
     return i, p, param0
 
 
@@ -185,9 +200,11 @@ def __():
 
 
 @app.cell
-def __(ADMMSolver, backprop, torch):
+def __(ADMMSolver, backprop, param0, torch):
     if backprop:
         print("Gradient tape enabled.")
+
+    param0  # Force dep
 
     admm = ADMMSolver(
         machine="cuda",
@@ -201,7 +218,7 @@ def __(ADMMSolver, backprop, torch):
         battery_inner_iterations=10,
         battery_inner_over_relaxation=1.8,
         # Algorithm specs
-        num_iterations=10_000,
+        num_iterations=5_000,
         atol=1e-4,
         rho_power=1.0,
         rho_angle=0.5,
@@ -251,10 +268,16 @@ def __(admm, history, plot_convergence, y_cvx):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
+def __(state, torch):
+    torch.mean(torch.abs(state.avg_power)) * 100.0
+    return
+
+
+@app.cell
 def __(np, plt):
     def plot_convergence(hist, eps_pd=None, fstar=None):
-        fig, axes = plt.subplots(1, 3, figsize=(7, 2))
+        fig, axes = plt.subplots(1, 3, figsize=(8, 2.5))
 
         print(f"Primal Resid:\t\t {hist.power[-1] + hist.phase[-1]}")
         print(f"Dual Resid:\t\t\t {hist.dual_power[-1] + hist.dual_phase[-1]}")

@@ -165,8 +165,11 @@ def load_dataset(
         net, devices = setup_pypysa_dataset(**kwargs)
 
         if scale_by_hours:
+            print("Rescaling costs by number of hours.")
             for d in devices:
                 d.scale_costs(kwargs["num_hours"])  # Divide costs by number of hours
+        else:
+            print("Not rescaling costs by number of hours.")
 
     else:
         raise ValueError("Unknown dataset")

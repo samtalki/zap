@@ -15,7 +15,7 @@ data:
   case: load_medium
   start_hour: peak_hybrid_day
   num_nodes: 500
-  num_hours: 1536  # Total number of hourds in the dataset
+  num_hours: 24  # Total number of hourds in the dataset
   add_ground: true
   use_batteries: true
   use_extra_components: true
@@ -25,7 +25,7 @@ data:
     power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
-    scale_load: [expand, 0.5, 0.75, 1.0]
+    scale_load: 0.75
     scale_generator_capacity_factor: 0.7
     scale_line_capacity_factor: 0.7
     carbon_tax: 0.0  # $ / ton CO2
@@ -39,10 +39,10 @@ data:
 
 parameters:
   parameter_types: [generator, dc_line, ac_line, battery]
-  hours_per_scenario: [expand, 24, 192]  # Hours in one "batch"
+  hours_per_scenario: 24  # Hours in one "batch"
   capacities: [base]  # base, 1.5, base_v07/000/model_00500
 
-solver: [expand, admm, cvxpy]  # admm, cvxpy
+solver: admm  # admm, cvxpy
 
 battery_window: 24  # Hours for battery time horizon
 
@@ -70,10 +70,10 @@ admm_args:
   # Tweak as needed
   num_iterations: 5000
   minimum_iterations: 100
-  atol: [sweep, 1.0e-3, 1.0e-4]
+  atol: 1.0e-4
   rho_power: 1.0
   rho_angle: 1.0
-  alpha: [sweep, 1.0, 1.1, 1.5]  # 1.1, 1.5
+  alpha: 1.0  # 1.1, 1.5
   adaptive_rho: true
   adaptation_tolerance: 2.0
   adaptation_frequency: 10  # 20, 50

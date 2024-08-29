@@ -28,7 +28,11 @@ def __():
     import matplotlib.pyplot as plt
     import seaborn
 
-    seaborn.set_theme(style="whitegrid")
+    seaborn.set_theme(
+        style="whitegrid",
+        palette="bright",
+        rc={"axes.edgecolor": "0.15", "axes.linewidth": 1.25},
+    )
     return plt, seaborn
 
 
@@ -56,7 +60,7 @@ def __(mo):
 
 @app.cell
 def __(runner):
-    config_path = "./experiments/solve/config/converge_v02.yaml"
+    config_path = "./experiments/solve/config/converge_v04.yaml"
     configs = runner.expand_config(runner.load_config(config_path))
     return config_path, configs
 
@@ -100,8 +104,8 @@ def __(mo):
 
 @app.cell
 def __():
-    scale_load = 0.75
-    hours_per_scenario = 192
+    scale_load = 0.5
+    hours_per_scenario = 24
     return hours_per_scenario, scale_load
 
 
@@ -144,7 +148,7 @@ def __(admm_index, configs, pd, runner):
 
 @app.cell
 def __():
-    atol = 1.0e-6
+    atol = 1.0e-4
     alpha = 1.0
     return alpha, atol
 
@@ -160,7 +164,7 @@ def __(alpha, arg_table, atol):
 @app.cell
 def __(arg_index, baseline_data, plotter):
     case_index = 0
-    admm_layer_index = plotter.reverse_index(0, arg_index, len(baseline_data[0]))
+    admm_layer_index = plotter.reverse_index(case_index, arg_index, len(baseline_data[0]))
     return admm_layer_index, case_index
 
 
@@ -170,9 +174,106 @@ def __(mo):
     return
 
 
+@app.cell
+def __(
+    admm_data,
+    admm_layer_index,
+    baseline_data,
+    case_index,
+    get_objective_value,
+):
+    print(len(admm_data[0][admm_layer_index]["history"].objective))
+    print(admm_data[0][admm_layer_index]["history"].objective[0])
+    print(admm_data[0][admm_layer_index]["history"].objective[-1])
+    print(get_objective_value(baseline_data[0][case_index]))
+    return
+
+
+@app.cell
+def __(
+    Path,
+    admm_data,
+    admm_layer_index,
+    baseline_data,
+    case_index,
+    get_objective_value,
+    hours_per_scenario,
+    plot_convergence,
+):
+    _fig, _axes = plot_convergence(
+        admm_data[0][admm_layer_index],
+        fstar=get_objective_value(baseline_data[0][case_index]),
+        ylims=None,
+    )
+
+    _fig.savefig(Path().home() / f"figures/gpu/convergence_1_{hours_per_scenario}.pdf")
+
+    _fig
+    return
+
+
 @app.cell(hide_code=True)
 def __(np, plt):
     def plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0)):
+        hist = solver_data["history"]
+
+        num_iters = len(hist.objective)
+        root_n = np.sqrt(solver_data["num_ac_terminals"]) + np.sqrt(
+            solver_data["num_dc_terminals"]
+        )
+        print(solver_data["primal_tol"] / root_n)
+
+        total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2)) / root_n
+        total_dual = (
+            np.sqrt(np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)) / root_n
+        )
+
+        fig, axes = plt.subplots(1, 2, figsize=(6.5, 3))
+
+        ax = axes[0]
+        ax.plot(total_primal, label="Primal")
+        ax.plot(total_dual, label="Dual")
+
+        x1, x2 = ax.get_xlim()
+        ax.hlines(
+            solver_data["primal_tol"] / root_n,
+            color="black",
+            ls="--",
+            zorder=-100,
+            xmin=x1,
+            xmax=x2,
+        )
+        ax.set_xlim(x1, x2)
+
+        ax.set_yscale("log")
+        ax.set_title("Residuals")
+        ax.set_xlabel("Iteration")
+        ax.legend()
+
+        ax.patch.set_linewidth(1)
+        ax.patch.set_edgecolor("black")
+
+        ax = axes[1]
+        ax.plot(hist.objective, label="ADMM")
+
+        x1, x2 = ax.get_xlim()
+        ax.hlines(
+            fstar, color="black", ls="--", label="Optimal", zorder=-100, xmin=x1, xmax=x2
+        )
+        ax.set_xlim(x1, x2)
+
+        ax.legend()
+        ax.set_title("Objective Value")
+        ax.set_xlabel("Iteration")
+
+        fig.tight_layout()
+        return fig, axes
+    return plot_convergence,
+
+
+@app.cell(hide_code=True)
+def __(np, plt):
+    def old_plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0)):
         hist = solver_data["history"]
         admm_num_iters = len(hist.objective)
 
@@ -217,39 +318,7 @@ def __(np, plt):
 
         fig.tight_layout()
         return fig
-    return plot_convergence,
-
-
-@app.cell(hide_code=True)
-def __(
-    admm_data,
-    admm_layer_index,
-    baseline_data,
-    case_index,
-    get_objective_value,
-):
-    print(len(admm_data[0][admm_layer_index]["history"].objective))
-    print(admm_data[0][admm_layer_index]["history"].objective[0])
-    print(admm_data[0][admm_layer_index]["history"].objective[-1])
-    print(get_objective_value(baseline_data[0][case_index]))
-    return
-
-
-@app.cell
-def __(
-    admm_data,
-    admm_layer_index,
-    baseline_data,
-    case_index,
-    get_objective_value,
-    plot_convergence,
-):
-    plot_convergence(
-        admm_data[0][admm_layer_index],
-        fstar=get_objective_value(baseline_data[0][case_index]),
-        ylims=None,
-    )
-    return
+    return old_plot_convergence,
 
 
 if __name__ == "__main__":
