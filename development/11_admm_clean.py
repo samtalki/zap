@@ -51,7 +51,7 @@ def __():
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500_ec")
+    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500")
     # pn.storage_units = pn.storage_units[pn.storage_units.p_nom > 0.0]
     return pn,
 
@@ -94,7 +94,7 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
         load_cost_perturbation=10.0,
         generator_cost_perturbation=1.0,
         # Rescale capacities
-        scale_load=0.75,
+        scale_load=0.6,
         scale_generator_capacity_factor=0.7,
         scale_line_capacity_factor=0.7,
         # Empty generators
@@ -149,7 +149,7 @@ def __(backprop, devices, torch_devices, zap):
             p.requires_grad = True
 
         if i == 4:
-            param0[i]["power_capacity"] = p + 0.001
+            param0[i]["power_capacity"] = p # + 0.001
         else:    
             param0[i]["nominal_capacity"] = p
     return i, p, param0
@@ -222,7 +222,7 @@ def __(ADMMSolver, backprop, param0, torch):
         atol=1e-4,
         rho_power=1.0,
         rho_angle=0.5,
-        alpha=1.0,
+        alpha=1.5,
         # Adaptive rho parameters
         adaptive_rho=True,
         adaptation_frequency=10,
@@ -240,7 +240,7 @@ def __(devices, num_days):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(admm, net, param0, time_horizon, torch_devices):
     state, history = admm.solve(
         net,
@@ -274,7 +274,7 @@ def __(state, torch):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(np, plt):
     def plot_convergence(hist, eps_pd=None, fstar=None):
         fig, axes = plt.subplots(1, 3, figsize=(8, 2.5))
