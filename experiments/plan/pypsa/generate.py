@@ -11,14 +11,16 @@ from pathlib import Path
 
 pypsa_path = Path(sys.argv[1]).resolve() / "workflow"
 
-ZAP_PATH = Path(zap.__file__).resolve().parent.parent
+ZAP_PATH = Path(zap.__file__).resolve().parent.parent.parent
 config_path = Path(__file__).resolve().parent / "config.yaml"
 temp_config_path = Path(__file__).resolve().parent / "temp_config.yaml"
 
-NUM_NODES = [42, 100, 200, 240, 500, 1000]
+# NUM_NODES = [42, 100, 200, 240, 500, 1000]
+NUM_NODES = [2000, 3000, 4000]
 
+CASES = ["medium"]  # ["medium", "high"]
 
-for efs_case in ["medium", "high"]:
+for efs_case in CASES:
     run_name = f"zap_{efs_case}"
 
     # Open config
