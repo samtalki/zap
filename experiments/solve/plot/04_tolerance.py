@@ -69,7 +69,7 @@ def __(mo):
 
 @app.cell
 def __(runner):
-    config_path = "./experiments/solve/config/converge_v04.yaml"
+    config_path = "./experiments/solve/config/tolerance_v01.yaml"
     configs = runner.expand_config(runner.load_config(config_path))
     return config_path, configs
 
@@ -157,7 +157,7 @@ def __(admm_index, configs, pd, runner):
 
 @app.cell
 def __():
-    atol = 1.0e-4
+    atol = 1.0e-8
     alpha = 1.0
     return alpha, atol
 
@@ -200,13 +200,11 @@ def __(
 
 @app.cell
 def __(
-    Path,
     admm_data,
     admm_layer_index,
     baseline_data,
     case_index,
     get_objective_value,
-    hours_per_scenario,
     plot_convergence,
 ):
     _fig, _axes = plot_convergence(
@@ -215,10 +213,57 @@ def __(
         ylims=None,
     )
 
-    _fig.savefig(Path().home() / f"figures/gpu/convergence_1_{hours_per_scenario}.pdf")
+    # _fig.savefig(Path().home() / f"figures/gpu/tolerance.pdf")
 
     _fig
     return
+
+
+@app.cell
+def __(np):
+    def first_converged(data, history, unscaled_tol):
+        root_n = np.sqrt(data["num_ac_terminals"]) + np.sqrt(data["num_dc_terminals"])
+
+        tol = unscaled_tol * root_n
+        # print(unscaled_tol, tol)
+
+        for i in range(len(history.objective)):
+            r_primal = np.sqrt(history.power[i] ** 2 + history.phase[i] ** 2)
+            r_dual = np.sqrt(history.dual_power[i] ** 2 + history.dual_phase[i] ** 2)
+
+            if (r_primal < tol) and (r_dual < tol):
+                return i
+
+        return None
+    return first_converged,
+
+
+@app.cell
+def __(Path, admm_data, admm_layer_index, first_converged, np, plt):
+    data = admm_data[0][admm_layer_index]
+    hist = data["history"]
+
+    tolerance_range = np.power(10.0, np.linspace(-2.0, -5.0, num=30, endpoint=True))
+    convergence_iters = [first_converged(data, hist, tol) for tol in tolerance_range]
+
+    fig, ax = plt.subplots(figsize=(3.5, 2.5))
+
+    ax.plot(tolerance_range, convergence_iters)
+
+    ax.set_xlim(0.9e-5, 1.1e-2)
+    ax.invert_xaxis()
+    ax.set_xscale("log")
+    ax.set_xlabel("Tolerance")
+
+    ax.set_yscale("log")
+    ax.set_ylabel("Iterations")
+    ax.set_ylim(10, 25_000)
+
+    fig.tight_layout()
+    fig.savefig(Path().home() / "figures/gpu/tolerance.pdf")
+
+    fig
+    return ax, convergence_iters, data, fig, hist, tolerance_range
 
 
 @app.cell(hide_code=True)
@@ -278,56 +323,6 @@ def __(np, plt):
         fig.tight_layout()
         return fig, axes
     return plot_convergence,
-
-
-@app.cell(hide_code=True)
-def __(np, plt):
-    def old_plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0)):
-        hist = solver_data["history"]
-        admm_num_iters = len(hist.objective)
-
-        total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2))
-        total_dual = np.sqrt(np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2))
-
-        hline_settings = {"zorder": -100, "xmin": 0, "xmax": admm_num_iters}
-
-        fig, axes = plt.subplots(2, 2, figsize=(7, 3.5))
-
-        ax = axes[0][0]
-        ax.hlines(solver_data["primal_tol"], color="black", **hline_settings)
-        ax.plot(hist.power, label="power")
-        ax.plot(hist.phase, label="angle")
-        ax.plot(total_primal, color="black", ls="dashed")
-        ax.set_yscale("log")
-        ax.set_title("primal residuals")
-        if ylims is not None:
-            ax.set_ylim(*ylims)
-
-        ax = axes[0][1]
-        ax.hlines(solver_data["dual_tol"], color="black", **hline_settings)
-        ax.plot(hist.dual_power, label="power")
-        ax.plot(hist.dual_phase, label="angle")
-        ax.plot(total_dual, color="black", ls="dashed")
-        ax.set_yscale("log")
-        ax.legend()
-        ax.set_title("dual residuals")
-        if ylims is not None:
-            ax.set_ylim(*ylims)
-
-        ax = axes[1][0]
-        ax.plot(np.abs(np.array(hist.objective) - fstar) / fstar)
-        ax.set_yscale("log")
-        ax.set_title("|f - f*| / f*")
-
-        # ax = axes[1][1]
-        # if len(hist.price_error) > 0:
-        #     ax.plot(np.array(hist.price_error) / simple_result.prices.size)
-        # ax.set_yscale("log")
-        # ax.set_title("nu - nu*")
-
-        fig.tight_layout()
-        return fig
-    return old_plot_convergence,
 
 
 if __name__ == "__main__":

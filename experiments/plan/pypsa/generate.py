@@ -11,7 +11,7 @@ from pathlib import Path
 
 pypsa_path = Path(sys.argv[1]).resolve() / "workflow"
 
-ZAP_PATH = Path(zap.__file__).resolve().parent.parent.parent
+ZAP_PATH = Path(zap.__file__).resolve().parent.parent
 config_path = Path(__file__).resolve().parent / "config.yaml"
 temp_config_path = Path(__file__).resolve().parent / "temp_config.yaml"
 
