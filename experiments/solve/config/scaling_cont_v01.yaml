@@ -1,10 +1,8 @@
-# Basic config
-
 ---
 
 system:
-  threads: 16
-  runtime: 10  # minutes
+  threads: 32
+  runtime: 120  # minutes
   memory: auto
   gpu: 1
 
@@ -12,17 +10,18 @@ data:
   name: pypsa
   case: load_medium
   start_hour: peak_hybrid_day
-  num_nodes: 100
-  num_hours: 24  # Total number of hourds in the dataset
+  num_nodes: 500
+  num_hours: 240  # Total number of hourds in the dataset
   add_ground: true
   use_batteries: true
-  use_extra_components: true
+  use_extra_components: false
   dont_expand: [hydro, coal, biomass]
+  scale_by_hours: false
   args:
     power_unit: 1000.0  # 1e3 = GW
     cost_unit: 100.0  # $ / MWh
     marginal_load_value: 500.0  # $ / MWh
-    scale_load: 0.5
+    scale_load: [expand, 0.5, 0.6, 0.7]
     scale_generator_capacity_factor: 0.7
     scale_line_capacity_factor: 0.7
     carbon_tax: 0.0  # $ / ton CO2
@@ -36,14 +35,13 @@ data:
 
 parameters:
   parameter_types: [generator, dc_line, ac_line, battery]
-  hours_per_scenario: 12  # Hours for a single case (0 = num_hours)
-  capacities: [base, 1.5]  # base, 1.5, base_v07/000/model_00500
+  hours_per_scenario: 24  # Hours in one "batch"
+  capacities: [base]  # base, 1.5, base_v07/000/model_00500
 
+solver: [expand, admm, cvxpy]  # admm, cvxpy
 
-solver: [expand, cvxpy, admm]  # admm, cvxpy
-
-battery_window: 6  # Hours for battery time horizon
-num_contingencies: 10000
+battery_window: 24  # Hours for battery time horizon
+num_contingencies: [expand, 0, 100, 10000]
 
 cvxpy_args:
   solver: MOSEK
@@ -52,28 +50,36 @@ cvxpy_args:
     accept_unknown: true
     mosek_params:
       MSK_IPAR_NUM_THREADS: 16
+      MSK_DPAR_INTPNT_TOL_REL_GAP: 1.0e-3
+      MSK_DPAR_INTPNT_TOL_DFEAS: 1.0e-3
+      MSK_DPAR_INTPNT_TOL_PFEAS: 1.0e-3
 
 admm_args:
-  # Leave alone
+  # Machine settings
   machine: cuda
   dtype: float32
-
   resid_norm: 2
   safe_mode: false
   scale_dual_residuals: true
-  # battery_window: 0
   relative_rho_angle: false
+  verbose: false
 
-  # Tweak as needed
-  num_iterations: 1000
-  minimum_iterations: 100
+  # Duration and tolerance
+  num_iterations: 10_000
+  minimum_iterations: 50
   atol: 1.0e-3
+
+  # Step size
   rho_power: 1.0
   rho_angle: 1.0
-  alpha: 1.0  # 1.1, 1.5
+  alpha: [sweep, 1.0, 1.5]  # Over-relaxation
+
+  # Adaptation
   adaptive_rho: true
+  adaptation_frequency: 10
   adaptation_tolerance: 2.0
-  adaptation_frequency: 10  # 20, 50
   tau: 1.1
-  battery_inner_iterations: [sweep, 10, 20]
+
+  # Battery prox operator parameters
+  battery_inner_iterations: 10
   battery_inner_weight: 1.0

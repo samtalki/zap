@@ -36,6 +36,12 @@ def __():
     return plt, seaborn
 
 
+@app.cell
+def __(devices):
+    devices[3].num_devices
+    return
+
+
 @app.cell(hide_code=True)
 def __(mo):
     mo.md("""## Data""")
@@ -292,9 +298,9 @@ def __():
 @app.cell
 def __(ADMMSolver, torch):
     admm_c = ADMMSolver(
-        num_iterations=10_000,
-        rho_power=1.0,
-        rho_angle=1.0,
+        num_iterations=20_000,
+        rho_power=1.5,
+        rho_angle=1.5,
         # adaptive_rho=True,
         rtol=1.0e-4,
         resid_norm=2,
@@ -306,7 +312,7 @@ def __(ADMMSolver, torch):
     return admm_c,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(contingency_mask, torch):
     torch_mask = torch.tensor(contingency_mask.todense(), device="cuda", dtype=torch.float32)
     torch_mask = torch.vstack(
@@ -316,12 +322,6 @@ def __(contingency_mask, torch):
         ]
     )
     return torch_mask,
-
-
-@app.cell
-def __(admm_c):
-    admm_c.tau
-    return
 
 
 @app.cell

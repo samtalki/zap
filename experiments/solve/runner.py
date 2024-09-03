@@ -3,6 +3,8 @@ import platform
 import pickle
 import time
 import numpy as np
+import scipy.sparse as sp
+import torch
 
 from pathlib import Path
 
@@ -52,7 +54,7 @@ def load_parameter_set(
     assert time_horizon % hours_per_scenario == 0
 
     print(
-        f"Solving {time_horizon % hours_per_scenario} problems with {hours_per_scenario} hours each."
+        f"Solving {time_horizon / hours_per_scenario} problems with {hours_per_scenario} hours each."
     )
 
     scenarios = [
@@ -98,6 +100,7 @@ def setup_layers(
     time_cases,
     parameters,
     battery_window=0,
+    num_contingencies=0,
     solver=None,
     config=None,
 ):
@@ -106,6 +109,29 @@ def setup_layers(
     # Select arguments from config
     args_name = solver + "_args"
     args = config[args_name] if args_name in config else {}
+
+    # Add contingencies, if needed
+    if num_contingencies > 0:
+        print(f"Adding {num_contingencies} contingencies.")
+        contingency_device = runner.device_index(time_cases[0], zap.ACLine)
+        print(f"Contingency device: {contingency_device}")
+
+        if num_contingencies > time_cases[0][contingency_device].num_devices:
+            num_contingencies = time_cases[0][contingency_device].num_devices
+            print(
+                f"Warning: not enough devices for contingencies. Reducing to max of {num_contingencies}."
+            )
+
+        # Build contingency mask
+        cmask = sp.lil_matrix((num_contingencies, time_cases[0][contingency_device].num_devices))
+        for c in range(num_contingencies):
+            cmask[c, c] = 1.0
+        cmask = cmask.tocsr()
+
+    else:
+        print("Solving without contingencies.")
+        contingency_device = None
+        cmask = None
 
     # Convert cases to torch if needed (in place operation)
     if solver == "admm":
@@ -118,6 +144,15 @@ def setup_layers(
         for i in range(len(time_cases)):
             time_cases[i] = [d.torchify(machine=machine, dtype=dtype) for d in time_cases[i]]
 
+        if cmask is not None:
+            cmask = torch.tensor(cmask.todense(), device=machine, dtype=dtype)
+            cmask = torch.vstack(
+                [
+                    torch.zeros(cmask.shape[1], device=machine, dtype=dtype),  # Base case
+                    cmask,  # Contingencies
+                ]
+            )
+
     # Expand inner arguments
     arg_list = runner.expand_config(args, key="sweep")
 
@@ -126,13 +161,35 @@ def setup_layers(
     for arg in arg_list:
         del arg["index"]
         for case in time_cases:
-            layers += [build_layer(net, case, parameters, solver, arg, battery_window)]
+            layers += [
+                build_layer(
+                    net,
+                    case,
+                    parameters,
+                    solver,
+                    arg,
+                    battery_window,
+                    num_contingencies,
+                    contingency_device,
+                    cmask,
+                )
+            ]
 
     print(f"Initialized {len(layers)} layers with {solver} solver.")
     return layers
 
 
-def build_layer(net, case, parameters, solver, args, battery_window):
+def build_layer(
+    net,
+    case,
+    parameters,
+    solver,
+    args,
+    battery_window,
+    num_contingencies,
+    contingency_device,
+    cmask,
+):
     time_horizon = np.max([d.time_horizon for d in case])
     if battery_window == 0:
         battery_window = time_horizon
@@ -150,6 +207,9 @@ def build_layer(net, case, parameters, solver, args, battery_window):
             adapt_rho=False,
             warm_start=False,
             verbose=True,
+            num_contingencies=num_contingencies,
+            contingency_device=contingency_device,
+            contingency_mask=cmask,
         )
 
     if solver == "cvxpy":
@@ -163,6 +223,9 @@ def build_layer(net, case, parameters, solver, args, battery_window):
                 c,
                 parameter_names=parameters,
                 time_horizon=battery_window,
+                num_contingencies=num_contingencies,
+                contingency_device=contingency_device,
+                contingency_mask=cmask,
                 **args,
             )
             for c in subcases
@@ -281,6 +344,7 @@ def run_experiment(config):
         parameters,
         solver=config["solver"],
         battery_window=config["battery_window"],
+        num_contingencies=config.get("num_contingencies", 0),
         config=config,
     )
     print("\n\n\n")
