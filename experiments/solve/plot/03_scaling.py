@@ -88,10 +88,12 @@ def __(extract_runtime, np, pd):
             cfg["parameters"]["hours_per_scenario"] for cfg in configs
         ]
         df["num_nodes"] = [cfg["data"]["num_nodes"] for cfg in configs]
+        df["num_contingencies"] = [cfg.get("num_contingencies", 0) for cfg in configs]
 
         # Extract runtime
         runtimes, data = zip(*[extract_runtime(cfg) for cfg in configs])
 
+        df["median_runtime"] = [np.median(rt) for rt in runtimes]
         df["mean_runtime"] = [np.mean(rt) for rt in runtimes]
         df["runtimes"] = runtimes
 
@@ -159,13 +161,13 @@ def __(mo):
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md(r"""### Batch Size""")
+    mo.md(r"""### Time Horizon""")
     return
 
 
 @app.cell
 def __(build_runtime_table, open_configs):
-    _configs = open_configs("./experiments/solve/config/scaling_hours_v01.yaml")
+    _configs = open_configs("./experiments/solve/config/scaling_hours_v02.yaml")
     df_hours, solver_data = build_runtime_table(_configs)
 
     df_hours["num_days"] = df_hours.hours_per_scenario / 24
@@ -192,13 +194,28 @@ def __(build_runtime_table, open_configs):
 
 @app.cell(hide_code=True)
 def __(mo):
+    mo.md(r"""### Contingencies""")
+    return
+
+
+@app.cell
+def __(build_runtime_table, open_configs):
+    _configs = open_configs("./experiments/solve/config/scaling_cont_v01.yaml")[:4]
+    df_cont, _solver_data = build_runtime_table(_configs)
+
+    df_cont
+    return df_cont,
+
+
+@app.cell(hide_code=True)
+def __(mo):
     mo.md(r"""## Combine Plots""")
     return
 
 
 @app.cell
 def __(Path, df_hours, df_nodes, plot_runtimes, plt):
-    _fig, _axes = plt.subplots(1, 2, figsize=(7.5, 2.5))
+    _fig, _axes = plt.subplots(1, 3, figsize=(7.5, 3))
 
     plot_runtimes(
         df_nodes,
@@ -223,7 +240,7 @@ def __(Path, df_hours, df_nodes, plot_runtimes, plt):
     _axes[1].set_xlabel("Time Horizon")
     _axes[1].set_ylabel("")
     _axes[1].set_yscale("log")
-    _axes[1].set_ylim(1.0, 100.0)
+    _axes[1].set_ylim(1.0, 1000.0)
 
     _fig.tight_layout()
     _fig.savefig(Path().home() / "figures/gpu/scaling_devices_hours.pdf")

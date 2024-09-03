@@ -255,7 +255,12 @@ def solve_problem(layers, param_cases):
             if isinstance(layer, list):
                 y = [layer[i](**theta) for i in range(len(layer))]
             else:
+                rho_power, rho_angle = layer.solver.rho_power, layer.solver.rho_angle
                 y = layer(**theta)
+                # Need to reset these after each solve
+                layer.solver.rho_power = rho_power
+                layer.solver.rho_angle = rho_angle
+
             solve_time = time.time() - t0
             print(f"Solved in {solve_time:.2f} seconds.")
 
