@@ -19,6 +19,9 @@ class DispatchLayer:
         solver=cp.ECOS,
         solver_kwargs={},
         add_ground=False,
+        num_contingencies=0,
+        contingency_device=None,
+        contingency_mask=None,
     ):
         self.network = network
         self.devices = devices
@@ -27,6 +30,9 @@ class DispatchLayer:
         self.solver = solver
         self.solver_kwargs = solver_kwargs
         self.add_ground = add_ground
+        self.num_contingencies = num_contingencies
+        self.contingency_device = contingency_device
+        self.contingency_mask = contingency_mask
 
         # TODO - check that parameters match devices
         # TODO - check that parameters are unique?
@@ -56,6 +62,9 @@ class DispatchLayer:
             solver=self.solver,
             solver_kwargs=self.solver_kwargs,
             add_ground=self.add_ground,
+            num_contingencies=self.num_contingencies,
+            contingency_device=self.contingency_device,
+            contingency_mask=self.contingency_mask,
         )
 
     def backward(self, z: DispatchOutcome, dz: DispatchOutcome, regularize=1e-8, **kwargs):

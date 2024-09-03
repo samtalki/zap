@@ -49,7 +49,7 @@ def __():
     return num_days, num_nodes
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(mo, num_nodes, pypsa):
     pn = pypsa.Network()
     pn.import_from_csv_folder(f"data/pypsa/western/elec_s_{num_nodes}")
@@ -109,21 +109,13 @@ def __(load_pypsa_network, np, num_days, pn, zap):
     return devices, net, time_horizon
 
 
-@app.cell(hide_code=True)
-def __(devices):
-    for d in devices:
-        print(type(d), d.num_devices)
-    print(sum(d.num_devices for d in devices))
-    return d,
-
-
 @app.cell
 def __(devices):
     torch_devices = [d.torchify(machine="cuda") for d in devices]
     return torch_devices,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(np, plt):
     def plot_convergence(hist, admm, fstar):
         fig, axes = plt.subplots(2, 2, figsize=(7, 4))
@@ -252,7 +244,7 @@ def __(mo):
 @app.cell
 def __(devices):
     contingency_device = 3
-    num_contingencies = 100
+    num_contingencies = 10
 
     print(type(devices[contingency_device]))
     return contingency_device, num_contingencies
@@ -303,8 +295,8 @@ def __(ADMMSolver, torch):
         num_iterations=10_000,
         rho_power=1.0,
         rho_angle=1.0,
-        adaptive_rho=True,
-        rtol=1.0e-3,
+        # adaptive_rho=True,
+        rtol=1.0e-4,
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
@@ -324,6 +316,12 @@ def __(contingency_mask, torch):
         ]
     )
     return torch_mask,
+
+
+@app.cell
+def __(admm_c):
+    admm_c.tau
+    return
 
 
 @app.cell
@@ -358,6 +356,14 @@ def __(historyc, yc):
 def __(admm_c, historyc, plot_convergence, yc):
     plot_convergence(historyc, admm_c, yc.problem.value)
     return
+
+
+@app.cell(hide_code=True)
+def __(devices):
+    for d in devices:
+        print(type(d), d.num_devices)
+    print(sum(d.num_devices for d in devices))
+    return d,
 
 
 if __name__ == "__main__":

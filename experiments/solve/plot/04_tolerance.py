@@ -69,7 +69,7 @@ def __(mo):
 
 @app.cell
 def __(runner):
-    config_path = "./experiments/solve/config/tolerance_v01.yaml"
+    config_path = "./experiments/solve/config/tolerance_v02.yaml"
     configs = runner.expand_config(runner.load_config(config_path))
     return config_path, configs
 
@@ -239,25 +239,31 @@ def __(np):
 
 
 @app.cell
+def __(convergence_iters):
+    convergence_iters
+    return
+
+
+@app.cell
 def __(Path, admm_data, admm_layer_index, first_converged, np, plt):
     data = admm_data[0][admm_layer_index]
     hist = data["history"]
 
-    tolerance_range = np.power(10.0, np.linspace(-2.0, -5.0, num=30, endpoint=True))
+    tolerance_range = np.power(10.0, np.linspace(-2.0, -6.0, num=30, endpoint=True))
     convergence_iters = [first_converged(data, hist, tol) for tol in tolerance_range]
 
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
     ax.plot(tolerance_range, convergence_iters)
 
-    ax.set_xlim(0.9e-5, 1.1e-2)
+    ax.set_xlim(1.0e-6, 1.0e-1)
     ax.invert_xaxis()
     ax.set_xscale("log")
     ax.set_xlabel("Tolerance")
 
     ax.set_yscale("log")
     ax.set_ylabel("Iterations")
-    ax.set_ylim(10, 25_000)
+    ax.set_ylim(10, 100_000)
 
     fig.tight_layout()
     fig.savefig(Path().home() / "figures/gpu/tolerance.pdf")

@@ -20,6 +20,9 @@ class ADMMLayer(DispatchLayer):
         adapt_rho: bool = False,
         adapt_rho_rate: float = 0.1,
         verbose: bool = False,
+        num_contingencies=0,
+        contingency_device=None,
+        contingency_mask=None,
     ):
         self.network = network
         self.devices = devices
@@ -30,6 +33,9 @@ class ADMMLayer(DispatchLayer):
         self.adapt_rho = adapt_rho
         self.adapt_rho_rate = adapt_rho_rate
         self.verbose = verbose
+        self.num_contingencies = num_contingencies
+        self.contingency_device = contingency_device
+        self.contingency_mask = contingency_mask
 
     def forward(self, initial_state=None, **kwargs) -> ADMMState:
         parameters = self.setup_parameters(**kwargs)
@@ -45,6 +51,9 @@ class ADMMLayer(DispatchLayer):
             self.time_horizon,
             parameters=parameters,
             initial_state=initial_state,
+            num_contingencies=self.num_contingencies,
+            contingency_device=self.contingency_device,
+            contingency_mask=self.contingency_mask,
         )
 
         self.history = history
