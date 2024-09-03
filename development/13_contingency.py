@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.6.17"
+__generated_with = "0.8.3"
 app = marimo.App(app_title="SCOPF - CVX")
 
 
@@ -38,7 +38,7 @@ def __():
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("## Data")
+    mo.md("""## Data""")
     return
 
 
@@ -63,7 +63,7 @@ def __():
         "marginal_load_value": 500.0,
         "load_cost_perturbation": 50.0,
         "generator_cost_perturbation": 1.0,
-        "cost_unit": 1.0,  # 1000.0,
+        "cost_unit": 100.0,  # 1000.0,
         "power_unit": 1000.0,
         "b_factor": 1.0,
     }
@@ -123,13 +123,13 @@ def __(devices):
     return torch_devices,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(np, plt):
     def plot_convergence(hist, admm, fstar):
         fig, axes = plt.subplots(2, 2, figsize=(7, 4))
 
         admm_num_iters = len(hist.objective)
-        eps_pd = admm.rtol * np.sqrt(admm.total_terminals)
+        eps_pd = admm.primal_tol
 
         ax = axes[0][0]
         total_primal = np.sqrt(np.power(hist.power, 2) + np.power(hist.phase, 2))
@@ -141,9 +141,7 @@ def __(np, plt):
         ax.set_title("primal residuals")
 
         ax = axes[0][1]
-        total_dual = np.sqrt(
-            np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)
-        )
+        total_dual = np.sqrt(np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2))
         ax.hlines(eps_pd, xmin=0, xmax=admm_num_iters, color="black", zorder=-100)
         ax.plot(hist.dual_power, label="power")
         ax.plot(hist.dual_phase, label="angle")
@@ -170,7 +168,7 @@ def __(np, plt):
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("## Solve Base Case")
+    mo.md("""## Solve Base Case""")
     return
 
 
@@ -183,8 +181,10 @@ def __():
 @app.cell
 def __(ADMMSolver, torch):
     admm = ADMMSolver(
-        num_iterations=5000,
+        num_iterations=1000,
         rho_power=1.0,
+        rho_angle=1.0,
+        adaptive_rho=True,
         rtol=1e-3,
         resid_norm=2,
         machine="cuda",
@@ -245,14 +245,14 @@ def __(admm, history0, plot_convergence, y0):
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("## Solve with Contingencies")
+    mo.md("""## Solve with Contingencies""")
     return
 
 
 @app.cell
 def __(devices):
     contingency_device = 3
-    num_contingencies = 10
+    num_contingencies = 100
 
     print(type(devices[contingency_device]))
     return contingency_device, num_contingencies
@@ -300,8 +300,10 @@ def __():
 @app.cell
 def __(ADMMSolver, torch):
     admm_c = ADMMSolver(
-        num_iterations=5000,
-        rho_power=0.05,
+        num_iterations=10_000,
+        rho_power=1.0,
+        rho_angle=1.0,
+        adaptive_rho=True,
         rtol=1.0e-3,
         resid_norm=2,
         machine="cuda",
@@ -314,9 +316,7 @@ def __(ADMMSolver, torch):
 
 @app.cell(hide_code=True)
 def __(contingency_mask, torch):
-    torch_mask = torch.tensor(
-        contingency_mask.todense(), device="cuda", dtype=torch.float32
-    )
+    torch_mask = torch.tensor(contingency_mask.todense(), device="cuda", dtype=torch.float32)
     torch_mask = torch.vstack(
         [
             torch.zeros(torch_mask.shape[1], device="cuda", dtype=torch.float32),
@@ -326,7 +326,7 @@ def __(contingency_mask, torch):
     return torch_mask,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(
     admm_c,
     contingency_device,

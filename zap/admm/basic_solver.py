@@ -110,8 +110,8 @@ class ADMMSolver:
     scale_dual_residuals: bool = True
     relative_rho_angle: bool = False
     adaptive_rho: bool = False
-    tau: float = 2.0
-    adaptation_tolerance: float = 10.0
+    tau: float = 1.1
+    adaptation_tolerance: float = 2.0
     adaptation_frequency: int = 10
     verbose: bool = True
 
@@ -307,8 +307,9 @@ class ADMMSolver:
             # This is a non-contingency device in a contingency-constrained problem
             # We need to aggregrate the contingeny terms
             AT_nu = [torch.mean(A, dim=-1) for A in AT_nu]
+            clones = [torch.mean(v, dim=-1) for v in st.clone_power[dev_index]]
 
-            return [zi - AT_nu_i for zi, AT_nu_i in zip(st.clone_power[dev_index], AT_nu)]
+            return [zi - AT_nu_i for zi, AT_nu_i in zip(clones, AT_nu)]
 
         else:
             # Normal case (or contingency device in a contingency-constrained problem)
@@ -433,10 +434,14 @@ class ADMMSolver:
         # Relative component
         if self.rtol > 0.0:  # We add this check so we don't waste time computing norms
             primal_tol_power += self.rtol * nested_norm(st.power, p).item()
+
+            if st.dual_power.dim() == 3:
+                dual_power_scaled = st.num_terminals.unsqueeze(-1) * st.dual_power
+            else:
+                dual_power_scaled = st.num_terminals * st.dual_power
+
             dual_tol_power += (
-                self.rtol
-                * rho_power
-                * torch.linalg.norm((st.num_terminals * st.dual_power).ravel(), p).item()
+                self.rtol * rho_power * torch.linalg.norm(dual_power_scaled.ravel(), p).item()
             )
 
             primal_tol_angle += self.rtol * nested_norm(st.phase, p).item()
@@ -668,9 +673,19 @@ class ADMMSolver:
         theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
 
         # Clones
-        clone_power = [
-            d.admm_initialize_power_variables(time_horizon, machine, dtype) for d in devices
-        ]
+        # Clones should be initialized with the same shape as the residuals
+        # In particular, this means one value per contingency for ALL devices
+        if cd is None:
+            clone_power = [
+                d.admm_initialize_power_variables(time_horizon, machine, dtype) for d in devices
+            ]
+        else:
+            clone_power = [
+                d.admm_initialize_power_variables(
+                    time_horizon, machine, dtype, num_contingencies=nc
+                )
+                for d in devices
+            ]
         clone_phase = theta_bar.clone().detach()
 
         return ADMMState(

@@ -51,6 +51,10 @@ def load_parameter_set(
         hours_per_scenario = time_horizon
     assert time_horizon % hours_per_scenario == 0
 
+    print(
+        f"Solving {time_horizon % hours_per_scenario} problems with {hours_per_scenario} hours each."
+    )
+
     scenarios = [
         range(i, i + hours_per_scenario) for i in range(0, time_horizon, hours_per_scenario)
     ]
@@ -132,6 +136,8 @@ def build_layer(net, case, parameters, solver, args, battery_window):
     time_horizon = np.max([d.time_horizon for d in case])
     if battery_window == 0:
         battery_window = time_horizon
+        print(f"Setting battery window to {battery_window}.")
+
     assert time_horizon % battery_window == 0
 
     if solver == "admm":

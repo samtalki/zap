@@ -196,6 +196,8 @@ def get_terminal_residual(angles: list[Optional[list[torch.Tensor]]], average_an
             residuals += [None]
 
         else:
+            a_dev: list[torch.Tensor]
+
             residuals += [
                 [
                     a_dt.unsqueeze(2) - AT_theta_dt
