@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.7.9"
+__generated_with = "0.8.3"
 app = marimo.App(width="full")
 
 
@@ -25,14 +25,14 @@ def __():
 
 @app.cell
 def __(importlib):
-    from experiments import runner
+    from experiments.plan import runner
     _ = importlib.reload(runner)
     return runner,
 
 
 @app.cell
 def __(importlib):
-    from experiments import plotter
+    from experiments.plan import plotter
     _ = importlib.reload(plotter)
     return plotter,
 
@@ -50,7 +50,7 @@ def __():
 def __(runner):
     # Load config data
 
-    config = runner.load_config("experiments/config/demo_small_v01.yaml")
+    config = runner.load_config("experiments/plan/config/demo_small_v01.yaml")
     return config,
 
 
@@ -292,7 +292,7 @@ def __(
 
 @app.cell
 def __(mo):
-    mo.md("## Results")
+    mo.md("""## Results""")
     return
 
 

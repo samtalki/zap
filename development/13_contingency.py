@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.8.3"
-app = marimo.App(app_title="SCOPF - CVX")
+app = marimo.App(width="medium", app_title="SCOPF - CVX")
 
 
 @app.cell
@@ -51,7 +51,7 @@ def __(mo):
 @app.cell
 def __():
     num_days = 1
-    num_nodes = 100
+    num_nodes = 500
     return num_days, num_nodes
 
 
@@ -67,21 +67,32 @@ def __(mo, num_nodes, pypsa):
 def __():
     DEFAULT_PYPSA_KWARGS = {
         "marginal_load_value": 500.0,
-        "load_cost_perturbation": 50.0,
         "generator_cost_perturbation": 1.0,
         "cost_unit": 100.0,  # 1000.0,
         "power_unit": 1000.0,
-        "b_factor": 1.0,
+
+        # New
+        "load_cost_perturbation": 10.0,
+        "scale_load": 0.5,
+        "scale_generator_capacity_factor": 0.7,
+        "scale_line_capacity_factor": 0.7,
+        # Empty generators
+        "drop_empty_generators": False,
+        "expand_empty_generators": 0.5,
+        # Battery stuff
+        "battery_discharge_cost": 1.0,
+        "battery_init_soc": 0.0,
+        "battery_final_soc": 0.0,
     }
     return DEFAULT_PYPSA_KWARGS,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
     def load_pypsa_network(
         pn,
         time_horizon=1,
-        start_date=dt.datetime(2019, 1, 2, 0),
+        start_date=dt.datetime(2019, 8, 9, 7),
         exclude_batteries=False,
         **pypsa_kwargs,
     ):
@@ -183,7 +194,8 @@ def __(ADMMSolver, torch):
         rho_power=1.0,
         rho_angle=1.0,
         adaptive_rho=True,
-        rtol=1e-3,
+        atol=1e-3,
+
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
@@ -250,7 +262,7 @@ def __(mo):
 @app.cell
 def __(devices):
     contingency_device = 3
-    num_contingencies = 10
+    num_contingencies = 1143
 
     print(type(devices[contingency_device]))
     return contingency_device, num_contingencies
@@ -269,7 +281,7 @@ def __(contingency_device, devices, num_contingencies, sp):
     return c, contingency_mask
 
 
-@app.cell
+@app.cell(disabled=True)
 def __(
     contingency_device,
     contingency_mask,
@@ -296,13 +308,14 @@ def __():
 
 
 @app.cell
-def __(ADMMSolver, torch):
+def __(ADMMSolver, np, num_contingencies, torch):
     admm_c = ADMMSolver(
-        num_iterations=20_000,
-        rho_power=1.5,
-        rho_angle=1.5,
-        # adaptive_rho=True,
-        rtol=1.0e-4,
+        num_iterations=10_000,
+        rho_power=1.0,
+        rho_angle=1.0,
+        adaptive_rho=True,
+        atol=1.0e-3 / np.sqrt(num_contingencies + 1),
+
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
@@ -346,6 +359,13 @@ def __(
 
 
 @app.cell
+def __(historyc, np):
+    print(f"Primal Residual: {np.sqrt(historyc.power[-1]**2 + historyc.phase[-1]**2)}")
+    print(f"Dual Residual: {np.sqrt(historyc.dual_phase[-1]**2 + historyc.dual_power[-1]**2)}")
+    return
+
+
+@app.cell
 def __(historyc, yc):
     print("Objective Value (CVX):\t", yc.problem.value)
     print("Objective Value (ADMM):\t", historyc.objective[-1])
@@ -353,8 +373,8 @@ def __(historyc, yc):
 
 
 @app.cell
-def __(admm_c, historyc, plot_convergence, yc):
-    plot_convergence(historyc, admm_c, yc.problem.value)
+def __(admm_c, historyc, plot_convergence):
+    plot_convergence(historyc, admm_c, 0.0)  # yc.problem.value)
     return
 
 

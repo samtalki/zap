@@ -76,7 +76,7 @@ def __(runner):
 
 @app.cell
 def __(extract_runtime, np, pd):
-    def build_runtime_table(configs):
+    def build_runtime_table(configs, skip_missing=False):
         df = {}
 
         # Add config info
@@ -91,21 +91,30 @@ def __(extract_runtime, np, pd):
         df["num_contingencies"] = [cfg.get("num_contingencies", 0) for cfg in configs]
 
         # Extract runtime
-        runtimes, data = zip(*[extract_runtime(cfg) for cfg in configs])
+        runtimes, data = zip(*[extract_runtime(cfg, skip_missing=skip_missing) for cfg in configs])
 
         df["median_runtime"] = [np.median(rt) for rt in runtimes]
         df["mean_runtime"] = [np.mean(rt) for rt in runtimes]
         df["runtimes"] = runtimes
 
-        return pd.DataFrame(df, index=index), data
+        df = pd.DataFrame(df, index=index)
+
+        if skip_missing:
+            df = df[df.mean_runtime >= 0.0]
+
+        return df, data
     return build_runtime_table,
 
 
 @app.cell
 def __(Path, pickle, runner):
-    def extract_runtime(config):
-        path = Path(runner.get_results_path(config["id"], config["index"]))
-        with open(path / "solver_data.pkl", "rb") as f:
+    def extract_runtime(config, skip_missing=False):
+        path = Path(runner.get_results_path(config["id"], config["index"])) / "solver_data.pkl"
+
+        if skip_missing and (not path.exists()):
+            return [-1.0], None
+
+        with open(path, "rb") as f:
             solver_data = pickle.load(f)
 
         runtimes = [[d["time"] for d in data] for data in solver_data]
@@ -167,7 +176,7 @@ def __(mo):
 
 @app.cell
 def __(build_runtime_table, open_configs):
-    _configs = open_configs("./experiments/solve/config/scaling_hours_v02.yaml")
+    _configs = open_configs("./experiments/solve/config/scaling_hours_v03.yaml")
     df_hours, solver_data = build_runtime_table(_configs)
 
     df_hours["num_days"] = df_hours.hours_per_scenario / 24
@@ -183,7 +192,7 @@ def __(mo):
 
 @app.cell
 def __(build_runtime_table, open_configs):
-    _configs = open_configs("./experiments/solve/config/scaling_devices_v02.yaml")
+    _configs = open_configs("./experiments/solve/config/scaling_devices_v03.yaml")
     df_nodes, _solver_data = build_runtime_table(_configs)
 
     df_nodes = df_nodes[df_nodes.num_nodes >= 500]
@@ -199,9 +208,11 @@ def __(mo):
 
 
 @app.cell
-def __(build_runtime_table, open_configs):
-    _configs = open_configs("./experiments/solve/config/scaling_cont_v01.yaml")[:4]
-    df_cont, _solver_data = build_runtime_table(_configs)
+def __(build_runtime_table, np, open_configs):
+    _configs = open_configs("./experiments/solve/config/scaling_cont_v04.yaml")
+    df_cont, _solver_data = build_runtime_table(_configs, skip_missing=True)
+
+    df_cont["num_contingencies"] = np.minimum(df_cont["num_contingencies"], 1158) + 1
 
     df_cont
     return df_cont,
@@ -214,7 +225,7 @@ def __(mo):
 
 
 @app.cell
-def __(Path, df_hours, df_nodes, plot_runtimes, plt):
+def __(Path, df_cont, df_hours, df_nodes, plot_runtimes, plt):
     _fig, _axes = plt.subplots(1, 3, figsize=(7.5, 3))
 
     plot_runtimes(
@@ -231,6 +242,13 @@ def __(Path, df_hours, df_nodes, plot_runtimes, plt):
         x_index="hours_per_scenario",
         labels={"cvxpy": "Mosek", "admm": "ADMM"},
     )
+    plot_runtimes(
+        df_cont,
+        fig=_fig,
+        ax=_axes[2],
+        x_index="num_contingencies",
+        labels={"cvxpy": "Mosek", "admm": "ADMM"},
+    )
 
     _axes[0].set_xlabel("Network Size")
     _axes[0].set_ylabel("Mean Runtime (s)")
@@ -241,6 +259,12 @@ def __(Path, df_hours, df_nodes, plot_runtimes, plt):
     _axes[1].set_ylabel("")
     _axes[1].set_yscale("log")
     _axes[1].set_ylim(1.0, 1000.0)
+
+    _axes[2].set_ylabel("")
+    _axes[2].set_yscale("log")
+    # _axes[2].set_xscale("log")
+    _axes[2].get_legend().remove()
+    _axes[2].set_xlabel("Contingencies")
 
     _fig.tight_layout()
     _fig.savefig(Path().home() / "figures/gpu/scaling_devices_hours.pdf")

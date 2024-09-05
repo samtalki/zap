@@ -263,16 +263,17 @@ def __(np, plt):
         ax.patch.set_edgecolor("black")
 
         ax = axes[1]
-        ax.plot(hist.objective, label="ADMM")
+        ax.plot(np.abs(hist.objective[:] - fstar) / fstar, label="ADMM")
+        ax.set_yscale("log")
 
-        x1, x2 = ax.get_xlim()
-        ax.hlines(
-            fstar, color="black", ls="--", label="Optimal", zorder=-100, xmin=x1, xmax=x2
-        )
-        ax.set_xlim(x1, x2)
+        # x1, x2 = ax.get_xlim()
+        # ax.hlines(
+        #     fstar, color="black", ls="--", label="Optimal", zorder=-100, xmin=x1, xmax=x2
+        # )
+        # ax.set_xlim(x1, x2)
 
-        ax.legend()
-        ax.set_title("Objective Value")
+        # ax.legend()
+        ax.set_title(r"$|f(x^{(i)}) - f^*| \ / \ f^*$")
         ax.set_xlabel("Iteration")
 
         fig.tight_layout()

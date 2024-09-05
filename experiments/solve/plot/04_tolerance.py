@@ -239,12 +239,6 @@ def __(np):
 
 
 @app.cell
-def __(convergence_iters):
-    convergence_iters
-    return
-
-
-@app.cell
 def __(Path, admm_data, admm_layer_index, first_converged, np, plt):
     data = admm_data[0][admm_layer_index]
     hist = data["history"]
@@ -259,7 +253,7 @@ def __(Path, admm_data, admm_layer_index, first_converged, np, plt):
     ax.set_xlim(1.0e-6, 1.0e-1)
     ax.invert_xaxis()
     ax.set_xscale("log")
-    ax.set_xlabel("Tolerance")
+    ax.set_xlabel("Accuracy")
 
     ax.set_yscale("log")
     ax.set_ylabel("Iterations")
