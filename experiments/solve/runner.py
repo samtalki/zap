@@ -232,7 +232,7 @@ def build_layer(
         ]
 
 
-def solve_problem(layers, param_cases):
+def solve_problem(layers, param_cases, warm_start=False):
     i = 0
 
     ys = []
@@ -256,7 +256,13 @@ def solve_problem(layers, param_cases):
                 y = [layer[i](**theta) for i in range(len(layer))]
             else:
                 rho_power, rho_angle = layer.solver.rho_power, layer.solver.rho_angle
-                y = layer(**theta)
+
+                if warm_start and i > 0:
+                    print("\n\nWarm starting.")
+                    y = layer(initial_state=ys[i_theta][-1][1], **theta)
+                else:
+                    y = layer(**theta)
+
                 # Need to reset these after each solve
                 layer.solver.rho_power = rho_power
                 layer.solver.rho_angle = rho_angle
@@ -285,7 +291,7 @@ def solve_problem(layers, param_cases):
                         "rho_angle": layer.solver.rho_angle,
                     }
                 ]
-                ys += [(y, layer.state)]
+                ys[i_theta] += [(y, layer.state)]
 
             else:
                 solver_data[i_theta] += [
@@ -294,7 +300,7 @@ def solve_problem(layers, param_cases):
                 for yi in y:
                     yi.problem = None  # This got moved to solver_data
 
-                ys += y
+                ys[i_theta] += [y]
 
     print("Solved all cases.")
     return ys, solver_data
@@ -354,7 +360,9 @@ def run_experiment(config):
     )
     print("\n\n\n")
 
-    ys, solver_data = solve_problem(layers, capacity_cases)
+    ys, solver_data = solve_problem(
+        layers, capacity_cases, warm_start=config.get("warm_start", False)
+    )
     save_results(ys, solver_data, time_cases, capacity_cases, config)
 
 
