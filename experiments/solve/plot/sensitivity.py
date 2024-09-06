@@ -44,14 +44,14 @@ def __(mo):
 
 @app.cell
 def __():
-    num_days = 8
+    num_days = 1
     return num_days,
 
 
 @app.cell
 def __(pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_4000")
+    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_500")
     # pn.storage_units = pn.storage_units[pn.storage_units.p_nom > 0.0]
     return pn,
 
@@ -162,14 +162,14 @@ def __(mo):
 
 
 @app.cell
-def __():
-    # y_cvx = net.dispatch(
-    #     devices,
-    #     add_ground=False,
-    #     solver=cp.MOSEK,
-    #     parameters=[{k: v.cpu() for k, v in p.items()} for p in param0],
-    # )
-    return
+def __(cp, devices, net, param0):
+    y_cvx = net.dispatch(
+        devices,
+        add_ground=False,
+        solver=cp.MOSEK,
+        parameters=[{k: v.cpu() for k, v in p.items()} for p in param0],
+    )
+    return y_cvx,
 
 
 @app.cell(hide_code=True)
@@ -218,7 +218,7 @@ def __(ADMMSolver, backprop, param0, torch):
         battery_inner_iterations=10,
         battery_inner_over_relaxation=1.8,
         # Algorithm specs
-        num_iterations=100,
+        num_iterations=5_000,
         atol=1e-4,
         rho_power=1.0,
         rho_angle=0.5,
