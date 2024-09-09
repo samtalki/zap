@@ -212,7 +212,7 @@ class ADMMSolver:
 
             # (4) Hisory, convergence checks, numerical checks
             if self.track_objective:
-                st = st.update(objective=self.compute_objective(st, devices))
+                st = st.update(objective=self.compute_objective(st, devices, parameters))
 
             self.update_history(history, st, last_avg_phase, last_resid_power, nu_star)
 
@@ -399,7 +399,13 @@ class ADMMSolver:
         torch.testing.assert_allclose(nested_norm(avg_dual_phase), 0.0, rtol=1e-8, atol=1e-8)
         return True
 
-    def compute_objective(self, st: ADMMState, devices: list[AbstractDevice]):
+    def compute_objective(
+        self,
+        st: ADMMState,
+        devices: list[AbstractDevice],
+        parameters,
+        as_item=True,
+    ):
         # TODO Incorporate local variables
         costs = []
         for i, d in enumerate(devices):
@@ -408,15 +414,20 @@ class ADMMSolver:
                 # Use base case cost
                 pi = [p[:, :, 0] for p in st.power[i]]
                 vi = [v[:, :, 0] for v in st.phase[i]] if st.phase[i] is not None else None
-                costs += [d.operation_cost(pi, vi, None, la=torch)]
+                costs += [d.operation_cost(pi, vi, None, la=torch, **parameters[i])]
             else:
-                costs += [d.operation_cost(st.power[i], st.phase[i], None, la=torch)]
+                costs += [
+                    d.operation_cost(st.power[i], st.phase[i], None, la=torch, **parameters[i])
+                ]
 
         # costs = [
         #     d.operation_cost(st.power[i], st.phase[i], None, la=torch)
         #     for i, d in enumerate(devices)
         # ]
-        return sum(costs).item()
+        if as_item:
+            return sum(costs).item()
+        else:
+            return sum(costs)
 
     def has_converged(self, st: ADMMState, history: ADMMState, num_cont: int):
         p = 2 if self.resid_norm is None else self.resid_norm

@@ -218,7 +218,7 @@ def __(ADMMSolver, backprop, param0, torch):
         battery_inner_iterations=10,
         battery_inner_over_relaxation=1.8,
         # Algorithm specs
-        num_iterations=100,
+        num_iterations=1000,
         atol=1e-4,
         rho_power=1.0,
         rho_angle=0.5,
@@ -263,8 +263,8 @@ def __(devices, np, state, torch, y_cvx):
 
 
 @app.cell
-def __(admm, history, plot_convergence, y_cvx):
-    plot_convergence(history, eps_pd=admm.primal_tol, fstar=y_cvx.problem.value)
+def __(admm, history, plot_convergence):
+    plot_convergence(history, eps_pd=admm.primal_tol, fstar=None)  # y_cvx.problem.value)
     return
 
 

@@ -208,14 +208,19 @@ def __(mo):
 
 
 @app.cell
-def __(build_runtime_table, np, open_configs):
+def __(build_runtime_table, np, open_configs, pd):
     _configs = open_configs("./experiments/solve/config/scaling_cont_v04.yaml")
-    df_cont, _solver_data = build_runtime_table(_configs, skip_missing=True)
+    df_cont, _solver_data = build_runtime_table(_configs, skip_missing=False)
+    df_cont_big, _solver_data = build_runtime_table(open_configs("./experiments/solve/config/scaling_cont_big_v02.yaml"))
 
     df_cont["num_contingencies"] = np.minimum(df_cont["num_contingencies"], 1158) + 1
+    df_cont_big["num_contingencies"] = np.minimum(df_cont_big["num_contingencies"], 1158) + 1
+
+    df_cont = pd.concat([df_cont, df_cont_big])
+
 
     df_cont
-    return df_cont,
+    return df_cont, df_cont_big
 
 
 @app.cell(hide_code=True)
@@ -262,7 +267,7 @@ def __(Path, df_cont, df_hours, df_nodes, plot_runtimes, plt):
 
     _axes[2].set_ylabel("")
     _axes[2].set_yscale("log")
-    # _axes[2].set_xscale("log")
+    _axes[2].set_xscale("log")
     _axes[2].get_legend().remove()
     _axes[2].set_xlabel("Contingencies")
 
