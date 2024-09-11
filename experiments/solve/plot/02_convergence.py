@@ -199,6 +199,12 @@ def __(
 
 
 @app.cell
+def __():
+    # np.array(admm_data[0][admm_layer_index]["history"].power
+    return
+
+
+@app.cell
 def __(
     Path,
     admm_data,
@@ -221,7 +227,7 @@ def __(
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(np, plt):
     def plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0)):
         hist = solver_data["history"]
@@ -236,6 +242,8 @@ def __(np, plt):
         total_dual = (
             np.sqrt(np.power(hist.dual_power, 2) + np.power(hist.dual_phase, 2)) / root_n
         )
+
+        print(np.argwhere((total_primal <= 1e-4) * (total_dual <= 1e-4))[0])
 
         fig, axes = plt.subplots(1, 2, figsize=(6.5, 3))
 
@@ -273,7 +281,7 @@ def __(np, plt):
         # ax.set_xlim(x1, x2)
 
         # ax.legend()
-        ax.set_title(r"$|f(x^{(i)}) - f^*| \ / \ f^*$")
+        ax.set_title(r"$|f^{(i)} - f^*| \ / \ f^*$")
         ax.set_xlabel("Iteration")
 
         fig.tight_layout()

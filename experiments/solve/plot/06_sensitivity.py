@@ -70,7 +70,7 @@ def __(pypsa):
     return pn,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(dt, pd, zap):
     def load_pypsa_network(
         pn,
@@ -140,6 +140,46 @@ def __(devices, dtype, machine, torch):
 
     torch_devices = [d.torchify(machine=machine, dtype=dtype) for d in devices]
     return torch_devices,
+
+
+@app.cell
+def __(devices, np):
+    total_load = -np.sum(devices[1].min_power * devices[1].nominal_capacity)
+    total_load
+    return total_load,
+
+
+@app.cell
+def __(dt, load_pypsa_network, np, pn):
+    _, _devices, _T = load_pypsa_network(
+        pn,
+        time_horizon=24 * 360,
+        start_date=dt.datetime(2019, 1, 1, 7),
+        # Units
+        power_unit=1000.0,
+        cost_unit=100.0,
+        # Costs
+        marginal_load_value=500.0,
+        load_cost_perturbation=10.0,
+        generator_cost_perturbation=1.0,
+        # Rescale capacities
+        scale_load=0.6,
+        scale_generator_capacity_factor=0.7,
+        scale_line_capacity_factor=0.7,
+        # Empty generators
+        drop_empty_generators=False,
+        expand_empty_generators=0.5,
+        # Battery stuff
+        battery_discharge_cost=1.0,
+        battery_init_soc=0.0,
+        battery_final_soc=0.0,
+    )
+
+    _total = -np.sum(_devices[1].min_power * _devices[1].nominal_capacity)
+    _hourly = _total / _T
+
+    print(f"Average Hourly Load: {_hourly} GW")
+    return
 
 
 @app.cell
@@ -283,12 +323,6 @@ def __(mo):
 
 
 @app.cell
-def __(devices, np):
-    total_load = -np.sum(devices[1].min_power * devices[1].nominal_capacity)
-    return total_load,
-
-
-@app.cell
 def __():
     backprop = True
     return backprop,
@@ -306,7 +340,7 @@ def __(backprop, devices, num_days):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(
     ADMMLayer,
     DispatchCostObjective,
@@ -458,7 +492,7 @@ def __(Path, grad_cvx, grad_list, np, num_iter_list, plt):
         ax.legend()
         ax.set_title("Unrolled Gradients of Generator Capacity on Total Cost")
         ax.set_xlabel("Generator Index")
-        
+
         fig.tight_layout()
         fig.savefig(Path().home() / "figures/gpu/sensitivity.pdf")
 

@@ -122,7 +122,7 @@ def __(np):
 def __(configs, pd, plotter, runner):
     def load_case_data(df, scale_load=0.5, hours_per_scenario=24, warm_start=False):
         df = df[(df.scale_load == scale_load) * (df.hours_per_scenario == hours_per_scenario) * (df.warm_start == warm_start)]
-        
+
         admm_index = df[df.solver == "admm"].index[0]
         admm_data = plotter.open_solver_data(configs[admm_index])
 
@@ -139,7 +139,7 @@ def __(plotter):
         df = arg_table[(arg_table.alpha == alpha)]
         assert df.shape[0] == 1
         arg_index = df.index[0]
-        
+
         num_cases = len(data[0]) // arg_table.shape[0]
 
         admm_layer_index = plotter.reverse_index(case_index, arg_index, num_cases)
@@ -238,8 +238,8 @@ def __():
 
 @app.cell
 def __(case_cold, case_warm, first_converged):
-    print(first_converged(case_cold, 1e-3))
-    print(first_converged(case_warm, 1e-3))
+    print(first_converged(case_cold, 1e-4))
+    print(first_converged(case_warm, 1e-4))
     return
 
 
