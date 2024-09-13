@@ -99,7 +99,8 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
     net, devices, time_horizon = load_pypsa_network(
         pn,
         time_horizon=24 * num_days,
-        start_date=dt.datetime(2019, 8, 9, 7),
+        start_date=dt.datetime(2019, 8, 9, 7),  # dt.datetime(2019, 8, 9, 7),
+        exclude_batteries=False,
         # Units
         power_unit=1000.0,
         cost_unit=100.0,
@@ -149,7 +150,7 @@ def __(devices, np):
     return total_load,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(dt, load_pypsa_network, np, pn):
     _, _devices, _T = load_pypsa_network(
         pn,
@@ -464,12 +465,21 @@ def __(np, plt):
 
 @app.cell
 def __():
-    regularize = 1e-16
+    regularize = 1e-8
     return regularize,
 
 
 @app.cell
-def __(Path, grad_cvx, grad_list, np, num_iter_list, plt):
+def __(
+    Path,
+    devices,
+    grad_cvx,
+    grad_list,
+    np,
+    num_iter_list,
+    plt,
+    problem_cvx,
+):
     def grad_plot(n=50, key="generator_capacity"):
         fig, ax = plt.subplots(figsize=(6.5, 3))
 
@@ -477,8 +487,13 @@ def __(Path, grad_cvx, grad_list, np, num_iter_list, plt):
         dy = grad_cvx[key].numpy().ravel()[:n]
         order = np.argsort(dy)
 
+        # Verify against duals
+        lam = -np.sum(problem_cvx.state.local_inequality_duals[0][1] * devices[0].max_power, axis=1)
+        lam += devices[0].capital_cost.ravel()
+
         # Plot CVX gradient
         ax.bar(range(n), dy[order], label="True Gradient")
+        print("Dual minus implicit grad:", np.linalg.norm(lam[:n] - dy) / np.linalg.norm(lam[:n]))
 
         # Plot ADMM gradient estimates
         for i in range(len(num_iter_list)):

@@ -91,18 +91,23 @@ def __(extract_runtime, np, pd):
         df["num_contingencies"] = [cfg.get("num_contingencies", 0) for cfg in configs]
 
         # Extract runtime
-        runtimes, primal_residuals, dual_residuals, total_resids, data = zip(*[extract_runtime(cfg, skip_missing=skip_missing) for cfg in configs])
+        runtimes, primal_residuals, dual_residuals, total_resids, objective_vals, data = zip(
+            *[extract_runtime(cfg, skip_missing=skip_missing) for cfg in configs]
+        )
 
         df["median_runtime"] = [np.median(rt) for rt in runtimes]
         df["mean_runtime"] = [np.mean(rt) for rt in runtimes]
         df["runtimes"] = runtimes
-        
+
         df["primal_residuals"] = primal_residuals
         df["dual_residuals"] = dual_residuals
         df["total_residuals"] = total_resids
 
         df["median_resid"] = [None if r is None else np.median(r) for r in total_resids]
         df["upper_resid"] = [None if r is None else np.max(r) for r in total_resids]
+
+        df["obj_vals"] = objective_vals
+        df["median_obj_vals"] = [None if f is None else np.median(f) for f in objective_vals]
 
         df = pd.DataFrame(df, index=index)
 
@@ -130,6 +135,12 @@ def __(np):
 
 
 @app.cell
+def __(solver_data):
+    solver_data[-1][0][0]["problem_data"][0]["value"]
+    return
+
+
+@app.cell
 def __(
     Path,
     get_dual_resid_scaled,
@@ -142,7 +153,7 @@ def __(
         path = Path(runner.get_results_path(config["id"], config["index"])) / "solver_data.pkl"
 
         if skip_missing and (not path.exists()):
-            return [-1.0], None, None, None, None
+            return [-1.0], None, None, None, None, None
 
         with open(path, "rb") as f:
             solver_data = pickle.load(f)
@@ -153,15 +164,17 @@ def __(
             primal_residuals = [[get_primal_resid_scaled(d) for d in data] for data in solver_data]
             dual_residuals = [[get_dual_resid_scaled(d) for d in data] for data in solver_data]
             total_resids = [[np.maximum(rp, rd) for rp, rd in zip(primals, duals)] for primals, duals in zip(primal_residuals, dual_residuals)]
-            
+            objective_vals = [[d["history"].objective[-1] for d in data] for data in solver_data]
+
         else:
             primal_residuals = None
             dual_residuals = None
             total_resids = None
-            
+            objective_vals = [[d["problem_data"][0]["value"] for d in data] for data in solver_data]
+
         data = solver_data
 
-        return runtimes, primal_residuals, dual_residuals, total_resids, data
+        return runtimes, primal_residuals, dual_residuals, total_resids, objective_vals, data
     return extract_runtime,
 
 
@@ -229,7 +242,7 @@ def __(build_runtime_table, open_configs):
     df_hours["num_days"] = df_hours.hours_per_scenario / 24
     df_hours.sort_values(by=["median_resid", "hours_per_scenario", "solver"])
 
-    df_hours.sort_values(by=["upper_resid"], ascending=False)
+    df_hours.sort_values(by=["hours_per_scenario", "scale_load", "solver"], ascending=False)
     return df_hours, solver_data
 
 
@@ -246,8 +259,8 @@ def __(build_runtime_table, open_configs):
 
     df_nodes = df_nodes[df_nodes.num_nodes >= 500]
 
-    df_nodes.sort_values(by=["num_nodes", "solver"])
     df_nodes.sort_values(by=["upper_resid"], ascending=False)
+    df_nodes.sort_values(by=["num_nodes", "scale_load", "solver"])
     return df_nodes,
 
 
@@ -262,7 +275,7 @@ def __(build_runtime_table, np, open_configs, pd):
     _configs = open_configs("./experiments/solve/config/scaling_cont_v04.yaml")
     df_cont, _solver_data = build_runtime_table(_configs, skip_missing=False)
     df_cont_big, _solver_data = build_runtime_table(
-        open_configs("./experiments/solve/config/scaling_cont_big_v02.yaml")
+        open_configs("./experiments/solve/config/scaling_cont_big_v04.yaml")
     )
     df_cont_base, _solver_data = build_runtime_table(
         open_configs("./experiments/solve/config/scaling_cont_big_base_v01.yaml"),
@@ -279,6 +292,7 @@ def __(build_runtime_table, np, open_configs, pd):
 
 
     df_cont.sort_values(by=["upper_resid"], ascending=False)
+    df_cont.sort_values(by=["num_contingencies", "scale_load"], ascending=False)
     return df_cont, df_cont_base, df_cont_big
 
 
