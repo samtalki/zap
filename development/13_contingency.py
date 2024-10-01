@@ -64,11 +64,11 @@ def __(mo, num_nodes, pypsa):
 
 
 @app.cell
-def __():
+def __(cost_unit):
     DEFAULT_PYPSA_KWARGS = {
         "marginal_load_value": 500.0,
         "generator_cost_perturbation": 1.0,
-        "cost_unit": 100.0,  # 1000.0,
+        "cost_unit": cost_unit,  # 1000.0,
         "power_unit": 1000.0,
 
         # New
@@ -87,7 +87,7 @@ def __():
     return DEFAULT_PYPSA_KWARGS,
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(DEFAULT_PYPSA_KWARGS, deepcopy, dt, pd, zap):
     def load_pypsa_network(
         pn,
@@ -260,12 +260,16 @@ def __(mo):
 
 
 @app.cell
-def __(devices):
+def __():
     contingency_device = 3
-    num_contingencies = 1143
-
-    print(type(devices[contingency_device]))
+    num_contingencies = 100
     return contingency_device, num_contingencies
+
+
+@app.cell
+def __(contingency_device, devices):
+    print(type(devices[contingency_device]))
+    return
 
 
 @app.cell
@@ -281,7 +285,7 @@ def __(contingency_device, devices, num_contingencies, sp):
     return c, contingency_mask
 
 
-@app.cell(disabled=True)
+@app.cell
 def __(
     contingency_device,
     contingency_mask,
@@ -293,6 +297,7 @@ def __(
     yc = net.dispatch(
         devices,
         solver=cp.MOSEK,
+        solver_kwargs={"accept_unknown": True, "verbose": True},
         num_contingencies=num_contingencies,
         contingency_device=contingency_device,
         contingency_mask=contingency_mask,
@@ -308,19 +313,21 @@ def __():
 
 
 @app.cell
-def __(ADMMSolver, np, num_contingencies, torch):
+def __(ADMMSolver, devices, torch):
+    devices  # Force dep
+
     admm_c = ADMMSolver(
-        num_iterations=10_000,
+        minimum_iterations=1000,
+        num_iterations=1000,
         rho_power=1.0,
         rho_angle=1.0,
         adaptive_rho=True,
-        atol=1.0e-3 / np.sqrt(num_contingencies + 1),
+        atol=1.0e-3,  # / np.sqrt(num_contingencies + 1),
 
         resid_norm=2,
         machine="cuda",
         dtype=torch.float32,
         battery_window=24,
-        minimum_iterations=10,
     )
     return admm_c,
 
@@ -373,8 +380,21 @@ def __(historyc, yc):
 
 
 @app.cell
-def __(admm_c, historyc, plot_convergence):
-    plot_convergence(historyc, admm_c, 0.0)  # yc.problem.value)
+def __(num_contingencies):
+    cost_unit = 100.0 / (num_contingencies + 1)
+    return cost_unit,
+
+
+@app.cell
+def __(history0, historyc, np, y0, yc):
+    print(f"Subopt Base: {np.abs(y0.problem.value - history0.objective[-1]) / history0.objective[-1]}")
+    print(f"Subopt Cont: {np.abs(yc.problem.value - historyc.objective[-1]) / historyc.objective[-1]}")
+    return
+
+
+@app.cell(hide_code=True)
+def __(admm_c, historyc, plot_convergence, yc):
+    plot_convergence(historyc, admm_c, yc.problem.value)
     return
 
 

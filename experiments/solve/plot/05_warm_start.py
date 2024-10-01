@@ -253,7 +253,7 @@ def __(Path, case_cold, case_warm, get_convergence, np, plt):
     ax.plot(tolerance_range, get_convergence(tolerance_range, case_cold), label="Zero Start")
     ax.plot(tolerance_range, get_convergence(tolerance_range, case_warm), label="Warm Start")
 
-    ax.legend()
+    ax.legend(framealpha=1)
     ax.set_xlim(1.0e-6, 1.0e-1)
     ax.invert_xaxis()
     ax.set_xscale("log")

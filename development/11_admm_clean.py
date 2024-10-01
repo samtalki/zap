@@ -162,14 +162,14 @@ def __(mo):
 
 
 @app.cell
-def __():
-    # y_cvx = net.dispatch(
-    #     devices,
-    #     add_ground=False,
-    #     solver=cp.MOSEK,
-    #     parameters=[{k: v.cpu() for k, v in p.items()} for p in param0],
-    # )
-    return
+def __(cp, devices, net, param0):
+    y_cvx = net.dispatch(
+        devices,
+        add_ground=False,
+        solver=cp.MOSEK,
+        parameters=[{k: v.cpu() for k, v in p.items()} for p in param0],
+    )
+    return y_cvx,
 
 
 @app.cell(hide_code=True)

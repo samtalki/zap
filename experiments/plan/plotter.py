@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn
+
+# import seaborn
+from copy import deepcopy
 
 FUEL_NAMES = [
     "nuclear",
@@ -34,8 +36,8 @@ JOINED_FUEL_NAMES = [
     "Geo",
     "Wind",
     "Solar",
-    "Coal",
     "Gas",
+    "Coal",
 ]
 
 FUEL_COLORS = {
@@ -73,7 +75,7 @@ SEABORN_RC = {
 }
 
 
-seaborn.set_theme(style="white", rc=SEABORN_RC)
+# seaborn.set_theme(style="white", rc=SEABORN_RC)
 
 
 def total_capacity(capacities, fuels, fuel=None, group_fuels=False):
@@ -154,10 +156,22 @@ def make_bar(
     return ax
 
 
-def capacity_plot(p0, p1, devices, group_fuels=True, fig=None, axes=None, label=None):
+def capacity_plot(
+    p0,
+    p1,
+    devices,
+    group_fuels=True,
+    fig=None,
+    axes=None,
+    label=None,
+    fuel_groups=JOINED_FUEL_NAMES,
+):
     # Make bar plot
     if fig is None:
         fig, axes = plt.subplots(1, 4, figsize=(6.5, 2.5), width_ratios=[1, 1, 1, 10])
+
+    p0 = deepcopy(p0)
+    p1 = deepcopy(p1)
 
     # Plot transmission and storage expansion
     make_bar(axes[0], p0, p1, "ac_line")
@@ -174,7 +188,8 @@ def capacity_plot(p0, p1, devices, group_fuels=True, fig=None, axes=None, label=
     else:
         gen1 = total_capacity(p1["generator"], fuels, group_fuels=group_fuels)
 
-    order = JOINED_FUEL_NAMES if group_fuels else FUEL_NAMES
+    order = fuel_groups if group_fuels else FUEL_NAMES
+    print(order)
 
     make_bar(axes[3], gen0, gen1, order=order, label=label)
     axes[3].tick_params(axis="x", labelrotation=0, labelsize=8)
@@ -190,7 +205,7 @@ def capacity_plot(p0, p1, devices, group_fuels=True, fig=None, axes=None, label=
     axes[2].set_ylim(0, 60)
     axes[3].set_ylim(0, 250)
 
-    axes[3].legend()
+    axes[3].legend(framealpha=1)
 
     # Finalize figure
     fig.align_labels()

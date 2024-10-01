@@ -42,7 +42,7 @@ def __():
     import matplotlib.pyplot as plt
     import seaborn
 
-    seaborn.set_theme(style="darkgrid")
+    seaborn.set_theme(style="white")
     return plt, seaborn
 
 
@@ -298,11 +298,11 @@ def __(mo):
 
 @app.cell
 def __():
-    mosek_tol = 1e-3
+    mosek_tol = 1e-8
     return mosek_tol,
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(
     J_stoch,
     baseline_params,

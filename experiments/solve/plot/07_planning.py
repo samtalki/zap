@@ -1,7 +1,7 @@
 import marimo
 
-__generated_with = "0.8.14"
-app = marimo.App()
+__generated_with = "0.8.3"
+app = marimo.App(width="medium")
 
 
 @app.cell
@@ -44,8 +44,16 @@ def __():
 
 @app.cell
 def __():
+    from experiments.plan import plotter
+    from experiments.plan import runner
+    return plotter, runner
+
+
+@app.cell
+def __():
     import matplotlib.pyplot as plt
     import seaborn
+
     seaborn.set_theme(
         style="whitegrid",
         palette="bright",
@@ -98,9 +106,7 @@ def __(pd, runs):
         _wd["index"].append(r.config.get("index", -1))
         _wd["hash"].append(r.id)
 
-        _wd["emissions_weight"].append(
-            float(r.config["problem"]["emissions_weight"])
-        )
+        _wd["emissions_weight"].append(float(r.config["problem"]["emissions_weight"]))
         _wd["initial_state"].append(r.config["optimizer"]["initial_state"])
 
     wandb_data = pd.DataFrame(_wd)
@@ -123,10 +129,11 @@ def __(wandb_data):
 def __(api):
     wandb_cache = {}
 
+
     def get_run_history(hash, cache=wandb_cache):
         if hash not in wandb_cache:
             run = api.run(f"s3l/zap/{hash}")
-            wandb_cache[hash] = run.history()
+            wandb_cache[hash] = run.history(samples=2000)
 
         return wandb_cache[hash]
     return get_run_history, wandb_cache
@@ -138,42 +145,163 @@ def __(get_run_history, job_data):
     return history,
 
 
-@app.cell
-def __(history):
-    history.admm_iteration.diff()
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""## Load Solution""")
     return
 
 
 @app.cell
-def __(Path, history, plt):
-    def loss_plot(num_iter=100):
-        
-        loss = history.loss[:num_iter]
-        admm_iter = history.admm_iteration.diff()[1:num_iter+1]
+def __(job_data):
+    config_name = job_data.id[0]
+    config_id = job_data.index[0]
+    return config_id, config_name
 
-        fig, axes = plt.subplots(2, 1, figsize=(3.5, 3.5))
+
+@app.cell
+def __(config_id, config_name, runner):
+    config = runner.expand_config(
+        runner.load_config(f"experiments/plan/config/{config_name}.yaml")
+    )[config_id]
+    data = runner.load_dataset(**config["data"])
+    devices = data["devices"]
+    return config, data, devices
+
+
+@app.cell
+def __(config, data, runner):
+    problem_data = runner.setup_problem(**data, **config["problem"])
+    problem = problem_data["stochastic_problem"].subproblems[0]
+    return problem, problem_data
+
+
+@app.cell
+def __(problem):
+    initial_params = problem.initialize_parameters(None)
+    return initial_params,
+
+
+@app.cell
+def __():
+    model_iters = [10, 50, 100]
+    return model_iters,
+
+
+@app.cell
+def __(config_id, config_name, model_iters, runner):
+    model_states = [
+        runner.load_model(f"{config_name}/{config_id:03d}/model_{i:05d}")
+        for i in model_iters
+    ]
+    return model_states,
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""## Plot Results""")
+    return
+
+
+@app.cell
+def __(Path, history, model_iters, np, plt):
+    def loss_plot(num_iter=np.max(model_iters)):
+        loss = history.loss[:num_iter]
+        admm_iter = history.admm_iteration.diff()[1 : num_iter + 1]
+
+        fig, axes = plt.subplots(1, 2, figsize=(6.5, 2))
+
+        marks = np.array(model_iters) - 1
 
         # Plot loss
         axes[0].plot(loss / 1e3)
-        
+        axes[0].scatter(
+            marks,
+            history.loss[marks] / 1e3,
+            c=["C1", "C2", "C3"],
+            zorder=100,
+        )
+
         # Plot ADMM iterations per iter
         axes[1].plot(admm_iter)
-        axes[1].set_ylim(0, 1500)
-        
+        axes[1].set_ylim(0, 1100)
+
+        axes[0].set_xlabel("Gradient Descent Steps")
+        axes[0].set_ylabel("Loss")
 
         axes[1].set_xlabel("Gradient Descent Steps")
-        axes[0].set_ylabel("Loss")
         axes[1].set_ylabel("Iterations per Step")
 
-        fig.align_ylabels(axes)
+        # fig.align_ylabels(axes)
+
         fig.tight_layout()
-        fig.savefig(Path.home() / "figures/gpu_admm_planning.pdf")
-        
+        fig.subplots_adjust(wspace=0.5)
+        fig.savefig(Path.home() / "figures/gpu/admm_planning.pdf")
+
         return fig
 
 
     loss_plot()
     return loss_plot,
+
+
+@app.cell
+def __(devices):
+    devices[0].num_nodes
+    return
+
+
+@app.cell
+def __(
+    Path,
+    devices,
+    initial_params,
+    model_iters,
+    model_states,
+    plotter,
+    plt,
+):
+    def capacity_plot():
+        fig, axes = plt.subplots(1, 4, figsize=(6.5, 2.5), width_ratios=[1, 1, 1, 6])
+
+        labels = [f"{i} Steps" for i in model_iters]
+        plotter.capacity_plot(
+            initial_params,
+            model_states,
+            devices,
+            fig=fig,
+            axes=axes,
+            label=labels,
+            fuel_groups=[
+                # "Nuclear",
+                "Wind",
+                "Solar",
+                "Gas",
+                "Hydro",
+                "Coal",
+            ],
+        )
+        # plotter.capacity_plot(
+        #     initial_params,
+        #     models,
+        #     devices,
+        #     fig=fig,
+        #     axes=axes,
+        #     label=[f"{int(100*c)}%" for c in EXPANSION_COSTS],
+        # )
+
+        axes[0].set_ylim(0, 8000)
+        axes[1].set_ylim(0, 25)
+        axes[2].set_ylim(0, 100)
+        axes[3].set_ylim(0, 500)
+
+        fig.tight_layout()
+        fig.savefig(Path.home() / "figures/gpu/admm_planning_outcome.pdf")
+
+        return fig
+
+
+    capacity_plot()
+    return capacity_plot,
 
 
 if __name__ == "__main__":

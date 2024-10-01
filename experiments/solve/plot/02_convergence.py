@@ -265,7 +265,7 @@ def __(np, plt):
         ax.set_yscale("log")
         ax.set_title("Residuals")
         ax.set_xlabel("Iteration")
-        ax.legend()
+        ax.legend(framealpha=1)
 
         ax.patch.set_linewidth(1)
         ax.patch.set_edgecolor("black")

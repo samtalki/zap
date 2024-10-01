@@ -76,7 +76,7 @@ def __(runner):
 
 @app.cell
 def __(extract_runtime, np, pd):
-    def build_runtime_table(configs, skip_missing=False):
+    def build_runtime_table(configs, skip_missing=False, iter=-1):
         df = {}
 
         # Add config info
@@ -92,7 +92,7 @@ def __(extract_runtime, np, pd):
 
         # Extract runtime
         runtimes, primal_residuals, dual_residuals, total_resids, objective_vals, data = zip(
-            *[extract_runtime(cfg, skip_missing=skip_missing) for cfg in configs]
+            *[extract_runtime(cfg, skip_missing=skip_missing, iter=iter) for cfg in configs]
         )
 
         df["median_runtime"] = [np.median(rt) for rt in runtimes]
@@ -114,30 +114,14 @@ def __(extract_runtime, np, pd):
         if skip_missing:
             df = df[df.mean_runtime >= 0.0]
 
+        df["_obj_cvx"] = np.where(df["solver"] == "cvxpy", df["median_obj_vals"], -1.0)
+        df["best_obj"] = df.groupby(
+            ["num_contingencies", "num_nodes", "hours_per_scenario", "scale_load"]
+        )["_obj_cvx"].transform("max")
+        df["subopt"] = np.abs(df["median_obj_vals"] - df["best_obj"]) / df["best_obj"]
+
         return df, data
     return build_runtime_table,
-
-
-@app.cell
-def __(np):
-    def get_primal_resid_scaled(data):
-        h = data["history"]
-        root_n = np.sqrt(data["num_ac_terminals"]) + np.sqrt(data["num_dc_terminals"])
-
-        return np.sqrt(h.power[-1] ** 2 + h.phase[-1] ** 2) / root_n
-
-    def get_dual_resid_scaled(data):
-        h = data["history"]
-        root_n = np.sqrt(data["num_ac_terminals"]) + np.sqrt(data["num_dc_terminals"])
-
-        return np.sqrt(h.dual_power[-1] ** 2 + h.dual_phase[-1] ** 2) / root_n
-    return get_dual_resid_scaled, get_primal_resid_scaled
-
-
-@app.cell
-def __(solver_data):
-    solver_data[-1][0][0]["problem_data"][0]["value"]
-    return
 
 
 @app.cell
@@ -149,7 +133,7 @@ def __(
     pickle,
     runner,
 ):
-    def extract_runtime(config, skip_missing=False):
+    def extract_runtime(config, skip_missing=False, iter=-1):
         path = Path(runner.get_results_path(config["id"], config["index"])) / "solver_data.pkl"
 
         if skip_missing and (not path.exists()):
@@ -161,10 +145,10 @@ def __(
         runtimes = [[d["time"] for d in data] for data in solver_data]
 
         if config["solver"] == "admm":
-            primal_residuals = [[get_primal_resid_scaled(d) for d in data] for data in solver_data]
-            dual_residuals = [[get_dual_resid_scaled(d) for d in data] for data in solver_data]
+            primal_residuals = [[get_primal_resid_scaled(d, iter) for d in data] for data in solver_data]
+            dual_residuals = [[get_dual_resid_scaled(d, iter) for d in data] for data in solver_data]
             total_resids = [[np.maximum(rp, rd) for rp, rd in zip(primals, duals)] for primals, duals in zip(primal_residuals, dual_residuals)]
-            objective_vals = [[d["history"].objective[-1] for d in data] for data in solver_data]
+            objective_vals = [[d["history"].objective[iter] for d in data] for data in solver_data]
 
         else:
             primal_residuals = None
@@ -179,6 +163,28 @@ def __(
 
 
 @app.cell
+def __(np):
+    def get_primal_resid_scaled(data, iter):
+        h = data["history"]
+        root_n = np.sqrt(data["num_ac_terminals"]) + np.sqrt(data["num_dc_terminals"])
+
+        return np.sqrt(h.power[iter] ** 2 + h.phase[iter] ** 2) / root_n
+
+    def get_dual_resid_scaled(data, iter):
+        h = data["history"]
+        root_n = np.sqrt(data["num_ac_terminals"]) + np.sqrt(data["num_dc_terminals"])
+
+        return np.sqrt(h.dual_power[iter] ** 2 + h.dual_phase[iter] ** 2) / root_n
+    return get_dual_resid_scaled, get_primal_resid_scaled
+
+
+@app.cell
+def __(solver_data):
+    solver_data[-1][0][0]["problem_data"][0]["value"]
+    return
+
+
+@app.cell(hide_code=True)
 def __(plt):
     def plot_runtimes(
         df,
@@ -229,8 +235,9 @@ def __(mo):
 
 
 @app.cell
-def __(solver_data):
-    solver_data[0][0][0]
+def __(df_hours):
+    print(df_hours.subopt.max())
+    print(df_hours.subopt.median())
     return
 
 
@@ -253,15 +260,28 @@ def __(mo):
 
 
 @app.cell
+def __(df_nodes):
+    print(df_nodes.subopt.max())
+    print(df_nodes.subopt.median())
+    return
+
+
+@app.cell
+def __():
+    # plt.plot(solver_data_nodes[28][0][0]["history"].objective)
+    return
+
+
+@app.cell
 def __(build_runtime_table, open_configs):
     _configs = open_configs("./experiments/solve/config/scaling_devices_v03.yaml")
-    df_nodes, _solver_data = build_runtime_table(_configs)
+    df_nodes, solver_data_nodes = build_runtime_table(_configs)
 
     df_nodes = df_nodes[df_nodes.num_nodes >= 500]
 
     df_nodes.sort_values(by=["upper_resid"], ascending=False)
-    df_nodes.sort_values(by=["num_nodes", "scale_load", "solver"])
-    return df_nodes,
+    df_nodes.sort_values(by=["num_nodes", "scale_load", "solver"], ascending=False)
+    return df_nodes, solver_data_nodes
 
 
 @app.cell(hide_code=True)
@@ -271,29 +291,38 @@ def __(mo):
 
 
 @app.cell
-def __(build_runtime_table, np, open_configs, pd):
-    _configs = open_configs("./experiments/solve/config/scaling_cont_v04.yaml")
-    df_cont, _solver_data = build_runtime_table(_configs, skip_missing=False)
-    df_cont_big, _solver_data = build_runtime_table(
-        open_configs("./experiments/solve/config/scaling_cont_big_v04.yaml")
-    )
-    df_cont_base, _solver_data = build_runtime_table(
-        open_configs("./experiments/solve/config/scaling_cont_big_base_v01.yaml"),
-        skip_missing=True,
-    )
+def __(df_cont):
+    print(df_cont.subopt.max())
+    print(df_cont.subopt.median())
+    return
 
+
+@app.cell
+def __():
+    # plt.plot(solver_data_cont[54][0][0]["history"].dual_power)
+    # plt.yscale("log")
+    # plt.show()
+    return
+
+
+@app.cell
+def __(build_runtime_table, np, open_configs):
+    _configs = open_configs("./experiments/solve/config/scaling_cont_v04.yaml")
+    df_cont, solver_data_cont = build_runtime_table(_configs, skip_missing=False)
+    # df_cont_big, _solver_data = build_runtime_table(
+    #     open_configs("./experiments/solve/config/scaling_cont_big_v04.yaml")
+    # )
+    # df_cont_base, _solver_data = build_runtime_table(
+    #     open_configs("./experiments/solve/config/scaling_cont_big_base_v01.yaml"),
+    #     skip_missing=True,
+    # )
+    #df_cont = pd.concat([df_cont, df_cont_big, df_cont_base])
 
     df_cont["num_contingencies"] = np.minimum(df_cont["num_contingencies"], 1158) + 1
-    df_cont_big["num_contingencies"] = np.minimum(df_cont_big["num_contingencies"], 1158) + 1
-    df_cont_base["num_contingencies"] = np.minimum(df_cont_base["num_contingencies"], 1158) + 1
-
-
-    df_cont = pd.concat([df_cont, df_cont_big, df_cont_base])
-
 
     df_cont.sort_values(by=["upper_resid"], ascending=False)
     df_cont.sort_values(by=["num_contingencies", "scale_load"], ascending=False)
-    return df_cont, df_cont_base, df_cont_big
+    return df_cont, solver_data_cont
 
 
 @app.cell
@@ -312,7 +341,7 @@ def __(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(Path, df_cont, df_hours, df_nodes, plot_runtimes, plt):
     _fig, _axes = plt.subplots(1, 3, figsize=(6.5, 2.5))
 
@@ -340,8 +369,8 @@ def __(Path, df_cont, df_hours, df_nodes, plot_runtimes, plt):
 
     _axes[0].set_xlabel("Network Size")
     _axes[0].set_ylabel("Mean Runtime (s)")
-    _axes[0].set_ylim(0.0, 15.0)
-    _axes[0].legend(loc="upper left")
+    # _axes[0].set_ylim(0.0, 15.0)
+    _axes[0].legend(loc="upper left", framealpha=1)
 
     _axes[1].get_legend().remove()
     _axes[1].set_xlabel("Time Horizon")
@@ -355,10 +384,13 @@ def __(Path, df_cont, df_hours, df_nodes, plot_runtimes, plt):
     _axes[2].get_legend().remove()
     _axes[2].set_xlabel("Contingencies")
 
+    for ax in _axes[1:]:
+        ax.grid(True, which='minor', axis="y", alpha=0.2)
+
     _fig.tight_layout()
     _fig.savefig(Path().home() / "figures/gpu/scaling_devices_hours.pdf")
     _fig
-    return
+    return ax,
 
 
 @app.cell(hide_code=True)

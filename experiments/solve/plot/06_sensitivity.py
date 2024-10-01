@@ -109,7 +109,7 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
         load_cost_perturbation=10.0,
         generator_cost_perturbation=1.0,
         # Rescale capacities
-        scale_load=0.6,
+        scale_load=0.5,
         scale_generator_capacity_factor=0.7,
         scale_line_capacity_factor=0.7,
         # Empty generators
@@ -126,7 +126,11 @@ def __(dt, load_pypsa_network, np, num_days, pn, zap):
         voltage=np.array([0.0]),
     )
     devices += [_ground]
-    return devices, net, time_horizon
+
+    for d in devices:
+        if hasattr(d, "capital_cost") and d.capital_cost is not None:
+            d.capital_cost *= 0.0
+    return d, devices, net, time_horizon
 
 
 @app.cell
@@ -259,6 +263,11 @@ def __(mo):
 
 @app.cell
 def __(backprop, parameters, torch_devices):
+    param0_nograd = {
+        k: getattr(torch_devices[i], name).clone().detach()
+        for k, (i, name) in parameters.items()
+    }
+
     param0 = {
         k: getattr(torch_devices[i], name).clone().detach()
         for k, (i, name) in parameters.items()
@@ -267,7 +276,7 @@ def __(backprop, parameters, torch_devices):
     if backprop:
         for k, p in param0.items():
             p.requires_grad = True
-    return k, p, param0
+    return k, p, param0, param0_nograd
 
 
 @app.cell(hide_code=True)
@@ -355,7 +364,7 @@ def __(
     torch_devices,
     total_load,
 ):
-    def get_solution_and_grad(param, num_iterations):
+    def get_solution_and_grad(param, num_iterations, verbose=True, no_grad=False):
         layer = ADMMLayer(
             net,
             torch_devices,
@@ -363,8 +372,9 @@ def __(
             solver=deepcopy(admm),
             time_horizon=24,
             warm_start=False,
-            verbose=True,
+            verbose=verbose,
         )
+        layer.solver.verbose = verbose
 
         problem = PlanningProblem(
             DispatchCostObjective(net, torch_devices),
@@ -373,7 +383,11 @@ def __(
         )
         problem.layer.solver.num_iterations = num_iterations
 
-        y0, grad0 = problem.forward_and_back(**param)
+        if no_grad:
+            y0 = problem.forward(**param)
+            grad0 = None
+        else:
+            y0, grad0 = problem.forward_and_back(**param)
 
         print(f"\n\nTotal Load: {total_load} GW")
         print(
@@ -388,6 +402,18 @@ def __(
 def __():
     num_iter_list = [10, 100, 1000]
     return num_iter_list,
+
+
+@app.cell
+def __(get_solution_and_grad, param0):
+    _ = get_solution_and_grad(param0, 1000, verbose=False)
+    return
+
+
+@app.cell
+def __(get_solution_and_grad, param0_nograd):
+    _ = get_solution_and_grad(param0_nograd, 1000, verbose=False, no_grad=True)
+    return
 
 
 @app.cell
@@ -504,7 +530,7 @@ def __(
                 label=f"{num_iter_list[i]} Iterations",
             )
 
-        ax.legend()
+        ax.legend(loc="upper center", framealpha=1)
         ax.set_title("Unrolled Gradients of Generator Capacity on Total Cost")
         ax.set_xlabel("Generator Index")
 
