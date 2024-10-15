@@ -24,7 +24,7 @@ def __():
 
 
 @app.cell
-def __():
+def __(importlib):
     import matplotlib.pyplot as plt
     import seaborn
 
@@ -42,7 +42,11 @@ def __():
             "ytick.labelsize": 8,
         },
     )
-    return plt, seaborn
+
+    from experiments.solve import plotter
+
+    _ = importlib.reload(plotter)
+    return plotter, plt, seaborn
 
 
 @app.cell
@@ -51,14 +55,6 @@ def __(importlib):
 
     _ = importlib.reload(runner)
     return runner,
-
-
-@app.cell
-def __(importlib):
-    from experiments.solve import plotter
-
-    _ = importlib.reload(plotter)
-    return plotter,
 
 
 @app.cell(hide_code=True)
@@ -341,56 +337,80 @@ def __(mo):
     return
 
 
-@app.cell(hide_code=True)
-def __(Path, df_cont, df_hours, df_nodes, plot_runtimes, plt):
-    _fig, _axes = plt.subplots(1, 3, figsize=(6.5, 2.5))
+@app.cell
+def __(df_cont, df_hours, df_nodes, plot_runtimes, plt):
+    def plot_scaling(figsize):
+        _fig, _axes = plt.subplots(1, 3, figsize=figsize)
 
-    plot_runtimes(
-        df_nodes,
-        fig=_fig,
-        ax=_axes[0],
-        x_index="num_nodes",
-        labels={"cvxpy": "Mosek", "admm": "ADMM"},
-    )
-    plot_runtimes(
-        df_hours,
-        fig=_fig,
-        ax=_axes[1],
-        x_index="hours_per_scenario",
-        labels={"cvxpy": "Mosek", "admm": "ADMM"},
-    )
-    plot_runtimes(
-        df_cont,
-        fig=_fig,
-        ax=_axes[2],
-        x_index="num_contingencies",
-        labels={"cvxpy": "Mosek", "admm": "ADMM"},
-    )
+        plot_runtimes(
+            df_nodes,
+            fig=_fig,
+            ax=_axes[0],
+            x_index="num_nodes",
+            labels={"cvxpy": "Mosek", "admm": "ADMM"},
+        )
+        plot_runtimes(
+            df_hours,
+            fig=_fig,
+            ax=_axes[1],
+            x_index="hours_per_scenario",
+            labels={"cvxpy": "Mosek", "admm": "ADMM"},
+        )
+        plot_runtimes(
+            df_cont,
+            fig=_fig,
+            ax=_axes[2],
+            x_index="num_contingencies",
+            labels={"cvxpy": "Mosek", "admm": "ADMM"},
+        )
+        
+        _axes[0].set_xlabel("Network Size")
+        _axes[0].set_ylabel("Mean Runtime (s)")
+        _axes[0].get_legend().remove()
+        _axes[0].set_xticks([500, 2000, 4000])
+        
+        _axes[1].get_legend().remove()
+        _axes[1].set_xlabel("Time Horizon")
+        _axes[1].set_ylabel("")
+        _axes[1].set_yscale("log")
+        _axes[1].set_ylim(1.0, 1000.0)
+        _axes[1].set_xticks([24, 384, 768])
+        
+        _axes[2].set_ylabel("")
+        _axes[2].set_yscale("log")
+        _axes[2].set_xscale("log")
+        _axes[2].get_legend().remove()
+        _axes[2].set_xlabel("Contingencies")
 
-    _axes[0].set_xlabel("Network Size")
-    _axes[0].set_ylabel("Mean Runtime (s)")
-    # _axes[0].set_ylim(0.0, 15.0)
-    _axes[0].legend(loc="upper left", framealpha=1)
+        _axes[1].legend(loc="upper left", framealpha=1)
+        
+        for ax in _axes[1:]:
+            ax.grid(True, which='minor', axis="y", color="lightgray", linestyle="dashed", linewidth=0.3)
+            
+        _fig.tight_layout()
+        
+        return _fig, _axes
+    return plot_scaling,
 
-    _axes[1].get_legend().remove()
-    _axes[1].set_xlabel("Time Horizon")
-    _axes[1].set_ylabel("")
-    _axes[1].set_yscale("log")
-    _axes[1].set_ylim(1.0, 1000.0)
 
-    _axes[2].set_ylabel("")
-    _axes[2].set_yscale("log")
-    _axes[2].set_xscale("log")
-    _axes[2].get_legend().remove()
-    _axes[2].set_xlabel("Contingencies")
-
-    for ax in _axes[1:]:
-        ax.grid(True, which='minor', axis="y", alpha=0.2)
-
-    _fig.tight_layout()
-    _fig.savefig(Path().home() / "figures/gpu/scaling_devices_hours.pdf")
+@app.cell
+def __(Path, plot_scaling, plotter):
+    plotter.set_full_style()
+    _fig, _axes = plot_scaling(figsize=(plotter.FIGWIDTH_FULL, 2.5))
+    _fig.savefig(Path().home() / "figures/gpu/scaling_devices_hours_fig_full.eps")
     _fig
-    return ax,
+    return
+
+
+@app.cell
+def __(Path, plot_scaling, plotter):
+    plotter.set_small_style()
+    _fig, _axes = plot_scaling(figsize=(plotter.FIGWIDTH_SMALL, 2))
+    _fig.savefig(Path().home() / "figures/gpu/scaling_devices_hours_fig_small.eps")
+    _fig.savefig(Path().home() / "figures/gpu/Fig4.eps")
+
+    _fig
+    return
 
 
 @app.cell(hide_code=True)

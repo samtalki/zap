@@ -29,25 +29,13 @@ def __():
 
 
 @app.cell
-def __():
+def __(importlib):
     import matplotlib.pyplot as plt
     import seaborn
+    from experiments.solve import plotter
 
-    seaborn.set_theme(
-        style="whitegrid",
-        palette="bright",
-        rc={
-            "axes.edgecolor": "0.15",
-            "axes.linewidth": 1.25,
-            "font.size": 10,
-            "axes.labelsize": 10,
-            "axes.titlesize": 10,
-            "legend.fontsize": 10,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
-        },
-    )
-    return plt, seaborn
+    _ = importlib.reload(plotter)
+    return plotter, plt, seaborn
 
 
 @app.cell(hide_code=True)
@@ -316,7 +304,9 @@ def __(
 
 @app.cell
 def __(param0, problem_cvx):
-    y_cvx, grad_cvx = problem_cvx.forward_and_back(**{k: v.detach().cpu().numpy() for k,v in param0.items()})
+    y_cvx, grad_cvx = problem_cvx.forward_and_back(
+        **{k: v.detach().cpu().numpy() for k, v in param0.items()}
+    )
     return grad_cvx, y_cvx
 
 
@@ -495,31 +485,27 @@ def __():
     return regularize,
 
 
-@app.cell
-def __(
-    Path,
-    devices,
-    grad_cvx,
-    grad_list,
-    np,
-    num_iter_list,
-    plt,
-    problem_cvx,
-):
-    def grad_plot(n=50, key="generator_capacity"):
-        fig, ax = plt.subplots(figsize=(6.5, 3))
+@app.cell(hide_code=True)
+def __(devices, grad_cvx, grad_list, np, num_iter_list, plt, problem_cvx):
+    def grad_plot(n=50, key="generator_capacity", figsize=(6.5, 3)):
+        fig, ax = plt.subplots(figsize=figsize)
 
         # Order gradients by CVX
         dy = grad_cvx[key].numpy().ravel()[:n]
         order = np.argsort(dy)
 
         # Verify against duals
-        lam = -np.sum(problem_cvx.state.local_inequality_duals[0][1] * devices[0].max_power, axis=1)
+        lam = -np.sum(
+            problem_cvx.state.local_inequality_duals[0][1] * devices[0].max_power, axis=1
+        )
         lam += devices[0].capital_cost.ravel()
 
         # Plot CVX gradient
         ax.bar(range(n), dy[order], label="True Gradient")
-        print("Dual minus implicit grad:", np.linalg.norm(lam[:n] - dy) / np.linalg.norm(lam[:n]))
+        print(
+            "Dual minus implicit grad:",
+            np.linalg.norm(lam[:n] - dy) / np.linalg.norm(lam[:n]),
+        )
 
         # Plot ADMM gradient estimates
         for i in range(len(num_iter_list)):
@@ -531,17 +517,32 @@ def __(
             )
 
         ax.legend(loc="upper center", framealpha=1)
-        ax.set_title("Unrolled Gradients of Generator Capacity on Total Cost")
+        ax.set_ylabel("Gradient")
         ax.set_xlabel("Generator Index")
 
         fig.tight_layout()
-        fig.savefig(Path().home() / "figures/gpu/sensitivity.pdf")
 
         return fig
-
-
-    grad_plot()
     return grad_plot,
+
+
+@app.cell
+def __(Path, grad_plot, plotter):
+    plotter.set_full_style()
+    _fig = grad_plot(figsize=(plotter.FIGWIDTH_FULL, 3))
+    _fig.savefig(Path().home() / "figures/gpu/sensitivity_fig_full.eps")
+    _fig
+    return
+
+
+@app.cell
+def __(Path, grad_plot, plotter):
+    plotter.set_small_style()
+    _fig = grad_plot(figsize=(plotter.FIGWIDTH_SMALL, 2.5))
+    _fig.savefig(Path().home() / "figures/gpu/sensitivity_fig_small.eps")
+    _fig.savefig(Path().home() / "figures/gpu/Fig5.eps")
+    _fig
+    return
 
 
 @app.cell(hide_code=True)

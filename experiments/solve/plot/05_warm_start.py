@@ -24,25 +24,13 @@ def __():
 
 
 @app.cell
-def __():
+def __(importlib):
     import matplotlib.pyplot as plt
     import seaborn
+    from experiments.solve import plotter
 
-    seaborn.set_theme(
-        style="whitegrid",
-        palette="bright",
-        rc={
-            "axes.edgecolor": "0.15",
-            "axes.linewidth": 1.25,
-            "font.size": 10,
-            "axes.labelsize": 10,
-            "axes.titlesize": 10,
-            "legend.fontsize": 10,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
-        },
-    )
-    return plt, seaborn
+    _ = importlib.reload(plotter)
+    return plotter, plt, seaborn
 
 
 @app.cell
@@ -51,14 +39,6 @@ def __(importlib):
 
     _ = importlib.reload(runner)
     return runner,
-
-
-@app.cell
-def __(importlib):
-    from experiments.solve import plotter
-
-    _ = importlib.reload(plotter)
-    return plotter,
 
 
 @app.cell(hide_code=True)
@@ -243,31 +223,68 @@ def __(case_cold, case_warm, first_converged):
     return
 
 
+@app.cell(hide_code=True)
+def __(case_cold, case_warm, get_convergence, np, plt):
+    def plot_convergence_rate(figsize):
+        tolerance_range = np.power(10.0, np.linspace(-2.0, -6.0, num=30, endpoint=True))
+        
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        ax.plot(tolerance_range, get_convergence(tolerance_range, case_cold), label="Zero Start")
+        ax.plot(tolerance_range, get_convergence(tolerance_range, case_warm), label="Warm Start")
+        
+        ax.legend(framealpha=1)
+        ax.set_xlim(1.0e-6, 1.0e-1)
+        ax.invert_xaxis()
+        ax.set_xscale("log")
+        ax.set_xlabel("Accuracy")
+        
+        ax.set_yscale("log")
+        ax.set_ylabel("Iterations")
+        ax.set_ylim(10, 100_000)
+        
+        fig.tight_layout()
+        
+        return fig, ax
+    return plot_convergence_rate,
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""### Full Figure""")
+    return
+
+
 @app.cell
-def __(Path, case_cold, case_warm, get_convergence, np, plt):
-    tolerance_range = np.power(10.0, np.linspace(-2.0, -6.0, num=30, endpoint=True))
-    #convergence_iters = [first_converged(data, hist, tol) for tol in tolerance_range]
+def __(Path, plot_convergence_rate, plotter):
+    plotter.set_full_style()
+    _fig, _ax = plot_convergence_rate(figsize=(3.5, 2.5))
+    _fig.savefig(Path().home() / "figures/gpu/warm_fig_full.eps")
+    _fig
+    return
 
-    fig, ax = plt.subplots(figsize=(3.5, 2.5))
 
-    ax.plot(tolerance_range, get_convergence(tolerance_range, case_cold), label="Zero Start")
-    ax.plot(tolerance_range, get_convergence(tolerance_range, case_warm), label="Warm Start")
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""### Small Figure""")
+    return
 
-    ax.legend(framealpha=1)
-    ax.set_xlim(1.0e-6, 1.0e-1)
-    ax.invert_xaxis()
-    ax.set_xscale("log")
-    ax.set_xlabel("Accuracy")
 
-    ax.set_yscale("log")
-    ax.set_ylabel("Iterations")
-    ax.set_ylim(10, 100_000)
+@app.cell
+def __(Path, plot_convergence_rate, plotter):
+    plotter.set_small_style()
+    _fig, _ax = plot_convergence_rate(figsize=(3, 2))
+    _fig.savefig(Path().home() / "figures/gpu/warm_fig_small.eps")
+    _fig.savefig(Path().home() / "figures/gpu/Fig3.eps")
 
-    fig.tight_layout()
-    fig.savefig(Path().home() / "figures/gpu/warm.pdf")
+    _fig
+    return
 
-    fig
-    return ax, fig, tolerance_range
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""## Appendix""")
+    return
 
 
 @app.cell(hide_code=True)

@@ -188,8 +188,9 @@ class ADMMSolver:
         for d in devices:
             d.has_changed = True
 
-        print("Initial value of rho_power:", self.rho_power)
-        print("Initial value of rho_angle:", self.rho_angle)
+        if self.verbose:
+            print("Initial value of rho_power:", self.rho_power)
+            print("Initial value of rho_angle:", self.rho_angle)
 
         for iteration in range(self.num_iterations):
             self.iteration = iteration + 1
@@ -234,8 +235,9 @@ class ADMMSolver:
         if not self.converged:
             print(f"Did not converge. Ran for {self.iteration} iterations.")
 
-        print("Final value of rho_power:", self.rho_power)
-        print("Final value of rho_angle:", self.rho_angle)
+        if self.verbose:
+            print("Final value of rho_power:", self.rho_power)
+            print("Final value of rho_angle:", self.rho_angle)
 
         # Restore original settings
         for k, v in original_settings.items():

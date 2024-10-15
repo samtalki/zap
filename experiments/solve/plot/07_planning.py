@@ -53,22 +53,8 @@ def __():
 def __():
     import matplotlib.pyplot as plt
     import seaborn
-
-    seaborn.set_theme(
-        style="whitegrid",
-        palette="bright",
-        rc={
-            "axes.edgecolor": "0.15",
-            "axes.linewidth": 1.25,
-            "font.size": 10,
-            "axes.labelsize": 10,
-            "axes.titlesize": 10,
-            "legend.fontsize": 10,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
-        },
-    )
-    return plt, seaborn
+    from experiments.solve import plotter as formatter
+    return formatter, plt, seaborn
 
 
 @app.cell(hide_code=True)
@@ -202,13 +188,13 @@ def __(mo):
     return
 
 
-@app.cell
-def __(Path, history, model_iters, np, plt):
-    def loss_plot(num_iter=np.max(model_iters)):
+@app.cell(hide_code=True)
+def __(history, model_iters, np, plt):
+    def loss_plot(num_iter=np.max(model_iters), figsize=(6.5, 2)):
         loss = history.loss[:num_iter]
         admm_iter = history.admm_iteration.diff()[1 : num_iter + 1]
 
-        fig, axes = plt.subplots(1, 2, figsize=(6.5, 2))
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
 
         marks = np.array(model_iters) - 1
 
@@ -232,36 +218,38 @@ def __(Path, history, model_iters, np, plt):
         axes[1].set_ylabel("Iterations per Step")
 
         # fig.align_ylabels(axes)
-
         fig.tight_layout()
         fig.subplots_adjust(wspace=0.5)
-        fig.savefig(Path.home() / "figures/gpu/admm_planning.pdf")
 
         return fig
-
-
-    loss_plot()
     return loss_plot,
 
 
 @app.cell
-def __(devices):
-    devices[0].num_nodes
+def __(Path, formatter, loss_plot):
+    formatter.set_full_style()
+    _fig = loss_plot(figsize=(formatter.FIGWIDTH_FULL, 2))
+    _fig.savefig(Path.home() / "figures/gpu/admm_planning_fig_full.eps")
+
+    _fig
     return
 
 
 @app.cell
-def __(
-    Path,
-    devices,
-    initial_params,
-    model_iters,
-    model_states,
-    plotter,
-    plt,
-):
-    def capacity_plot():
-        fig, axes = plt.subplots(1, 4, figsize=(6.5, 2.5), width_ratios=[1, 1, 1, 6])
+def __(Path, formatter, loss_plot):
+    formatter.set_small_style()
+    _fig = loss_plot(figsize=(formatter.FIGWIDTH_SMALL, 1.5))
+    _fig.savefig(Path.home() / "figures/gpu/admm_planning_fig_small.eps")
+    _fig.savefig(Path.home() / "figures/gpu/Fig6.eps")
+
+    _fig
+    return
+
+
+@app.cell
+def __(devices, initial_params, model_iters, model_states, plotter, plt):
+    def capacity_plot(figsize=(6.5, 2.5)):
+        fig, axes = plt.subplots(1, 4, figsize=figsize, width_ratios=[1, 1, 1, 6])
 
         labels = [f"{i} Steps" for i in model_iters]
         plotter.capacity_plot(
@@ -280,14 +268,6 @@ def __(
                 "Coal",
             ],
         )
-        # plotter.capacity_plot(
-        #     initial_params,
-        #     models,
-        #     devices,
-        #     fig=fig,
-        #     axes=axes,
-        #     label=[f"{int(100*c)}%" for c in EXPANSION_COSTS],
-        # )
 
         axes[0].set_ylim(0, 8000)
         axes[1].set_ylim(0, 25)
@@ -295,13 +275,28 @@ def __(
         axes[3].set_ylim(0, 500)
 
         fig.tight_layout()
-        fig.savefig(Path.home() / "figures/gpu/admm_planning_outcome.pdf")
 
         return fig
-
-
-    capacity_plot()
     return capacity_plot,
+
+
+@app.cell
+def __(Path, capacity_plot, formatter):
+    formatter.set_full_style()
+    _fig = capacity_plot(figsize=(formatter.FIGWIDTH_FULL, 2.5))
+    _fig.savefig(Path.home() / "figures/gpu/admm_planning_outcome_fig_full.eps")
+    return
+
+
+@app.cell
+def __(Path, capacity_plot, formatter):
+    formatter.set_small_style()
+    _fig = capacity_plot(figsize=(formatter.FIGWIDTH_SMALL, 2))
+    _fig.savefig(Path.home() / "figures/gpu/admm_planning_outcome_fig_small.eps")
+    _fig.savefig(Path.home() / "figures/gpu/Fig7.eps")
+
+    _fig
+    return
 
 
 if __name__ == "__main__":

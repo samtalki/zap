@@ -297,7 +297,7 @@ class Battery(AbstractDevice):
 
         # Variable data that changes between solves
         if self.has_changed:
-            print("Changing battery data.")
+            # print("Changing battery data.")
 
             smax = torch.multiply(power_capacity, self.duration)
             gamma1 = torch.multiply(self.initial_soc, smax)

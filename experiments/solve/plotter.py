@@ -1,9 +1,46 @@
 import pickle
-import zap
-
+import matplotlib.pyplot as plt
+import seaborn
 from experiments.solve import runner
-
 from pathlib import Path
+
+
+FIGWIDTH_SMALL = 4.68504  # inches, 119 mm
+FIGWIDTH_FULL = 6.5  # inches
+
+
+def set_full_style():
+    seaborn.set_theme(
+        style="whitegrid",
+        palette="bright",
+        rc={
+            "axes.edgecolor": "0.15",
+            "axes.linewidth": 1.25,
+            "font.size": 10,
+            "axes.labelsize": 10,
+            "axes.titlesize": 10,
+            "legend.fontsize": 10,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+        },
+    )
+
+
+def set_small_style():
+    seaborn.set_theme(
+        style="whitegrid",
+        palette="bright",
+        rc={
+            "axes.edgecolor": "0.15",
+            "axes.linewidth": 1.25,
+            "font.size": 8,
+            "axes.labelsize": 8,
+            "axes.titlesize": 8,
+            "legend.fontsize": 8,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+        },
+    )
 
 
 def open_solver_data(config):

@@ -49,9 +49,15 @@ def __():
 
 
 @app.cell
-def __(pypsa):
+def __():
+    num_nodes = 500
+    return num_nodes,
+
+
+@app.cell
+def __(num_nodes, pypsa):
     pn = pypsa.Network()
-    pn.import_from_csv_folder("data/pypsa/western/load_medium/elec_s_4000")
+    pn.import_from_csv_folder(f"data/pypsa/western/load_medium/elec_s_{num_nodes}")
     # pn.storage_units = pn.storage_units[pn.storage_units.p_nom > 0.0]
     return pn,
 
@@ -142,15 +148,15 @@ def __(backprop, devices, torch_devices, zap):
         if i == 4:
             assert isinstance(devices[i], zap.Battery)
             p = torch_devices[i].power_capacity.clone().detach()
-        else:    
+        else:
             p = torch_devices[i].nominal_capacity.clone().detach()
 
         if backprop:
             p.requires_grad = True
 
         if i == 4:
-            param0[i]["power_capacity"] = p # + 0.001
-        else:    
+            param0[i]["power_capacity"] = p  # + 0.001
+        else:
             param0[i]["nominal_capacity"] = p
     return i, p, param0
 

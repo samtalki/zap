@@ -24,25 +24,13 @@ def __():
 
 
 @app.cell
-def __():
+def __(importlib):
     import matplotlib.pyplot as plt
     import seaborn
+    from experiments.solve import plotter
 
-    seaborn.set_theme(
-        style="whitegrid",
-        palette="bright",
-        rc={
-            "axes.edgecolor": "0.15",
-            "axes.linewidth": 1.25,
-            "font.size": 10,
-            "axes.labelsize": 10,
-            "axes.titlesize": 10,
-            "legend.fontsize": 10,
-            "xtick.labelsize": 10,
-            "ytick.labelsize": 10,
-        },
-    )
-    return plt, seaborn
+    _ = importlib.reload(plotter)
+    return plotter, plt, seaborn
 
 
 @app.cell
@@ -51,14 +39,6 @@ def __(importlib):
 
     _ = importlib.reload(runner)
     return runner,
-
-
-@app.cell
-def __(importlib):
-    from experiments.solve import plotter
-
-    _ = importlib.reload(plotter)
-    return plotter,
 
 
 @app.cell(hide_code=True)
@@ -198,9 +178,9 @@ def __(
     return
 
 
-@app.cell
-def __():
-    # np.array(admm_data[0][admm_layer_index]["history"].power
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""### Figure Full""")
     return
 
 
@@ -214,14 +194,49 @@ def __(
     get_objective_value,
     hours_per_scenario,
     plot_convergence,
+    plotter,
 ):
+    plotter.set_full_style()
     _fig, _axes = plot_convergence(
         admm_data[0][admm_layer_index],
         fstar=get_objective_value(baseline_data[0][case_index]),
         ylims=None,
+        figsize=(plotter.FIGWIDTH_FULL, 2.5)
     )
 
-    _fig.savefig(Path().home() / f"figures/gpu/convergence_1_{hours_per_scenario}.pdf")
+    _fig.savefig(Path().home() / f"figures/gpu/convergence_1_{hours_per_scenario}_fig_full.eps")
+    _fig
+    return
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""### Figure Small""")
+    return
+
+
+@app.cell
+def __(
+    Path,
+    admm_data,
+    admm_layer_index,
+    baseline_data,
+    case_index,
+    get_objective_value,
+    hours_per_scenario,
+    plot_convergence,
+    plotter,
+):
+    plotter.set_small_style()
+    _fig, _axes = plot_convergence(
+        admm_data[0][admm_layer_index],
+        fstar=get_objective_value(baseline_data[0][case_index]),
+        ylims=None,
+        figsize=(plotter.FIGWIDTH_SMALL, 2)
+    )
+
+    _fig.savefig(Path().home() / f"figures/gpu/convergence_1_{hours_per_scenario}_fig_small.eps")
+    _fig.savefig(Path().home() / f"figures/gpu/Fig2.eps")
 
     _fig
     return
@@ -229,7 +244,7 @@ def __(
 
 @app.cell
 def __(np, plt):
-    def plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0)):
+    def plot_convergence(solver_data, fstar=1.0, ylims=(1e-3, 1e0), figsize=(6.5, 3)):
         hist = solver_data["history"]
 
         num_iters = len(hist.objective)
@@ -245,7 +260,7 @@ def __(np, plt):
 
         print(np.argwhere((total_primal <= 1e-4) * (total_dual <= 1e-4))[0])
 
-        fig, axes = plt.subplots(1, 2, figsize=(6.5, 3))
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
 
         ax = axes[0]
         ax.plot(total_primal, label="Primal")
@@ -263,7 +278,7 @@ def __(np, plt):
         ax.set_xlim(x1, x2)
 
         ax.set_yscale("log")
-        ax.set_title("Residuals")
+        ax.set_ylabel("Residuals")
         ax.set_xlabel("Iteration")
         ax.legend(framealpha=1)
 
@@ -274,17 +289,11 @@ def __(np, plt):
         ax.plot(np.abs(hist.objective[:] - fstar) / fstar, label="ADMM")
         ax.set_yscale("log")
 
-        # x1, x2 = ax.get_xlim()
-        # ax.hlines(
-        #     fstar, color="black", ls="--", label="Optimal", zorder=-100, xmin=x1, xmax=x2
-        # )
-        # ax.set_xlim(x1, x2)
-
-        # ax.legend()
-        ax.set_title(r"$|f^{(i)} - f^*| \ / \ f^*$")
+        ax.set_ylabel(r"$|f^{(i)} - f^*| \ / \ f^*$")
         ax.set_xlabel("Iteration")
 
         fig.tight_layout()
+        fig.subplots_adjust(wspace=0.6)
         return fig, axes
     return plot_convergence,
 
