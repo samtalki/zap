@@ -11,3 +11,9 @@ from zap.devices.ground import Ground
 from zap import importers
 from zap import planning
 from zap import dual
+
+
+# Get the version from the metadata
+from importlib import metadata
+
+__version__ = metadata.version("zap")
