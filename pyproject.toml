@@ -4,14 +4,33 @@ version = "0.1.0"
 description = "Differentiable electricity models"
 authors = ["degleris1 <degleris1@gmail.com>"]
 readme = "README.md"
+license = "Apache-2.0"
+repository = "https://github.com/degleris1/zap"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11,<3.13"
 cvxpy = "^1.4.2"
 numpy = "^1.26.4"
 scipy = "^1.12.0"
+torch = "2.1.2"
+mosek = {version = "^10.2.6", optional = true}
 pypsa = {version = "^0.27.0", optional = true}
+# sparse-dot-mkl = {version = "^0.9.6", optional = true}
 
+[tool.poetry.extras]
+pypsa = ["pypsa"]
+mosek = ["mosek"]
+
+[tool.poetry.group.dev.dependencies]
+marimo = "^0.9.14"
+matplotlib = "^3.9.2"
+seaborn = "^0.13.2"
+
+[tool.poetry.group.experiment]
+optional = true
+
+[tool.poetry.group.experiment.dependencies]
+wandb = "^0.18.5"
 
 [build-system]
 requires = ["poetry-core"]
