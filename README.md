@@ -1,28 +1,29 @@
 # zap ⚡
 
 
+
+
 ## Setup
 
+(coming soon)
+
+### Developer Setup
+
+For developers, we recommend installing [poetry](https://python-poetry.org/docs/).
+Then clone the repo and install depedencies:
+
 ```zsh
-mamba env create -n zap --file environment.yaml
+git clone https://github.com/degleris1/zap.git
+cd zap
+poetry install --all-extras --with experiment
+poetry shell  # Start a shell in a local virtual environment
 ```
 
+Then run Python from the subshell.
 
-## Environment Management
 
-**Updating Packages.** Change the `environment.yaml` then sync (see below).
 
-**Syncing Environment.** Run one of the following commands.
 
-On Perlmutter:
-```zsh
-mamba env update --file environment.yaml --prefix $ZAP_ENV  # Conda with Mamba solver
-```
+## Reproducing Experiments
 
-On Macbook:
-```zsh
-mamba update --file environment.yaml  # Mamba
-```
-
-I haven't figured out a good way to lock the environment yet (i.e., fix all the dependency versions),
-but this seems to work fine for the time being.
+To reproduce experiments from our published work, use the [developer setup](#developer-setup).
