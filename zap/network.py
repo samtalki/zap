@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from itertools import repeat
 from functools import cached_property
 from collections.abc import Sequence
-from sparse_dot_mkl import sparse_qr_solve_mkl
 
 from zap.devices.abstract import AbstractDevice
 from zap.devices.ground import Ground
@@ -757,12 +756,19 @@ class PowerNetwork:
             jac_t += regularize * sp.eye(jac_t.shape[0])
 
         # start = time.time()
+
         if linear_solver == "mkl":
+            from sparse_dot_mkl import sparse_qr_solve_mkl
+
             grad_back = sparse_qr_solve_mkl(jac_t.tocsr(), grad)
 
-        else:  # Use scipy
+        elif linear_solver == "scipy":  # Use scipy
             lu_factors = sp.linalg.splu(jac_t)
             grad_back = lu_factors.solve(grad)
+
+        else:
+            raise ValueError(f"Unknown linear solver: {linear_solver}")
+
         # print("Solve linear system:", time.time() - start)
 
         if vectorize:
