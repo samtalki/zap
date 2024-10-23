@@ -96,7 +96,6 @@ class ADMMSolver:
     alpha: float = 1.0
     atol: float = 0.0
     rtol: float = 0.0
-    angle_converges_separately: bool = False
     resid_norm: object = None
     safe_mode: bool = False
     track_objective: bool = True
@@ -436,49 +435,45 @@ class ADMMSolver:
         rho_power, rho_angle = self.get_rho()
 
         # Absolute component
-        primal_tol_power = self.atol * np.power(self.num_dc_terminals * (num_cont + 1), 1 / p)
-        primal_tol_angle = self.atol * np.power(self.num_ac_terminals * (num_cont + 1), 1 / p)
-        dual_tol_power = primal_tol_power
-        dual_tol_angle = primal_tol_angle
-
-        # primal_tol = self.atol * np.power(self.total_terminals * (num_cont + 1), 1 / p)
-        # dual_tol = primal_tol
+        primal_tol = self.atol * np.power(self.total_terminals * (num_cont + 1), 1 / p)
+        dual_tol = primal_tol
 
         # Relative component
         if self.rtol > 0.0:  # We add this check so we don't waste time computing norms
-            primal_tol_power += self.rtol * nested_norm(st.power, p).item()
+            assert self.track_objective
+            # print("Adding relative component to convergence check.")
 
-            if st.dual_power.dim() == 3:
-                dual_power_scaled = st.num_terminals.unsqueeze(-1) * st.dual_power
-            else:
-                dual_power_scaled = st.num_terminals * st.dual_power
-
-            dual_tol_power += (
-                self.rtol * rho_power * torch.linalg.norm(dual_power_scaled.ravel(), p).item()
+            # Compute norm of primal variables
+            rtol_primal = self.rtol * (
+                nested_norm(st.power, p).item() + nested_norm(st.phase, p).item()
             )
 
-            primal_tol_angle += self.rtol * nested_norm(st.phase, p).item()
-            dual_tol_angle += self.rtol * rho_angle * nested_norm(st.dual_phase, p).item()
+            # Compute norm of dual variables
+            rtol_dual = self.rtol * history.objective[-1]
+            # if st.dual_power.dim() == 3:
+            #     dual_power_scaled = st.num_terminals.unsqueeze(-1) * st.dual_power
+            # else:
+            #     dual_power_scaled = st.num_terminals * st.dual_power
+
+            # rtol_dual = self.rtol * (
+            #     rho_power * torch.linalg.vector_norm(dual_power_scaled.ravel(), p).item()
+            #     + rho_angle * nested_norm(st.dual_phase, p).item()
+            # )
+
+            primal_tol += rtol_primal
+            dual_tol += rtol_dual
 
         # Track tolerances
-        self.primal_tol_power = primal_tol_power
-        self.primal_tol_angle = primal_tol_angle
-        self.dual_tol_power = dual_tol_power
-        self.dual_tol_angle = dual_tol_angle
-        self.primal_tol = primal_tol_power + primal_tol_angle
-        self.dual_tol = dual_tol_power + dual_tol_angle
+        self.primal_tol_power = primal_tol
+        self.primal_tol_angle = primal_tol
+        self.dual_tol_power = dual_tol
+        self.dual_tol_angle = dual_tol
+        self.primal_tol = primal_tol
+        self.dual_tol = dual_tol
 
-        if self.angle_converges_separately:
-            converged = (
-                history.power[-1] < primal_tol_power
-                and history.phase[-1] < primal_tol_angle
-                and history.dual_power[-1] < dual_tol_power
-                and history.dual_phase[-1] < dual_tol_angle
-            )
-        else:
-            primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
-            dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
-            converged = (primal_resid < self.primal_tol) and (dual_resid < self.dual_tol)
+        primal_resid = np.sqrt(history.power[-1] ** 2 + history.phase[-1] ** 2)
+        dual_resid = np.sqrt(history.dual_power[-1] ** 2 + history.dual_phase[-1] ** 2)
+        converged = (primal_resid < self.primal_tol) and (dual_resid < self.dual_tol)
 
         if converged:
             return True
@@ -518,8 +513,8 @@ class ADMMSolver:
         old_rho = self.rho_power
 
         # Scale by tolerances
-        primal_resid /= self.primal_tol_power
-        dual_resid /= self.dual_tol_power
+        primal_resid /= self.primal_tol
+        dual_resid /= self.dual_tol
 
         self.rho_power = self.tweak_rho(old_rho, primal_resid, dual_resid, name="power")
         if self.rho_power != old_rho:
@@ -530,8 +525,8 @@ class ADMMSolver:
         old_rho = self.rho_angle
 
         # Scale by tolerances
-        primal_resid /= self.primal_tol_angle
-        dual_resid /= self.dual_tol_angle
+        primal_resid /= self.primal_tol
+        dual_resid /= self.dual_tol
 
         self.rho_angle = self.tweak_rho(old_rho, primal_resid, dual_resid, name="angle")
         if self.rho_angle != old_rho:
@@ -563,7 +558,9 @@ class ADMMSolver:
 
         if nu_star is not None:
             history.price_error += [
-                torch.linalg.norm((st.dual_power * self.rho_power - nu_star).ravel(), p).item()
+                torch.linalg.vector_norm(
+                    (st.dual_power * self.rho_power - nu_star).ravel(), p
+                ).item()
             ]
 
         return history
@@ -579,7 +576,7 @@ class ADMMSolver:
         else:
             power_scaled = st.num_terminals * st.avg_power
 
-        history.power += [torch.linalg.norm(power_scaled.ravel(), p).item()]
+        history.power += [torch.linalg.vector_norm(power_scaled.ravel(), p).item()]
         history.phase += [nested_norm(st.resid_phase, p).item()]
         return history
 
@@ -602,7 +599,7 @@ class ADMMSolver:
         else:
             phase_scaled = st.num_ac_terminals * (st.avg_phase - last_avg_phase)
 
-        history.dual_phase += [ra * torch.linalg.norm(phase_scaled.ravel(), p).item()]
+        history.dual_phase += [ra * torch.linalg.vector_norm(phase_scaled.ravel(), p).item()]
 
         return history
 

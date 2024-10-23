@@ -88,16 +88,16 @@ def nested_subtract(x1, x2, alpha=None):
         return nested_map(lambda x, y: alpha * (x - y), x1, x2)
 
 
-def nested_norm(data, p=None):
+def nested_norm(data, p=2):
     mini_norms = [
         (
             torch.tensor([0.0])
             if x_dev is None
-            else torch.tensor([torch.linalg.norm(x.ravel(), p) for x in x_dev])
+            else torch.tensor([torch.linalg.vector_norm(x.ravel(), p) for x in x_dev])
         )
         for x_dev in data
     ]
-    return torch.linalg.norm(torch.concatenate(mini_norms), p)
+    return torch.linalg.vector_norm(torch.concatenate(mini_norms), p)
 
 
 def get_discrep(power1, power2):

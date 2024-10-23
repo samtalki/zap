@@ -46,6 +46,7 @@ def __(mo):
 def __(pypsa):
     network_cache = {}
 
+
     def load_network(num_nodes):
         if num_nodes not in network_cache.keys():
             pn = pypsa.Network()
@@ -64,7 +65,7 @@ def __(dt, np, pd, zap):
         start_date=dt.datetime(2019, 8, 9, 7),
         exclude_batteries=False,
         power_unit=1000.0,
-        cost_unit=100.0,
+        cost_unit=10.0,
         marginal_load_value=500.0,
         load_cost_perturbation=10.0,
         generator_cost_perturbation=1.0,
@@ -123,7 +124,7 @@ def __():
 
 @app.cell
 def __():
-    num_nodes = [100, 500, 1000, 4000]
+    num_nodes = [100, 200, 240, 500, 1000, 4000]
     return (num_nodes,)
 
 
@@ -156,6 +157,7 @@ def __(cp):
             devices,
             add_ground=False,
             solver=cp.MOSEK,
+            solver_kwargs={"verbose": True}
         )
     return (solve_baseline,)
 
@@ -164,6 +166,19 @@ def __(cp):
 def __(cases, solve_baseline):
     baseline_solves = [solve_baseline(*c) for c in cases]
     return (baseline_solves,)
+
+
+@app.cell
+def __(baseline_solves, np):
+    np.sum(baseline_solves[-1].power[1][0])
+    return
+
+
+@app.cell
+def __(cases, np):
+    _l = cases[-1][1][1]
+    np.sum(_l.nominal_capacity * _l.min_power)
+    return
 
 
 @app.cell(hide_code=True)
@@ -184,14 +199,16 @@ def __(torch):
     return dtype, machine
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(ADMMSolver, dtype, machine):
     def solve_case(
         net,
         devices,
         time_horizon,
-        num_iterations=2000,
-        atol=1e-3,
+        num_iterations=2500,
+        resid_norm=2,
+        atol=1e-8,
+        rtol=1e-4,
         rho_power=1.0,
         rho_angle=1.0,
         adaptive_rho=True,
@@ -204,11 +221,12 @@ def __(ADMMSolver, dtype, machine):
             rho_power,
             machine=machine,
             dtype=dtype,
-            resid_norm=2,
+            resid_norm=resid_norm,
             atol=atol,
+            rtol=rtol,
             rho_angle=rho_angle,
             adaptive_rho=adaptive_rho,
-            verbose=False,
+            verbose=verbose,
             **kwargs,
         )
         state, history = admm.solve(net, devices, time_horizon)
@@ -216,7 +234,7 @@ def __(ADMMSolver, dtype, machine):
     return (solve_case,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(dtype, machine, torch):
     def torchify_case(net, devices, time_horizon):
         torch.cuda.empty_cache()
@@ -250,7 +268,9 @@ def __(np, plt):
             print(f"Objective:\t\t\t {hist.objective[-1]:.2f}")
         else:
             print(f"Objective (Optimal):\t {hist.objective[-1]:.2f}\t ({fstar:.2f})")
-            print(f"Objective Gap:\t\t\t {100.0*np.abs(hist.objective[-1] - fstar) / np.abs(fstar):.2f} %")
+            print(
+                f"Objective Gap:\t\t\t {100.0*np.abs(hist.objective[-1] - fstar) / np.abs(fstar):.2f} %"
+            )
 
         admm_num_iters = len(hist.power)
 
@@ -280,7 +300,7 @@ def __(np, plt):
     return (plot_convergence,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(np, torch):
     def load_statistics(case, solution, baseline):
         state, history, admm = solution
@@ -296,42 +316,57 @@ def __(np, torch):
     return (load_statistics,)
 
 
-@app.cell
-def __(np):
+@app.cell(hide_code=True)
+def __(np, zap):
     def get_primal_resid(solve):
         state, hist, admm = solve
-        return np.sqrt(hist.power[-1]**2 + hist.phase[-1]**2)
+        return np.sqrt(hist.power[-1] ** 2 + hist.phase[-1] ** 2)
+
 
     def get_dual_resid(solve):
         state, hist, admm = solve
-        return np.sqrt(hist.dual_power[-1]**2 + hist.dual_phase[-1]**2)
+        return np.sqrt(hist.dual_power[-1] ** 2 + hist.dual_phase[-1] ** 2)
+
 
     def get_true_objective(baseline):
         return baseline.problem.value
 
+
     def get_admm_objective(solve):
         state, hist, admm = solve
         return hist.objective[-1]
+
+
+    def norm_p(solve, p):
+        state, _, _ = solve
+        power = zap.admm.util.nested_norm(state.power, p).item() ** p
+        theta = zap.admm.util.nested_norm(state.phase, p).item() ** p
+
+        return power + theta
     return (
         get_admm_objective,
         get_dual_resid,
         get_primal_resid,
         get_true_objective,
+        norm_p,
     )
 
 
-@app.cell(hide_code=True)
+@app.cell
 def __(
     get_admm_objective,
     get_dual_resid,
     get_primal_resid,
     get_true_objective,
+    norm_p,
     np,
     pd,
+    time_horizon,
 ):
     def aggregate_stats(cases, baselines, solutions):
         # Case data
         num_nodes = [c[0].num_nodes for c in cases]
+        num_terminals = [s[2].total_terminals / time_horizon for s in solutions]
 
         # Residuals
         r_primal = [get_primal_resid(s) for s in solutions]
@@ -344,6 +379,7 @@ def __(
         df = pd.DataFrame(
             {
                 "num_nodes": num_nodes,
+                "num_terminals": num_terminals,
                 "r_primal": r_primal,
                 "r_dual": r_dual,
                 "f_opt": f_opt,
@@ -352,6 +388,15 @@ def __(
         )
 
         df["subopt"] = np.abs(df.f_admm - df.f_opt) / df.f_opt
+
+        # Variable scaling
+        df["sq_norm_x"] = [norm_p(s, 2) for s in solutions]
+        df["norm_x"] = np.sqrt(df["sq_norm_x"])
+        df["sq_norm_x_over_j"] = df.sq_norm_x / df.num_terminals
+
+        # Tolerance
+        df["primal_tol"] = [s[2].primal_tol for s in solutions]
+        df["dual_tol"] = [s[2].dual_tol for s in solutions]
 
         return df
     return (aggregate_stats,)
@@ -365,14 +410,14 @@ def __(admm_solves, aggregate_stats, baseline_solves, cases):
 
 @app.cell
 def __(admm_solves, baseline_solves, plot_convergence):
-    _i = 0
+    _i = 5
     plot_convergence(*admm_solves[_i], fstar=baseline_solves[_i].problem.value)
     return
 
 
 @app.cell
 def __(admm_solves, baseline_solves, cases, load_statistics):
-    _i = 0
+    _i = 5
     load_statistics(cases[_i], admm_solves[_i], baseline_solves[_i])
     return
 
