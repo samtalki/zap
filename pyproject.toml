@@ -5,7 +5,6 @@ description = "Differentiable electricity models"
 authors = ["degleris1 <degleris1@gmail.com>"]
 readme = "README.md"
 license = "Apache-2.0"
-repository = "https://github.com/degleris1/zap"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
