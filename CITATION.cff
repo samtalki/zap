@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the follow paper."
+title: "zap: Differentiable Electricty Models"
+version: 0.1.0
+repository: https://github.com/degleris1/zap
+license: Apache-2.0
+authors:
+- family-names: "Degleris"
+  given-names: "Anthony"
+- family-names: "El Gamal"
+  given-names: "Abbas"
+- family-names: "Rajagopal"
+  given-names: "Ram"
+date-released: 2024-10-24
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Degleris"
+    given-names: "Anthony"
+  - family-names: "El Gamal"
+    given-names: "Abbas"
+  - family-names: "Rajagopal"
+    given-names: "Ram"
+  doi: 10.48550/arXiv.2410.17203
+  journal: "arXiv preprint arXiv:2404.01255"
+  year: 2024
+  month: 10
+  title: "GPU Accelerated Security Constrained Optimal Power Flow"
+  issue: 1
+  volume: 1
