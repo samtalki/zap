@@ -741,8 +741,17 @@ class PowerNetwork:
         parameters=None,
         vectorize=True,
         regularize=0.0,
-        linear_solver="mkl",
+        linear_solver="scipy",
     ):
+        # Choose linear solver based on whether or no sparse_dot_mkl is available
+        if linear_solver == "default":
+            try:
+                from sparse_dot_mkl import sparse_qr_solve_mkl
+            except ImportError:
+                linear_solver = "scipy"
+            else:
+                linear_solver = "mkl"
+
         if isinstance(grad, DispatchOutcome):
             grad = grad.vectorize()
 
