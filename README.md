@@ -11,7 +11,8 @@ We recommend using `pip` to install directly from Github.
 python3 -m pip install "zap @ git+https://github.com/degleris1/zap.git"  # No PyPSA
 ```
 
-Dependency on `pypsa` is optional and can be installed with:
+Dependency on `pypsa` is optional.
+This can be installed by running the following command (instead of the above).
 
 ```zsh
 python3 -m pip install "zap[pypsa] @ git+https://github.com/degleris1/zap.git"  # With PyPSA
@@ -37,12 +38,13 @@ Then run Python from the subshell.
 ## Reproducing Experiments
 
 To reproduce experiments from our published work, use the [developer setup](#developer-setup).
+Some experiments require a [Mosek](https://www.mosek.com/) license.
 
 
 
 ## Citation
 
-If you use this package in published work, we ask that you cite:
+If you use this package in published work, we ask that you cite our paper ([preprint](https://arxiv.org/abs/2410.17203)):
 
 ```bibtex
 @article{degleris2024gpu,
@@ -53,7 +55,7 @@ If you use this package in published work, we ask that you cite:
 }
 ```
 
-If you also used the gradient-based planning methods, please also cite:
+If you also used the gradient-based planning methods, please also cite our paper on planning ([preprint](https://arxiv.org/abs/2404.01255)):
 
 ```bibtex
 @article{degleris2024gradient,
