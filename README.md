@@ -8,10 +8,14 @@
 We recommend using `pip` to install directly from Github.
 
 ```zsh
-python3 -m pip install "zap[pypsa,mosek] @ git+https://github.com/degleris1/zap.git"
+python3 -m pip install "zap @ git+https://github.com/degleris1/zap.git"  # No PyPSA
 ```
 
-In future releases, the `pypsa` and `mosek` dependencies will be actually optional.
+Dependency on `pypsa` is optional and can be installed with:
+
+```zsh
+python3 -m pip install "zap[pypsa] @ git+https://github.com/degleris1/zap.git"  # With PyPSA
+```
 
 ### Developer Setup
 

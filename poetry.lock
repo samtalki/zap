@@ -1221,7 +1221,7 @@ dev = ["meson-python (>=0.13.1)", "numpy (>=1.25)", "pybind11 (>=2.6)", "setupto
 name = "mosek"
 version = "10.2.6"
 description = "Python API for Mosek"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.7"
 files = [
     {file = "Mosek-10.2.6-cp37-abi3-macosx_10_15_x86_64.whl", hash = "sha256:2ff5ae221bb5bac1bf50a8f94093f4dc94f07d4a923a2c570a3f8893a014106e"},
@@ -3308,10 +3308,9 @@ type = ["pytest-mypy"]
 
 [extras]
 mkl = ["sparse-dot-mkl"]
-mosek = ["mosek"]
 pypsa = ["pypsa"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "2ad94a2228aaff3fc049a34159187cdc230641de5c518e1589bf5978a3b6f092"
+content-hash = "a34f76530656e9fcf96ae021c88007be84c43734480910806608208c5ba2d8b0"
