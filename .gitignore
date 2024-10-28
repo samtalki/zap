@@ -1,9 +1,11 @@
 research/
-development/
 data/
 data
 wandb/
 wandb
+
+# Ray
+.prometheus*/
 
 # Python
 *.pyc
