@@ -42,10 +42,10 @@ If you use this package in published work, we ask that you cite:
 
 ```bibtex
 @article{degleris2024gpu,
-      title={GPU Accelerated Security Constrained Optimal Power Flow},
-      author={Anthony Degleris and Abbas El Gamal and Ram Rajagopal},
-      journal={arXiv preprint arXiv:2404.01255},
-      year={2024},
+  title={GPU Accelerated Security Constrained Optimal Power Flow},
+  author={Anthony Degleris and Abbas El Gamal and Ram Rajagopal},
+  journal={arXiv preprint arXiv:2404.01255},
+  year={2024},
 }
 ```
 
