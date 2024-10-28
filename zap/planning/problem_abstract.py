@@ -1,7 +1,6 @@
 import time
 import torch
 import numpy as np
-import wandb as wb
 from copy import deepcopy
 
 from zap.layer import DispatchLayer
@@ -214,9 +213,9 @@ class AbstractPlanningProblem:
                     if k in ["grad", "param"]:
                         # Convert to histogram
                         wand_data[k] = {
-                            kk: wb.Histogram(vv)
+                            kk: wandb.Histogram(vv)
                             if isinstance(vv, np.ndarray)
-                            else wb.Histogram(vv.cpu())
+                            else wandb.Histogram(vv.cpu())
                             for kk, vv in v.items()
                         }
 
