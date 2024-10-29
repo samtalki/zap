@@ -315,16 +315,16 @@ class ADMMSolver:
     def set_power(self, dev: AbstractDevice, dev_index: int, st: ADMMState, nc: int):
         AT_nu = apply_incidence_transpose(dev, st.dual_power)
 
+        # This is a non-contingency device in a contingency-constrained problem
+        # We need to aggregrate the contingeny terms
         if nc > 0 and st.power[dev_index][0].dim() == 2:
-            # This is a non-contingency device in a contingency-constrained problem
-            # We need to aggregrate the contingeny terms
             AT_nu = [torch.mean(A, dim=-1) for A in AT_nu]
             clones = [torch.mean(v, dim=-1) for v in st.clone_power[dev_index]]
 
             return [zi - AT_nu_i for zi, AT_nu_i in zip(clones, AT_nu)]
 
+        # Normal case (or contingency device in a contingency-constrained problem)
         else:
-            # Normal case (or contingency device in a contingency-constrained problem)
             return [zi - AT_nu_i for zi, AT_nu_i in zip(st.clone_power[dev_index], AT_nu)]
 
         # return [
@@ -338,16 +338,18 @@ class ADMMSolver:
         else:
             AT_xi = apply_incidence_transpose(dev, st.clone_phase)
 
+            # This is a non-contingency device in a contingency-constrained problem
+            # We need to aggregrate the contingeny terms
             if nc > 0 and dev_index != cont_dev:
-                # This is a non-contingency device in a contingency-constrained problem
-                # We need to aggregrate the contingeny terms
                 AT_xi = [torch.mean(A, dim=-1) for A in AT_xi]
                 duals = [torch.mean(v, dim=-1) for v in st.dual_phase[dev_index]]
 
                 return [AT_xi_i - v for v, AT_xi_i in zip(duals, AT_xi)]
+
+            # Normal case (or contingency device in a contingency-constrained problem)
             else:
-                # Normal case (or contingency device in a contingency-constrained problem)
                 return [AT_xi_i - v for v, AT_xi_i in zip(st.dual_phase[dev_index], AT_xi)]
+
             # return [
             #     Ai.T @ st.avg_phase - v
             #     for v, Ai in zip(st.dual_phase[dev_index], dev.incidence_matrix)
@@ -432,10 +434,6 @@ class ADMMSolver:
                     d.operation_cost(st.power[i], st.phase[i], None, la=torch, **parameters[i])
                 ]
 
-        # costs = [
-        #     d.operation_cost(st.power[i], st.phase[i], None, la=torch)
-        #     for i, d in enumerate(devices)
-        # ]
         if as_item:
             return sum(costs).item()
         else:
@@ -689,13 +687,6 @@ class ADMMSolver:
             power_var, net, devices, time_horizon, num_terminals, machine, dtype, nc
         )
         phase_dual = get_terminal_residual(phase_var, theta_bar, devices)
-        # phase_dual = [
-        #     d.admm_initialize_angle_variables(time_horizon, machine, dtype) for d in devices
-        # ]
-        # if cd is not None:
-        #     phase_dual[cd] = devices[cd].admm_initialize_angle_variables(
-        #         time_horizon, machine, dtype, num_contingencies=nc
-        #     )
 
         power_tilde = get_terminal_residual(power_var, power_bar, devices)
         theta_tilde = get_terminal_residual(phase_var, theta_bar, devices)
