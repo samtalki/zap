@@ -251,12 +251,12 @@ def __(solve_case, torched_cases):
     admm_solves = [
         solve_case(
             *c,
-            num_iterations=5000,
+            num_iterations=10000,
             rtol_dual_use_objective=True,
             rtol_primal=1e-3,
             rtol_dual=2e-4,
             dual_bias=1.0,
-            
+            adaptation_frequency=50,
         )
         for c in torched_cases
     ]
@@ -423,7 +423,7 @@ def __(admm_solves, aggregate_stats, baseline_solves, cases):
 
 @app.cell
 def __(admm_solves, baseline_solves, plot_convergence):
-    _i = 0
+    _i = 5
     plot_convergence(*admm_solves[_i], fstar=baseline_solves[_i].problem.value)
     return
 

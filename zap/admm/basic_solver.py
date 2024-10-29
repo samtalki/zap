@@ -103,7 +103,7 @@ class ADMMSolver:
     rtol_dual: Optional[float] = None
     dual_bias: float = 1.0
     rtol_dual_use_objective: bool = True
-    resid_norm: object = None
+    resid_norm: int = 2
     safe_mode: bool = False
     track_objective: bool = True
     machine: str = None
