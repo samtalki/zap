@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.1"
+__generated_with = "0.9.14"
 app = marimo.App()
 
 
@@ -65,7 +65,7 @@ def __(dt, np, pd, zap):
         start_date=dt.datetime(2019, 8, 9, 7),
         exclude_batteries=False,
         power_unit=1000.0,
-        cost_unit=10.0,
+        cost_unit=100.0,
         marginal_load_value=500.0,
         load_cost_perturbation=10.0,
         generator_cost_perturbation=1.0,
@@ -199,7 +199,7 @@ def __(torch):
     return dtype, machine
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(ADMMSolver, dtype, machine):
     def solve_case(
         net,
@@ -211,6 +211,7 @@ def __(ADMMSolver, dtype, machine):
         rtol=1e-4,
         rho_power=1.0,
         rho_angle=1.0,
+        rtol_dual_use_objective=True,
         adaptive_rho=True,
         verbose=False,
         **kwargs,
@@ -226,6 +227,7 @@ def __(ADMMSolver, dtype, machine):
             rtol=rtol,
             rho_angle=rho_angle,
             adaptive_rho=adaptive_rho,
+            rtol_dual_use_objective=rtol_dual_use_objective,
             verbose=verbose,
             **kwargs,
         )
@@ -246,7 +248,16 @@ def __(dtype, machine, torch):
 
 @app.cell
 def __(solve_case, torched_cases):
-    admm_solves = [solve_case(*c) for c in torched_cases]
+    admm_solves = [
+        solve_case(
+            *c,
+            num_iterations=1000,
+            rtol_dual_use_objective=True,
+            rtol_primal=1e-3,
+            rtol_dual=1e-4,
+        )
+        for c in torched_cases
+    ]
     return (admm_solves,)
 
 
@@ -300,7 +311,7 @@ def __(np, plt):
     return (plot_convergence,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(np, torch):
     def load_statistics(case, solution, baseline):
         state, history, admm = solution
@@ -352,7 +363,7 @@ def __(np, zap):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(
     get_admm_objective,
     get_dual_resid,
@@ -410,7 +421,7 @@ def __(admm_solves, aggregate_stats, baseline_solves, cases):
 
 @app.cell
 def __(admm_solves, baseline_solves, plot_convergence):
-    _i = 5
+    _i = 1
     plot_convergence(*admm_solves[_i], fstar=baseline_solves[_i].problem.value)
     return
 

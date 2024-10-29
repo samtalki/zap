@@ -5,6 +5,13 @@ from zap.devices.abstract import AbstractDevice
 from zap.util import DEFAULT_DTYPE, infer_machine
 
 
+def unsqueeze_terminals_times_x(num_terminals, x):
+    if x.dim() == 3:
+        return num_terminals.unsqueeze(-1) * x
+    else:
+        return num_terminals * x
+
+
 def scatter_sum(num_rows, index, source):
     # For 3d tensors (contingencies)
     if len(source.shape) == 3 and len(index.shape) == 2:

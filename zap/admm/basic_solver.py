@@ -1,8 +1,10 @@
 import dataclasses
 import functools
+import warnings
+from typing import Optional
+
 import torch
 import numpy as np
-from typing import Optional
 
 from zap.network import DispatchOutcome
 from zap.devices import Battery
@@ -19,6 +21,7 @@ from zap.admm.util import (
     ac_average,
     get_terminal_residual,
     apply_incidence_transpose,
+    unsqueeze_terminals_times_x,
 )
 
 
@@ -96,6 +99,10 @@ class ADMMSolver:
     alpha: float = 1.0
     atol: float = 0.0
     rtol: float = 0.0
+    rtol_primal: Optional[float] = None
+    rtol_dual: Optional[float] = None
+    dual_bias: float = 1.0
+    rtol_dual_use_objective: bool = True
     resid_norm: object = None
     safe_mode: bool = False
     track_objective: bool = True
@@ -106,13 +113,14 @@ class ADMMSolver:
     battery_inner_over_relaxation: float = 1.8
     battery_inner_iterations: int = 10
     minimum_iterations: int = 10
-    scale_dual_residuals: bool = True
     relative_rho_angle: bool = False
     adaptive_rho: bool = False
     tau: float = 1.1
     adaptation_tolerance: float = 2.0
     adaptation_frequency: int = 10
     verbose: bool = True
+
+    scale_dual_residuals: bool = True  # Deprecated
 
     def __post_init__(self):
         if self.machine is None:
@@ -123,6 +131,9 @@ class ADMMSolver:
             self.battery_window = None
 
         self.cumulative_iteration = 0
+
+        if not self.scale_dual_residuals:
+            warnings.warn("scale_dual_residuals is deprecated and will be removed in the future.")
 
     def get_rho(self):
         rho_power = self.rho_power
@@ -439,26 +450,31 @@ class ADMMSolver:
         dual_tol = primal_tol
 
         # Relative component
-        if self.rtol > 0.0:  # We add this check so we don't waste time computing norms
+        # We add this check so we don't waste time computing norms if we don't need to
+        if self.rtol > 0.0 or self.rtol_primal is not None or self.rtol_dual is not None:
             assert self.track_objective
             # print("Adding relative component to convergence check.")
 
             # Compute norm of primal variables
-            rtol_primal = self.rtol * (
+            rtolp = self.rtol if self.rtol_primal is None else self.rtol_primal
+            rtol_primal = rtolp * (
                 nested_norm(st.power, p).item() + nested_norm(st.phase, p).item()
             )
 
             # Compute norm of dual variables
-            rtol_dual = self.rtol * history.objective[-1]
-            # if st.dual_power.dim() == 3:
-            #     dual_power_scaled = st.num_terminals.unsqueeze(-1) * st.dual_power
-            # else:
-            #     dual_power_scaled = st.num_terminals * st.dual_power
+            # Option 1 - Just use objective value
+            rtold = self.rtol if self.rtol_dual is None else self.rtol_dual
+            if self.rtol_dual_use_objective:
+                rtol_dual = rtold * history.objective[-1]
 
-            # rtol_dual = self.rtol * (
-            #     rho_power * torch.linalg.vector_norm(dual_power_scaled.ravel(), p).item()
-            #     + rho_angle * nested_norm(st.dual_phase, p).item()
-            # )
+            # Option 2 - Use norm of dual variables (this is the proper way to do this)
+            else:
+                dual_power_scaled = unsqueeze_terminals_times_x(st.num_terminals, st.dual_power)
+
+                rtol_dual = rtold * (
+                    rho_power * torch.linalg.vector_norm(dual_power_scaled.ravel(), p).item()
+                    + rho_angle * nested_norm(st.dual_phase, p).item()
+                )
 
             primal_tol += rtol_primal
             dual_tol += rtol_dual
@@ -527,6 +543,7 @@ class ADMMSolver:
         # Scale by tolerances
         primal_resid /= self.primal_tol
         dual_resid /= self.dual_tol
+        dual_resid *= self.dual_bias
 
         self.rho_angle = self.tweak_rho(old_rho, primal_resid, dual_resid, name="angle")
         if self.rho_angle != old_rho:
@@ -571,10 +588,7 @@ class ADMMSolver:
         # Need to scale this because bar p should actually a vector of size (num_terminals, ...),
         # not (num_nodes, ...). However, we store the compressed form because the values for
         # different terminals at the same node are the same.
-        if st.avg_power.dim() == 3:
-            power_scaled = st.num_terminals.unsqueeze(-1) * st.avg_power
-        else:
-            power_scaled = st.num_terminals * st.avg_power
+        power_scaled = unsqueeze_terminals_times_x(st.num_terminals, st.avg_power)
 
         history.power += [torch.linalg.vector_norm(power_scaled.ravel(), p).item()]
         history.phase += [nested_norm(st.resid_phase, p).item()]
@@ -594,6 +608,10 @@ class ADMMSolver:
         history.dual_power += [rp * nested_norm(dual_resid_power, p).item()]
 
         # This should be scaled by the number of terminals
+        phase_scaled = unsqueeze_terminals_times_x(
+            st.num_ac_terminals, st.avg_phase - last_avg_phase
+        )
+
         if st.avg_phase.dim() == 3:
             phase_scaled = st.num_ac_terminals.unsqueeze(-1) * (st.avg_phase - last_avg_phase)
         else:
