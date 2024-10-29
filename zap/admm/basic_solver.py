@@ -233,10 +233,10 @@ class ADMMSolver:
                 break  # Quit early
 
             if self.adaptive_rho and self.iteration % self.adaptation_frequency == 0:
-                if not self.relative_rho_angle:
-                    st = self.adjust_rho_power_and_angle(st, history)
-                else:
+                if self.relative_rho_angle:
                     st = self.adjust_rho(st, history)
+                else:
+                    st = self.adjust_rho_power_and_angle(st, history)
 
             if self.safe_mode:
                 self.dimension_checks(st, net, devices, time_horizon)
@@ -501,6 +501,7 @@ class ADMMSolver:
         # Scale by tolerances
         primal_resid /= self.primal_tol
         dual_resid /= self.dual_tol
+        dual_resid *= self.dual_bias
 
         old_rho = self.rho_power
         self.rho_power = self.tweak_rho(
@@ -529,6 +530,7 @@ class ADMMSolver:
         # Scale by tolerances
         primal_resid /= self.primal_tol
         dual_resid /= self.dual_tol
+        dual_resid *= self.dual_bias
 
         self.rho_power = self.tweak_rho(old_rho, primal_resid, dual_resid, name="power")
         if self.rho_power != old_rho:
@@ -609,11 +611,6 @@ class ADMMSolver:
         phase_scaled = unsqueeze_terminals_times_x(
             st.num_ac_terminals, st.avg_phase - last_avg_phase
         )
-
-        if st.avg_phase.dim() == 3:
-            phase_scaled = st.num_ac_terminals.unsqueeze(-1) * (st.avg_phase - last_avg_phase)
-        else:
-            phase_scaled = st.num_ac_terminals * (st.avg_phase - last_avg_phase)
 
         history.dual_phase += [ra * torch.linalg.vector_norm(phase_scaled.ravel(), p).item()]
 
