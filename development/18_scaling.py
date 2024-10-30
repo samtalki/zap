@@ -213,7 +213,7 @@ def __(ADMMSolver, dtype, machine):
         rho_angle=1.0,
         rtol_dual_use_objective=True,
         adaptive_rho=True,
-        verbose=False,
+        verbose=1,
         **kwargs,
     ):
         print(f"Solving problem with {net.num_nodes} nodes.")
@@ -251,7 +251,7 @@ def __(solve_case, torched_cases):
     admm_solves = [
         solve_case(
             *c,
-            num_iterations=10000,
+            num_iterations=100,
             rtol_dual_use_objective=True,
             rtol_primal=1e-3,
             rtol_dual=2e-4,
@@ -423,7 +423,7 @@ def __(admm_solves, aggregate_stats, baseline_solves, cases):
 
 @app.cell
 def __(admm_solves, baseline_solves, plot_convergence):
-    _i = 5
+    _i = 4
     plot_convergence(*admm_solves[_i], fstar=baseline_solves[_i].problem.value)
     return
 

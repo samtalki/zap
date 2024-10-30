@@ -118,9 +118,9 @@ class ADMMSolver:
     tau: float = 1.1
     adaptation_tolerance: float = 2.0
     adaptation_frequency: int = 10
-    verbose: bool = True
+    verbose: int = 1
 
-    scale_dual_residuals: bool = True  # Deprecated
+    scale_dual_residuals: bool = None  # Deprecated
 
     def __post_init__(self):
         if self.machine is None:
@@ -132,8 +132,15 @@ class ADMMSolver:
 
         self.cumulative_iteration = 0
 
-        if not self.scale_dual_residuals:
-            warnings.warn("scale_dual_residuals is deprecated and will be removed in the future.")
+        if self.scale_dual_residuals is not None:
+            warnings.warn(
+                "scale_dual_residuals is deprecated and will be removed in a future release."
+            )
+        if isinstance(self.verbose, bool):
+            self.verbose = 3 if self.verbose else 0
+            warnings.warn(
+                "The verbose parameter should be an integer. Setting to 3 (max verbosity) if True, 0 if False."
+            )
 
     def get_rho(self):
         rho_power = self.rho_power
@@ -198,7 +205,7 @@ class ADMMSolver:
         for d in devices:
             d.has_changed = True
 
-        if self.verbose:
+        if self.verbose >= 2:
             print("Initial value of rho_power:", self.rho_power)
             print("Initial value of rho_angle:", self.rho_angle)
 
@@ -242,10 +249,10 @@ class ADMMSolver:
                 self.dimension_checks(st, net, devices, time_horizon)
                 self.numerical_checks(st, net, devices, time_horizon)
 
-        if not self.converged:
+        if not self.converged and self.verbose >= 1:
             print(f"Did not converge. Ran for {self.iteration} iterations.")
 
-        if self.verbose:
+        if self.verbose >= 2:
             print("Final value of rho_power:", self.rho_power)
             print("Final value of rho_angle:", self.rho_angle)
 
@@ -553,11 +560,11 @@ class ADMMSolver:
 
     def tweak_rho(self, old_rho, r_primal, r_dual, name="power"):
         if r_primal > self.adaptation_tolerance * r_dual:
-            if self.verbose:
+            if self.verbose >= 3:
                 print(f"Increasing rho to {old_rho * self.tau} for {name}.")
             return old_rho * self.tau
         elif r_dual > self.adaptation_tolerance * r_primal:
-            if self.verbose:
+            if self.verbose >= 3:
                 print(f"Decreasing rho to {old_rho / self.tau} for {name}.")
             return old_rho / self.tau
         else:
