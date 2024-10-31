@@ -169,15 +169,10 @@ def __(cases, solve_baseline):
 
 
 @app.cell
-def __(baseline_solves, np):
-    np.sum(baseline_solves[-1].power[1][0])
-    return
-
-
-@app.cell
-def __(cases, np):
+def __(baseline_solves, cases, np):
     _l = cases[-1][1][1]
-    np.sum(_l.nominal_capacity * _l.min_power)
+    print(np.sum(_l.nominal_capacity * _l.min_power))
+    print(np.sum(baseline_solves[1].power[0]))
     return
 
 
