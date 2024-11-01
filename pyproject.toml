@@ -27,6 +27,7 @@ mkl = ["sparse-dot-mkl"]
 marimo = "^0.9.14"
 matplotlib = "^3.9.2"
 seaborn = "^0.13.2"
+nbformat = "^5.10.4"
 
 [tool.poetry.group.experiment]
 optional = true
