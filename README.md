@@ -35,10 +35,18 @@ Then run Python from the subshell.
 
 
 
+## Basic Usage
+
+Please download the Marimo notebook [here](https://github.com/degleris1/zap/blob/main/demo/01_basics.html).
+
+
+
+
 ## Reproducing Experiments
 
 To reproduce experiments from our published work, use the [developer setup](#developer-setup).
 Some experiments require a [Mosek](https://www.mosek.com/) license.
+
 
 
 
