@@ -40,6 +40,8 @@ class ADMMState:
     objective: object = None
     clone_power: object = None
     clone_phase: object = None
+    rho_power: object = None
+    rho_angle: object = None
 
     def update(self, **kwargs):
         """Return a new state with fields updated."""
@@ -72,33 +74,37 @@ class ADMMState:
             objective=self.objective,
             clone_power=[[pi.clone().detach() for pi in p] for p in self.clone_power],
             clone_phase=self.clone_phase.clone().detach(),
+            rho_power=self.rho_power,
+            rho_angle=self.rho_angle,
         )
 
     def as_outcome(self) -> DispatchOutcome:
         return DispatchOutcome(
-            phase_duals=self.dual_phase,
+            phase_duals=nested_ax(self.dual_phase, self.rho_angle),
             local_equality_duals=None,
             local_inequality_duals=None,
             local_variables=[None for _ in self.power],
             power=self.power,
             angle=self.phase,
-            prices=self.dual_power,
+            prices=-self.rho_power * self.dual_power,
             global_angle=None,
             problem=None,
             ground=None,
         )
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass()
 class ADMMSolver:
     """Stores ADMM solver parameters and exposes a solve function."""
 
-    num_iterations: int
-    rho_power: float
-    rho_angle: Optional[float] = None
+    machine: str = None
+    dtype: object = torch.float32
+    num_iterations: int = 10000
+    rho_power: float = 1.0
+    rho_angle: Optional[float] = 1.0
     alpha: float = 1.0
-    atol: float = 0.0
-    rtol: float = 0.0
+    atol: float = 1e-5
+    rtol: float = 1e-5
     rtol_primal: Optional[float] = None
     rtol_dual: Optional[float] = None
     dual_bias: float = 1.0
@@ -106,20 +112,17 @@ class ADMMSolver:
     resid_norm: int = 2
     safe_mode: bool = False
     track_objective: bool = True
-    machine: str = None
-    dtype: object = torch.float64
     battery_window: Optional[int] = None
     battery_inner_weight: float = 1.0
     battery_inner_over_relaxation: float = 1.8
     battery_inner_iterations: int = 10
     minimum_iterations: int = 10
     relative_rho_angle: bool = False
-    adaptive_rho: bool = False
+    adaptive_rho: bool = True
     tau: float = 1.1
     adaptation_tolerance: float = 2.0
-    adaptation_frequency: int = 10
+    adaptation_frequency: int = 50
     verbose: int = 1
-
     scale_dual_residuals: bool = None  # Deprecated
 
     def __post_init__(self):
@@ -520,10 +523,13 @@ class ADMMSolver:
             self.rho_angle *= self.rho_power / old_rho
 
         # Update prices
+        rho_power, rho_angle = self.get_rho()  # Use this to set rho in case rho_angle is None
         if self.rho_power != old_rho:
             st = st.update(
                 dual_power=st.dual_power * (old_rho / self.rho_power),
                 dual_phase=nested_ax(st.dual_phase, old_rho / self.rho_power),
+                rho_power=rho_power,
+                rho_angle=rho_angle,
             )
 
         return st
@@ -541,7 +547,10 @@ class ADMMSolver:
 
         self.rho_power = self.tweak_rho(old_rho, primal_resid, dual_resid, name="power")
         if self.rho_power != old_rho:
-            st = st.update(dual_power=st.dual_power * (old_rho / self.rho_power))
+            st = st.update(
+                dual_power=st.dual_power * (old_rho / self.rho_power),
+                rho_power=self.rho_power,
+            )
 
         # Now adjust angle
         primal_resid, dual_resid = history.phase[-1], history.dual_phase[-1]
@@ -554,7 +563,10 @@ class ADMMSolver:
 
         self.rho_angle = self.tweak_rho(old_rho, primal_resid, dual_resid, name="angle")
         if self.rho_angle != old_rho:
-            st = st.update(dual_phase=nested_ax(st.dual_phase, old_rho / self.rho_angle))
+            st = st.update(
+                dual_phase=nested_ax(st.dual_phase, old_rho / self.rho_angle),
+                rho_angle=self.rho_angle,
+            )
 
         return st
 
@@ -711,6 +723,7 @@ class ADMMSolver:
             ]
         clone_phase = theta_bar.clone().detach()
 
+        rho_power, rho_angle = self.get_rho()
         return ADMMState(
             num_terminals=num_terminals,
             num_ac_terminals=num_ac_terminals,
@@ -724,4 +737,6 @@ class ADMMSolver:
             resid_phase=theta_tilde,
             clone_power=clone_power,
             clone_phase=clone_phase,
+            rho_power=rho_power,
+            rho_angle=rho_angle,
         )
