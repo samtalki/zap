@@ -1,6 +1,9 @@
 # zap ⚡
 
 
+## Documentation
+
+See the [documentation page](https://degleris1.github.io/zap/).
 
 
 ## Installation
