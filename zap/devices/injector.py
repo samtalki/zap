@@ -32,7 +32,7 @@ class AbstractInjector(AbstractDevice):
     @property
     def terminals(self):
         return self.terminal
-
+    
     @property
     def time_horizon(self):
         return get_time_horizon(self.min_power)
