@@ -318,6 +318,7 @@ class Load(AbstractInjector):
     load: NDArray = field(converter=make_dynamic)
     linear_cost: NDArray = field(converter=make_dynamic)
     quadratic_cost: Optional[NDArray] = field(default=None, converter=make_dynamic)
+    income: Optional[NDArray] = field(default=None, converter=make_dynamic)
 
     @property
     def min_power(self):
@@ -334,6 +335,21 @@ class Load(AbstractInjector):
     @property
     def emission_rates(self):
         return None
+    
+    def get_burden(self, load_price, poverty_threshold=None, la=np):
+        """Computes the energy welfare of the load given incomes."""
+        if self.income is None:
+            return 0.0 # No income, no welfare.
+
+        # Compute the energy burden--ratio of cost paid by load to income
+        burden = la.divide(la.multiply(load_price, self.load),self.income)    
+        
+        if poverty_threshold is None:
+            # No poverty threshold, return the total burden
+            return la.sum(burden)
+        else: # Compute burden only for those below the poverty threshold
+            below_threshold = burden < poverty_threshold
+            return la.sum(burden[below_threshold])
 
     def sample_time(self, time_periods, original_time_horizon):
         dev = super().sample_time(time_periods, original_time_horizon)
