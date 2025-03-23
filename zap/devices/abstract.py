@@ -169,6 +169,9 @@ class AbstractDevice:
 
     def get_emissions(self, power, **kwargs):
         return 0.0
+    
+    def get_burden(self, price, **kwargs):
+        return 0.0
 
     def sample_time(self, time_periods, original_time_horizon):
         new_device = deepcopy(self)
