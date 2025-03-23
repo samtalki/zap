@@ -140,3 +140,36 @@ class EmissionsObjective(AbstractOperationObjective):
     @property
     def is_linear(self):
         return True
+
+
+class BurdenObjective(AbstractOperationObjective):
+    """Total energy burden of the dispatch outcome."""
+
+    def __init__(self, devices: list[AbstractDevice]):
+        self.devices = devices
+
+        if getattr(devices[0], "torched", False):
+            self.torch_devices = devices
+            self.torched = True
+        else:
+            self.torch_devices = [d.torchify(machine="cpu") for d in devices]
+            self.torched = False
+
+    def forward(self, y: DispatchOutcome, parameters=None, la=None):
+        if la is None:
+            la = torch if self.torched else np
+
+        devices = self.torch_devices if la == torch else self.devices
+        burden = [
+            d.get_burden(r, **param, la=la) for r, d, param in zip(y.prices, devices, parameters)
+        ]
+
+        return sum(burden)
+    
+    @property
+    def is_convex(self):
+        return True
+    
+    @property
+    def is_linear(self):
+        return True
