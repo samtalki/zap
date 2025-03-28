@@ -359,4 +359,4 @@ def _admm_prox_update(power: list[torch.Tensor], rho: float, lin_cost, quad_cost
     # Finally, we project onto the box constraints
     p = torch.clip(p, pmin, pmax)
 
-    return [p], None
+    return [p], None, None

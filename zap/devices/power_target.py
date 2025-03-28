@@ -112,7 +112,7 @@ def _admm_prox_update_l2(
 
     p = (weights * target_power + rho * power[0]) / (weights + rho)
 
-    return [p], None
+    return [p], None, None
 
 
 @torch.jit.script
@@ -146,4 +146,4 @@ def _admm_prox_update_l1(
 
     p = p_big + p_small + p_mid
 
-    return [p], None
+    return [p], None, None
