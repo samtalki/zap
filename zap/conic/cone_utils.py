@@ -1,8 +1,11 @@
 import numpy as np
 import cvxpy as cp
 import math
+import torch
 from scipy.sparse import coo_matrix
 from collections import deque
+from zap.conic.variable_device import VariableDevice
+from zap.conic.slack_device import SecondOrderConeSlackDevice
 
 
 def get_standard_conic_problem(problem, solver):
@@ -28,6 +31,37 @@ def get_standard_conic_problem(problem, solver):
     }
 
     return cone_params, data, cones
+
+
+def get_conic_solution(solution, cone_bridge):
+    """
+    Given an admm solution, return the primal and slack variables.
+    """
+    x = []
+    s = []
+    for idx, device in enumerate(cone_bridge.devices):
+        # Parse Variable Devices
+        if type(device) is VariableDevice:
+            tensor_list = [t.squeeze() for t in solution.power[idx]]
+            p_tensor = torch.stack(tensor_list, dim=0).flatten()
+
+            A_v = torch.tensor(device.A_v, dtype=torch.float32)
+            A_expanded = torch.cat([torch.diag(A_v[i]) for i in range(A_v.shape[0])], dim=0)
+
+            x_recovered = torch.linalg.lstsq(A_expanded, p_tensor).solution
+            x.extend(x_recovered.view(-1).tolist())
+
+        # Parse SOC Slacks
+        elif type(device) is SecondOrderConeSlackDevice:
+            soc_slacks = np.concatenate([t.flatten().numpy() for t in solution.power[idx]])
+
+            s.extend(soc_slacks + device.b_d.flatten())
+        # Parse Zero Cone and Nonnegative Slacks
+        else:
+            cone_slacks = solution.power[idx][0].flatten()
+            s.extend(cone_slacks + device.b_d.flatten())
+
+    return x, s
 
 
 ### MAX NETWORK FLOW UTILS ###
@@ -108,7 +142,7 @@ def adjacency_to_incidence(adj):
     return coo_matrix((data, (row, col)), shape=(n_nodes, n_edges)).tocsc()
 
 
-def generate_max_flow_problem(n, seed=42):
+def generate_max_flow_problem(n, quad_obj = False, gamma = 1.0, seed=42):
     """
     Generate a random max flow problem with n nodes
     """
@@ -138,7 +172,11 @@ def generate_max_flow_problem(n, seed=42):
     constraints = []
     constraints.append(f <= capacities)
     constraints.append(inc @ f == b)
-    obj = c @ f
+    if (quad_obj):
+        # -f^TQf + c^Tf, where Q = gamma*I
+        obj = -gamma*cp.sum_squares(f) + c @ f
+    else:
+        obj = c @ f
     problem = cp.Problem(cp.Maximize(obj), constraints)
 
     return problem, adj, inc

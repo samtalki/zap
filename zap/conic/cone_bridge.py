@@ -3,7 +3,11 @@ import cvxpy as cp
 
 from zap.network import PowerNetwork
 from .variable_device import VariableDevice
-from .slack_device import ZeroConeSlackDevice, NonNegativeConeSlackDevice
+from .slack_device import (
+    ZeroConeSlackDevice,
+    NonNegativeConeSlackDevice,
+    SecondOrderConeSlackDevice,
+)
 from scipy.sparse import csc_matrix, isspmatrix_csc
 
 
@@ -81,11 +85,35 @@ class ConeBridge:
         """
 
         num_zero_cone = self.K["z"]
-        # num_nonneg_cone = self.K["l"]
-        slack_indices = np.arange(self.b.shape[0])
+        num_nonneg_cone = self.K["l"]
+        # This is like self.terminal_groups for variable devices
+        self.soc_terminal_groups = np.sort(np.unique(self.K["q"]))
+        self.soc_blocks = self.K["q"]
+        self.slack_indices = np.arange(self.b.shape[0])
 
-        self.zero_cone_slacks = list(zip(slack_indices[:num_zero_cone], self.b[:num_zero_cone]))
-        self.nonneg_cone_slacks = list(zip(slack_indices[num_zero_cone:], self.b[num_zero_cone:]))
+        # Group zero cone slacks
+        self.zero_cone_slacks = list(
+            zip(self.slack_indices[:num_zero_cone], self.b[:num_zero_cone])
+        )
+
+        # Group nonneg cone slacks
+        start_nonneg = num_zero_cone
+        end_nonneg = start_nonneg + num_nonneg_cone
+        self.nonneg_cone_slacks = list(
+            zip(self.slack_indices[start_nonneg:end_nonneg], self.b[start_nonneg:end_nonneg])
+        )
+
+        # Group SOC cone slacks
+        # We are creating a dict like {block_size: [(start, end), ...]}
+        # where each entry corresponds to a block of SOC slacks,
+        # and each tuple in the list is for a block (device) of that size
+        self.soc_block_idxs_dict = {group_size: [] for group_size in self.soc_terminal_groups}
+        soc_start = end_nonneg
+        for block_size in self.soc_blocks:
+            start = soc_start
+            end = soc_start + block_size
+            self.soc_block_idxs_dict[block_size].append((start, end))
+            soc_start += block_size
 
     def _create_slack_devices(self):
         if self.zero_cone_slacks:
@@ -105,6 +133,20 @@ class ConeBridge:
                 b_d=np.array(b_d_values),
             )
             self.devices.append(nonneg_cone_device)
+
+        # Create SOC devices
+        for group_idx, num_terminals_per_device in enumerate(self.soc_terminal_groups):
+            group_slices = self.soc_block_idxs_dict[num_terminals_per_device]
+            b_d_array = np.column_stack([self.b[start:end] for (start, end) in group_slices])
+            terminal_device_array = np.row_stack(
+                [self.slack_indices[start:end] for (start, end) in group_slices]
+            )
+            soc_cone_device = SecondOrderConeSlackDevice(
+                num_nodes=self.net.num_nodes,
+                terminals=terminal_device_array,
+                b_d=b_d_array,
+            )
+            self.devices.append(soc_cone_device)
 
     def solve(self, solver=cp.CLARABEL, **kwargs):
         return self.net.dispatch(
