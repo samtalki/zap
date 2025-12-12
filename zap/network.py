@@ -64,11 +64,16 @@ class DispatchOutcome(Sequence):
     @cached_property
     def shape(self):
         mu_shape = [np.shape(mu) for mu in self.phase_duals]
-        lambda_eq_shape = [[np.shape(lam_k) for lam_k in lam] for lam in self.local_equality_duals]
+        lambda_eq_shape = [
+            [np.shape(lam_k) for lam_k in lam] for lam in self.local_equality_duals
+        ]
         lambda_ineq_shape = [
             [np.shape(lam_k) for lam_k in lam] for lam in self.local_inequality_duals
         ]
-        u_shape = [[] if u is None else [np.shape(u_k) for u_k in u] for u in self.local_variables]
+        u_shape = [
+            [] if u is None else [np.shape(u_k) for u_k in u]
+            for u in self.local_variables
+        ]
         p_shape = [np.shape(p) for p in self.power]
         a_shape = [np.shape(a) for a in self.angle]
         prices_shape = np.shape(self.prices)
@@ -134,7 +139,9 @@ class DispatchOutcome(Sequence):
         if len(shape) > 0 and isinstance(shape[0], (list, tuple)):
             subblocks = []
             for shape_k in shape:
-                new_block, offset = self._build_blocks_recursively(shape_k, subblocks, offset)
+                new_block, offset = self._build_blocks_recursively(
+                    shape_k, subblocks, offset
+                )
                 subblocks += [new_block]
 
             return subblocks, offset
@@ -163,7 +170,9 @@ class DispatchOutcome(Sequence):
 
     def vectorize(self):
         # Duals
-        mu = self._safe_cat([np.array(mu).ravel() for mu in self.phase_duals if mu is not None])
+        mu = self._safe_cat(
+            [np.array(mu).ravel() for mu in self.phase_duals if mu is not None]
+        )
         lambda_eq = [
             self._safe_cat([lam.ravel() for lam in lambda_eq])
             for lambda_eq in self.local_equality_duals
@@ -175,7 +184,9 @@ class DispatchOutcome(Sequence):
 
         # Primals
         u = [
-            np.concatenate([ui.ravel() for ui in u]) for u in self.local_variables if u is not None
+            np.concatenate([ui.ravel() for ui in u])
+            for u in self.local_variables
+            if u is not None
         ]
         p = self._safe_cat([np.array(p).ravel() for p in self.power])
         a = self._safe_cat([np.array(a).ravel() for a in self.angle if a is not None])
@@ -231,12 +242,16 @@ class PowerNetwork:
 
     num_nodes: int
 
-    def operation_cost(self, devices, power, angle, local_variables, parameters=None, la=np):
+    def operation_cost(
+        self, devices, power, angle, local_variables, parameters=None, la=np
+    ):
         parameters = expand_params(parameters, devices)
 
         costs = [
             d.operation_cost(p, v, u, **param, la=la)
-            for d, p, v, u, param in zip(devices, power, angle, local_variables, parameters)
+            for d, p, v, u, param in zip(
+                devices, power, angle, local_variables, parameters
+            )
         ]
         return sum(costs)
 
@@ -266,12 +281,18 @@ class PowerNetwork:
 
         # Create contingency variables
         global_angle_cont = [
-            cp.Variable((self.num_nodes, time_horizon)) for _ in range(num_contingencies)
+            cp.Variable((self.num_nodes, time_horizon))
+            for _ in range(num_contingencies)
         ]
-        power_cont = [devices[cd].initialize_power(time_horizon) for _ in range(num_contingencies)]
-        angle_cont = [devices[cd].initialize_angle(time_horizon) for _ in range(num_contingencies)]
+        power_cont = [
+            devices[cd].initialize_power(time_horizon) for _ in range(num_contingencies)
+        ]
+        angle_cont = [
+            devices[cd].initialize_angle(time_horizon) for _ in range(num_contingencies)
+        ]
         local_cont = [
-            devices[cd].model_local_variables(time_horizon) for _ in range(num_contingencies)
+            devices[cd].model_local_variables(time_horizon)
+            for _ in range(num_contingencies)
         ]
 
         # Model base case
@@ -285,7 +306,9 @@ class PowerNetwork:
 
             # Power balance
             pc = [power_cont[c] if i == cd else p for i, p in enumerate(power)]
-            pow_bal_cont = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, pc)])
+            pow_bal_cont = cp.sum(
+                [get_net_power(d, p, la=cp) for d, p in zip(devices, pc)]
+            )
             pow_bal_cont = pow_bal_cont == 0
 
             # Phase consistency
@@ -351,7 +374,9 @@ class PowerNetwork:
             assert lower_param is not None
             assert upper_param is not None
 
-            device_envelopes = [(envelope, lb, ub) for lb, ub in zip(lower_param, upper_param)]
+            device_envelopes = [
+                (envelope, lb, ub) for lb, ub in zip(lower_param, upper_param)
+            ]
         else:
             lower_param = [None for _ in devices]
             upper_param = [None for _ in devices]
@@ -369,24 +394,40 @@ class PowerNetwork:
         # Model constraints
         if dual:
             # Swap constraints
-            net_power = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, angle)])
-            phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, power)]
+            net_power = cp.sum(
+                [get_net_power(d, p, la=cp) for d, p in zip(devices, angle)]
+            )
+            phase_consistency = [
+                match_phases(d, v, global_angle) for d, v in zip(devices, power)
+            ]
 
         else:  # Primal
-            net_power = cp.sum([get_net_power(d, p, la=cp) for d, p in zip(devices, power)])
-            phase_consistency = [match_phases(d, v, global_angle) for d, v in zip(devices, angle)]
+            net_power = cp.sum(
+                [get_net_power(d, p, la=cp) for d, p in zip(devices, power)]
+            )
+            phase_consistency = [
+                match_phases(d, v, global_angle) for d, v in zip(devices, angle)
+            ]
 
         power_balance = net_power == 0
 
         local_equalities = [
-            [hi == 0 for hi in d.equality_constraints(p, v, u, **param, la=cp, envelope=env)]
+            [
+                hi == 0
+                for hi in d.equality_constraints(p, v, u, **param, la=cp, envelope=env)
+            ]
             for d, p, v, u, param, env in zip(
                 devices, power, angle, local_variables, parameters, device_envelopes
             )
         ]
 
         local_inequalities = [
-            [gi <= 0 for gi in d.inequality_constraints(p, v, u, **param, la=cp, envelope=env)]
+            [
+                gi <= 0
+                for gi in d.inequality_constraints(
+                    p, v, u, **param, la=cp, envelope=env
+                )
+            ]
             for d, p, v, u, param, env in zip(
                 devices, power, angle, local_variables, parameters, device_envelopes
             )
@@ -493,7 +534,10 @@ class PowerNetwork:
         objective = cp.Minimize(cp.sum(costs))
         problem = cp.Problem(objective, constraints)
         problem.solve(solver=solver, **solver_kwargs)
-        assert problem.status in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]
+        assert problem.status in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE], (
+            f"CVXPY solver failed with status: {problem.status}. "
+            f"Objective value: {problem.value}"
+        )
 
         # Evaluate variables
         power = nested_evaluate(power)
@@ -506,12 +550,19 @@ class PowerNetwork:
             power=power,
             angle=angle,
             local_variables=local_variables,
-            prices=None if isinstance(power_balance, bool) else -power_balance.dual_value,
+            prices=None
+            if isinstance(power_balance, bool)
+            else -power_balance.dual_value,
             phase_duals=[
-                [pci.dual_value for pci in pc] if len(pc) > 0 else None for pc in phase_consistency
+                [pci.dual_value for pci in pc] if len(pc) > 0 else None
+                for pc in phase_consistency
             ],
-            local_equality_duals=[[lci.dual_value for lci in lc] for lc in local_equalities],
-            local_inequality_duals=[[lci.dual_value for lci in lc] for lc in local_inequalities],
+            local_equality_duals=[
+                [lci.dual_value for lci in lc] for lc in local_equalities
+            ],
+            local_inequality_duals=[
+                [lci.dual_value for lci in lc] for lc in local_inequalities
+            ],
             problem=problem,
             ground=ground,
         )
@@ -538,7 +589,9 @@ class PowerNetwork:
         kkt_local_inequalities = [
             [
                 la.multiply(hi, lamb_i)
-                for hi, lamb_i in zip(d.inequality_constraints(p, a, u, la=la, **param), lamb)
+                for hi, lamb_i in zip(
+                    d.inequality_constraints(p, a, u, la=la, **param), lamb
+                )
             ]
             for d, p, a, u, param, lamb in zip(
                 devices, power, angle, local_vars, parameters, lambda_ineq
@@ -583,7 +636,9 @@ class PowerNetwork:
         )
 
     def _kkt_power_balance(self, devices, dispatch_outcome, la=np):
-        net_powers = [get_net_power(d, p, la=la) for d, p in zip(devices, dispatch_outcome.power)]
+        net_powers = [
+            get_net_power(d, p, la=la) for d, p in zip(devices, dispatch_outcome.power)
+        ]
         return sum(net_powers)  # , axis=0) (No axis because we use built-in sum)
 
     def _kkt_global_angle(self, devices, dispatch_outcome, la=np):
@@ -613,7 +668,9 @@ class PowerNetwork:
 
         return phase_diffs
 
-    def kkt_jacobian_variables(self, devices, x: DispatchOutcome, parameters=None, vectorize=True):
+    def kkt_jacobian_variables(
+        self, devices, x: DispatchOutcome, parameters=None, vectorize=True
+    ):
         parameters = expand_params(parameters, devices)
 
         if x.ground is not None:
@@ -641,7 +698,9 @@ class PowerNetwork:
 
         jac = DispatchOutcome(
             *[
-                DispatchOutcome(*[sp.coo_matrix((dims[row], dims[col])) for col in range(len(x))])
+                DispatchOutcome(
+                    *[sp.coo_matrix((dims[row], dims[col])) for col in range(len(x))]
+                )
                 for row in range(len(x))
             ]
         )
@@ -665,10 +724,17 @@ class PowerNetwork:
             )
         ]
 
-        A_p = sp.block_diag([_blockify(eqm, p, "power") for eqm, p in zip(eq_mats, x.power)])
-        A_a = sp.block_diag([_blockify(eqm, a, "angle") for eqm, a in zip(eq_mats, x.angle)])
+        A_p = sp.block_diag(
+            [_blockify(eqm, p, "power") for eqm, p in zip(eq_mats, x.power)]
+        )
+        A_a = sp.block_diag(
+            [_blockify(eqm, a, "angle") for eqm, a in zip(eq_mats, x.angle)]
+        )
         A_u = sp.block_diag(
-            [_blockify(eqm, u, "local_variables") for eqm, u in zip(eq_mats, x.local_variables)]
+            [
+                _blockify(eqm, u, "local_variables")
+                for eqm, u in zip(eq_mats, x.local_variables)
+            ]
         )
 
         jac.local_equality_duals.power = A_p
@@ -678,7 +744,9 @@ class PowerNetwork:
         # Part 3 - Local inequcality duals (local)
         inequalities = x._safe_cat(
             [
-                x._safe_cat([hi.ravel() for hi in d.inequality_constraints(p, a, u, **param)])
+                x._safe_cat(
+                    [hi.ravel() for hi in d.inequality_constraints(p, a, u, **param)]
+                )
                 for d, p, a, u, param in zip(
                     devices, x.power, x.angle, x.local_variables, parameters
                 )
@@ -697,8 +765,12 @@ class PowerNetwork:
             )
         ]
 
-        C_p = sp.block_diag([_blockify(ineqm, p, "power") for ineqm, p in zip(ineq_mats, x.power)])
-        C_a = sp.block_diag([_blockify(ineqm, a, "angle") for ineqm, a in zip(ineq_mats, x.angle)])
+        C_p = sp.block_diag(
+            [_blockify(ineqm, p, "power") for ineqm, p in zip(ineq_mats, x.power)]
+        )
+        C_a = sp.block_diag(
+            [_blockify(ineqm, a, "angle") for ineqm, a in zip(ineq_mats, x.angle)]
+        )
         C_u = sp.block_diag(
             [
                 _blockify(ineqm, u, "local_variables")
@@ -719,8 +791,12 @@ class PowerNetwork:
 
         # Part 4 - Local variables (local)
         local_hessians = [
-            sp.block_diag(d.hessian_local_variables(p, a, u, **param))  # Block diagonal by var
-            for d, p, a, u, param in zip(devices, x.power, x.angle, x.local_variables, parameters)
+            sp.block_diag(
+                d.hessian_local_variables(p, a, u, **param)
+            )  # Block diagonal by var
+            for d, p, a, u, param in zip(
+                devices, x.power, x.angle, x.local_variables, parameters
+            )
         ]
         H_u = sp.block_diag(local_hessians)
 
@@ -730,8 +806,12 @@ class PowerNetwork:
 
         # Part 5 - Power (interface)
         power_hessians = [
-            sp.block_diag(d.hessian_power(p, a, u, **param))  # Block diagonal by terminal
-            for d, p, a, u, param in zip(devices, x.power, x.angle, x.local_variables, parameters)
+            sp.block_diag(
+                d.hessian_power(p, a, u, **param)
+            )  # Block diagonal by terminal
+            for d, p, a, u, param in zip(
+                devices, x.power, x.angle, x.local_variables, parameters
+            )
         ]
         H_p = sp.block_diag(power_hessians)
 
@@ -742,8 +822,12 @@ class PowerNetwork:
 
         # Part 6 - Angle (interface)
         angle_hessians = [
-            sp.block_diag(d.hessian_angle(p, a, u, **param))  # Block diagonal by terminal
-            for d, p, a, u, param in zip(devices, x.power, x.angle, x.local_variables, parameters)
+            sp.block_diag(
+                d.hessian_angle(p, a, u, **param)
+            )  # Block diagonal by terminal
+            for d, p, a, u, param in zip(
+                devices, x.power, x.angle, x.local_variables, parameters
+            )
         ]
         H_a = sp.block_diag(angle_hessians)
 
@@ -766,7 +850,9 @@ class PowerNetwork:
         jac.global_angle.phase_duals = angle_incidence
 
         if vectorize:
-            return sp.vstack([sp.hstack([Jij for Jij in Ji]) for Ji in jac], format="csc")
+            return sp.vstack(
+                [sp.hstack([Jij for Jij in Ji]) for Ji in jac], format="csc"
+            )
         else:
             return jac
 
@@ -793,7 +879,9 @@ class PowerNetwork:
             grad = grad.vectorize()
 
         # start = time.time()
-        jac = self.kkt_jacobian_variables(devices, x, parameters=parameters, vectorize=True)
+        jac = self.kkt_jacobian_variables(
+            devices, x, parameters=parameters, vectorize=True
+        )
         # print("Build Jacobian: ", time.time() - start)
 
         # Transpose and regularize
@@ -921,7 +1009,9 @@ def nested_evaluate(variable):
     # Base cases
     if variable is None:
         return None
-    if isinstance(variable, cp.Variable):  # This eval has to come before the Sequence eval
+    if isinstance(
+        variable, cp.Variable
+    ):  # This eval has to come before the Sequence eval
         return variable.value
 
     # Recursive case
