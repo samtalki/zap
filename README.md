@@ -5,9 +5,6 @@
 
 See the [documentation page](https://degleris1.github.io/zap/) for installation, basic usage, and examples.
 
-
-
-
 ## Developer Setup
 
 For developers, we recommend installing [poetry](https://python-poetry.org/docs/).
@@ -18,6 +15,7 @@ git clone https://github.com/degleris1/zap.git
 cd zap
 poetry install --all-extras --with experiment
 poetry shell  # Start a shell in a local virtual environment
+pre-commit install
 ```
 
 Then run Python from the subshell.
@@ -56,4 +54,15 @@ If you also used the gradient-based planning methods, please also cite our paper
   year={2024}
 }
 
+```
+
+If you use this package for solving network utility maximization problems, please cite our paper ([preprint](https://arxiv.org/abs/2509.10722)):
+
+```bibtex
+@article{sreekumar2025num,
+  title={Large-Scale Network Utility Maximization via GPU-Accelerated Proximal Message Passing},
+  author={Akshay Sreekumar and Anthony Degleris and Ram Rajagopal},
+  journal={arXiv preprint arXiv:2509.10722},
+  year={2025},
+}
 ```
